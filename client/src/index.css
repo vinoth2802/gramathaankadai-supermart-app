@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Thin scrollbar for reports sidebar */
+.reports-sidebar::-webkit-scrollbar        { width: 4px; }
+.reports-sidebar::-webkit-scrollbar-track  { background: transparent; }
+.reports-sidebar::-webkit-scrollbar-thumb  { background: #cbd5e1; border-radius: 9999px; }
+.reports-sidebar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }

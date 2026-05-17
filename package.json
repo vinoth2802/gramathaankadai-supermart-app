@@ -1,0 +1,16 @@
+{
+  "name": "gramathaankadai-supermart-app",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.1.2+sha512.415a1cc25974731e75455c1468371be74c5aa5fb7621b50d4056d222451609f11412f23fd602e6169f1e060466641f798597e1be961a10688836a67b16569499",
+  "scripts": {
+    "dev": "concurrently -n server,client -c cyan,magenta \"pnpm --filter server dev\" \"pnpm --filter client dev\"",
+    "build": "pnpm --filter client build",
+    "db:up": "docker compose up -d postgres pgadmin",
+    "db:migrate": "docker compose --profile migrate run --rm flyway",
+    "db:down": "docker compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}

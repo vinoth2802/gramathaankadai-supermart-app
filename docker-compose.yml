@@ -1,0 +1,85 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: postgres-db
+
+    # PostgreSQL environment variables
+    environment:
+      POSTGRES_DB: gramathaankadai_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+    # Expose PostgreSQL port
+    ports:
+      - "5433:5432"
+
+    # Persist PostgreSQL data
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    # Restart policy
+    restart: unless-stopped
+
+    # PostgreSQL health check
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gramathaankadai_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+
+    # pgAdmin login credentials
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+
+    # Expose pgAdmin UI
+    ports:
+      - "5050:80"
+
+    # Persist pgAdmin data
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+    # Wait for postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    # Restart policy
+    restart: unless-stopped
+
+  flyway:
+    image: flyway/flyway:10
+
+    # Run Flyway migrations
+    command: migrate
+
+    # Flyway DB configuration
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/gramathaankadai_db
+      FLYWAY_USER: postgres
+      FLYWAY_PASSWORD: postgres
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+
+    # Mount migration scripts
+    volumes:
+      - ./db/migrations:/flyway/sql
+
+    # Wait for postgres health check
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    # Run only with migrate profile
+    profiles:
+      - migrate
+
+volumes:
+  postgres_data:
+  pgadmin_data:
