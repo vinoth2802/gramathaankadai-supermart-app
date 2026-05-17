@@ -6,11 +6,11 @@
   "scripts": {
     "dev": "concurrently -n server,client -c cyan,magenta \"pnpm --filter server dev\" \"pnpm --filter client dev\"",
     "build": "pnpm --filter client build",
-    "db:up": "docker compose up -d postgres pgadmin",
-    "db:migrate": "docker compose --profile migrate run --rm flyway",
-    "db:down": "docker compose down"
+    "db:up": "podman compose up -d postgres",
+    "db:migrate": "podman compose --profile migrate run --rm flyway",
+    "db:down": "podman compose down"
   },
   "devDependencies": {
-    "concurrently": "^9.0.1"
+    "concurrently": "^9.0.1" 
   }
 }
