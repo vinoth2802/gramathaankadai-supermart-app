@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Stock Check - SuperMart</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    .critical { background-color: #fff1f2 !important; }
+    .low-s    { background-color: #fffbeb !important; }
+    .normal   { background-color: #f0fdf4 !important; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+<div id="sidebar-container"></div>
+<div class="ml-64 min-h-screen p-8">
+
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-800">Stock Check & Reorder Alerts</h1>
+      <p class="text-slate-500 text-sm mt-0.5">Monitor stock levels and set reorder thresholds</p>
+    </div>
+    <div id="user-info"></div>
+  </div>
+
+  <!-- Alert banner -->
+  <div class="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 mb-5 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center">
+        <i class="fas fa-bell text-amber-600"></i>
+      </div>
+      <div>
+        <p class="text-sm font-semibold text-amber-800">Reorder Alerts</p>
+        <p id="alertCount" class="text-xs text-amber-600 font-medium">0 items need reorder</p>
+      </div>
+    </div>
+    <button onclick="printReorderList()" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-2">
+      <i class="fas fa-print"></i> Print Reorder List
+    </button>
+  </div>
+
+  <!-- Filter controls -->
+  <div class="flex flex-wrap gap-3 mb-5">
+    <button onclick="filterStock('all')"    class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition">All Items</button>
+    <button onclick="filterStock('reorder')" class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition">Needs Reorder</button>
+    <button onclick="filterStock('low')"     class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition">Low Stock</button>
+    <button onclick="loadStock()"            class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm font-semibold transition ml-auto flex items-center gap-2">
+      <i class="fas fa-sync"></i> Refresh
+    </button>
+  </div>
+
+  <!-- Search -->
+  <div class="relative mb-5">
+    <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+    <input type="text" id="stockSearch" placeholder="Search item by name or code..."
+           onkeyup="filterStock('all')"
+           class="w-full border border-slate-300 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 text-sm text-slate-800 bg-white">
+  </div>
+
+  <!-- Table -->
+  <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-slate-200">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-800 text-white">
+        <tr>
+          <th class="px-4 py-3.5 text-left font-semibold text-xs uppercase tracking-wide">#</th>
+          <th class="px-4 py-3.5 text-left font-semibold text-xs uppercase tracking-wide">Item Name</th>
+          <th class="px-4 py-3.5 text-left font-semibold text-xs uppercase tracking-wide">Code</th>
+          <th class="px-4 py-3.5 text-left font-semibold text-xs uppercase tracking-wide">UOM</th>
+          <th class="px-4 py-3.5 text-center font-semibold text-xs uppercase tracking-wide">Stock</th>
+          <th class="px-4 py-3.5 text-center font-semibold text-xs uppercase tracking-wide">Reorder Level</th>
+          <th class="px-4 py-3.5 text-left font-semibold text-xs uppercase tracking-wide">Status</th>
+        </tr>
+      </thead>
+      <tbody id="stockBody"></tbody>
+    </table>
+  </div>
+
+</div>
+<script src="/src/api/client.js"></script>
+<script src="/src/api/items.api.js"></script>
+<script src="/src/utils/formatters.js"></script>
+<script src="/src/components/sidebar.js"></script>
+<script>
+checkAuth(); logAudit('STOCK_CHECK_PAGE_OPENED',{});
+let allProducts=[];
+const DEFAULT_REORDER=10;
+
+async function loadStock(){
+  allProducts=await ItemsAPI.getAll();
+  renderStockTable(allProducts); updateAlertSummary();
+}
+
+function updateAlertSummary(){
+  const n=allProducts.filter(p=>(p.stock||0)<=(p.reorderLevel||DEFAULT_REORDER)).length;
+  document.getElementById('alertCount').textContent=`${n} item${n!==1?'s':''} need reorder`;
+}
+
+function renderStockTable(products){
+  document.getElementById('stockBody').innerHTML=products.length===0
+    ? `<tr><td colspan="7" class="px-4 py-12 text-center text-slate-400">No items found.</td></tr>`
+    : products.map((p,i)=>{
+      const stock=p.stock||0; const rl=p.reorderLevel||DEFAULT_REORDER;
+      let rowClass,badge;
+      if(stock<=rl){
+        rowClass='critical';
+        badge='<span class="text-xs bg-rose-100 text-rose-700 px-2.5 py-1 rounded-full font-bold">Critical</span>';
+      } else if(stock<=rl+5){
+        rowClass='low-s';
+        badge='<span class="text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-bold">Low Stock</span>';
+      } else {
+        rowClass='normal';
+        badge='<span class="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-semibold">Normal</span>';
+      }
+      return `<tr class="${rowClass} border-b border-slate-100">
+        <td class="px-4 py-3 text-slate-400 text-xs">${i+1}</td>
+        <td class="px-4 py-3 font-medium text-slate-800">${p.shortName||p.name||'Unnamed'}</td>
+        <td class="px-4 py-3 text-slate-500 text-xs font-mono">${p.itemCode||'—'}</td>
+        <td class="px-4 py-3 text-slate-500">${p.uom||'PCS'}</td>
+        <td class="px-4 py-3 text-center text-xl font-bold ${stock<=5?'text-rose-600':'text-emerald-600'}">${stock}</td>
+        <td class="px-4 py-3 text-center">
+          <input type="number" value="${rl}" onchange="updateReorderLevel(${p.id},this.value)"
+                 class="w-20 border border-slate-300 rounded-lg px-2 py-1 text-center text-sm focus:outline-none focus:border-amber-500"></td>
+        <td class="px-4 py-3">${badge}</td>
+      </tr>`;
+    }).join('');
+}
+
+async function updateReorderLevel(id,val){
+  const level=parseInt(val); if(isNaN(level)||level<0) return;
+  const p=allProducts.find(x=>x.id===id); if(!p) return;
+  p.reorderLevel=level;
+  await ItemsAPI.update(p); updateAlertSummary();
+}
+
+function filterStock(mode){
+  const term=document.getElementById('stockSearch').value.toLowerCase().trim();
+  let filtered=allProducts;
+  if(term) filtered=filtered.filter(p=>(p.shortName||p.name||'').toLowerCase().includes(term)||(p.itemCode||'').toLowerCase().includes(term));
+  if(mode==='reorder') filtered=filtered.filter(p=>(p.stock||0)<=(p.reorderLevel||DEFAULT_REORDER));
+  else if(mode==='low') filtered=filtered.filter(p=>{const rl=p.reorderLevel||DEFAULT_REORDER;return (p.stock||0)<=rl+5&&(p.stock||0)>rl;});
+  renderStockTable(filtered);
+}
+
+function printReorderList(){
+  const list=allProducts.filter(p=>(p.stock||0)<=(p.reorderLevel||DEFAULT_REORDER));
+  if(!list.length) return alert('No items need reorder at this time.');
+  const win=window.open('','_blank');
+  win.document.write(`<html><head><title>Reorder List</title><style>body{font-family:Arial;padding:40px;}h2{color:#b45309;text-align:center;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #e2e8f0;padding:10px;}th{background:#fef3c7;color:#92400e;}</style></head><body>
+    <h2>Stock Reorder List - SuperMart</h2><p>Date: ${new Date().toLocaleDateString('en-IN')}</p>
+    <table><tr><th>S.No</th><th>Item Name</th><th>Current Stock</th><th>Reorder Level</th><th>Action</th></tr>
+    ${list.map((p,i)=>`<tr><td>${i+1}</td><td>${p.shortName||p.name}</td><td>${p.stock||0}</td><td>${p.reorderLevel||DEFAULT_REORDER}</td><td>URGENT REORDER</td></tr>`).join('')}
+    </table></body></html>`);
+  win.document.close(); setTimeout(()=>win.print(),500);
+}
+
+loadStock();
+</script>
+</body>
+</html>

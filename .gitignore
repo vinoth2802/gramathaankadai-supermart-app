@@ -1,0 +1,75 @@
+# Dependencies
+node_modules/
+.vscode/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+
+# Build output
+dist/
+build/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Cache
+.cache/
+.parcel-cache/
+
+# Next.js
+.next/
+
+# Vite
+vite.config.ts.timestamp-*
+
+# TypeScript
+*.tsbuildinfo
+
+# Temporary files
+tmp/
+temp/
+
+# React Native
+.expo/
+.expo-shared/
+
+# Express uploads or generated files
+uploads/
+generated/
+
+# PM2
+.pm2/
+
+# Docker
+docker-data/
+
+# Test reports
+test-results/
+
+# Mac/Linux hidden files
+*.swp
+*.swo

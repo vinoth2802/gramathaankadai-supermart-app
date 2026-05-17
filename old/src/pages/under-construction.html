@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Under Construction - SuperMart</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body class="bg-slate-50 min-h-screen">
+  <div id="sidebar-container"></div>
+  <div class="ml-64 min-h-screen flex items-center justify-center">
+    <div class="text-center max-w-sm">
+      <div class="w-24 h-24 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+        <i class="fas fa-hammer text-amber-500 text-4xl"></i>
+      </div>
+      <h1 class="text-3xl font-bold text-slate-800 mb-3">Under Construction</h1>
+      <p class="text-slate-500 mb-1">This page is being built.</p>
+      <p id="pageName" class="text-amber-600 font-semibold text-sm mb-8"></p>
+      <button onclick="history.back()"
+              class="bg-amber-500 hover:bg-amber-600 text-white font-semibold px-6 py-3 rounded-xl transition flex items-center gap-2 mx-auto">
+        <i class="fas fa-arrow-left"></i> Go Back
+      </button>
+    </div>
+  </div>
+  <script src="../api/client.js"></script>
+  <script src="../utils/formatters.js"></script>
+  <script src="../components/sidebar.js"></script>
+  <script>
+    checkAuth();
+    const params = new URLSearchParams(window.location.search);
+    const name = params.get('page');
+    if (name) document.getElementById('pageName').textContent = name;
+  </script>
+</body>
+</html>

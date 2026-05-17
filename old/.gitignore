@@ -1,0 +1,48 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+/__tests_results__/
+/playwright-report/
+/playwright/.cache/
+/test-results/
+/blob-report/
+/playwright/.auth/
+
+# production
+/dist
+/dist-ssr
+
+# misc
+.DS_Store
+*.pem
+
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# local env files
+.env*.local
+.env
+
+# editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+.claude/*
+CLAUDE.local.md
+
+# Live database — contains real business data, never commit
+server/db.json

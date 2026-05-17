@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Payment Modes - SuperMart</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body class="bg-slate-50 min-h-screen">
+  <div id="sidebar-container"></div>
+  <div class="ml-64 min-h-screen p-8">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-800">Payment Modes</h1>
+        <p class="text-slate-500 text-sm mt-0.5">Configure accepted payment methods</p>
+      </div>
+      <div id="user-info"></div>
+    </div>
+    <button onclick="showAddModal()"
+            class="bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-xl font-semibold transition mb-5 flex items-center gap-2 text-sm shadow-sm">
+      <i class="fas fa-plus"></i> Add New Mode
+    </button>
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-slate-200">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-800 text-white">
+          <tr>
+            <th class="px-5 py-3.5 text-left font-semibold text-xs uppercase tracking-wide">Mode Name</th>
+            <th class="px-5 py-3.5 text-left font-semibold text-xs uppercase tracking-wide">Description</th>
+            <th class="px-5 py-3.5 text-left font-semibold text-xs uppercase tracking-wide">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="modeTable" class="divide-y divide-slate-100"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div id="modeModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+      <div class="flex items-center justify-between mb-6">
+        <h2 id="modalTitle" class="text-xl font-bold text-slate-800">Add Payment Mode</h2>
+        <button onclick="hideModal()" class="text-slate-400 hover:text-slate-600 transition"><i class="fas fa-times text-lg"></i></button>
+      </div>
+      <form id="modeForm">
+        <input type="hidden" id="editId">
+        <div class="mb-4">
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Mode Name *</label>
+          <input type="text" id="modeName" required placeholder="e.g. Google Pay"
+                 class="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 text-sm text-slate-800">
+        </div>
+        <div class="mb-7">
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Description</label>
+          <textarea id="modeDesc" rows="2" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 resize-none focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 text-sm text-slate-800"></textarea>
+        </div>
+        <div class="flex gap-3">
+          <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition text-sm">
+            <i class="fas fa-save mr-2"></i>Save
+          </button>
+          <button type="button" onclick="hideModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 rounded-xl transition text-sm">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="../../api/client.js"></script>
+  <script src="../../api/payments.api.js"></script>
+  <script src="../../utils/formatters.js"></script>
+  <script src="../../components/sidebar.js"></script>
+  <script>
+    checkAuth();
+
+    async function renderModes() {
+      const modes = await PaymentsAPI.getModes();
+      document.getElementById('modeTable').innerHTML = modes.map(m => `
+        <tr class="hover:bg-slate-50 transition-colors">
+          <td class="px-5 py-3.5 font-semibold text-slate-800">${m.name}</td>
+          <td class="px-5 py-3.5 text-slate-500 text-sm">${m.desc || '—'}</td>
+          <td class="px-5 py-3.5 flex gap-3">
+            <button onclick="editMode(${m.id})" class="text-blue-600 hover:text-blue-800 text-xs font-semibold transition"><i class="fas fa-pencil mr-1"></i>Edit</button>
+            <button onclick="deleteMode(${m.id})" class="text-rose-500 hover:text-rose-700 text-xs font-semibold transition"><i class="fas fa-trash mr-1"></i>Delete</button>
+          </td>
+        </tr>`).join('');
+    }
+
+    function showAddModal() {
+      document.getElementById('modalTitle').textContent = 'Add Payment Mode';
+      document.getElementById('modeForm').reset();
+      document.getElementById('editId').value = '';
+      document.getElementById('modeModal').classList.remove('hidden');
+    }
+
+    function hideModal() { document.getElementById('modeModal').classList.add('hidden'); }
+
+    async function editMode(id) {
+      const modes = await PaymentsAPI.getModes();
+      const m = modes.find(x => x.id == id);
+      if (!m) return;
+      document.getElementById('modalTitle').textContent = 'Edit Payment Mode';
+      document.getElementById('editId').value  = m.id;
+      document.getElementById('modeName').value = m.name;
+      document.getElementById('modeDesc').value  = m.desc || '';
+      document.getElementById('modeModal').classList.remove('hidden');
+    }
+
+    async function deleteMode(id) {
+      if (!confirm('Delete this payment mode?')) return;
+      await PaymentsAPI.deleteMode(id);
+      renderModes();
+    }
+
+    document.getElementById('modeForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const name  = document.getElementById('modeName').value.trim();
+      const desc  = document.getElementById('modeDesc').value.trim();
+      const editId = document.getElementById('editId').value;
+      if (!name) return alert('Mode name is required');
+      await PaymentsAPI.saveMode({ ...(editId ? { id: parseInt(editId) } : {}), name, desc });
+      renderModes();
+      hideModal();
+    });
+
+    renderModes();
+  </script>
+</body>
+</html>

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Audit Log - SuperMart</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head><body class="bg-slate-50 min-h-screen">
+<div id="sidebar-container"></div>
+<div class="ml-64 min-h-screen p-8">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-800">Audit Log</h1>
+      <p class="text-slate-500 text-sm mt-0.5">Complete activity trail for your store</p>
+    </div>
+    <div id="user-info"></div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-5">
+    <div class="flex flex-wrap gap-3 items-center">
+      <div class="flex-1 relative">
+        <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+        <input type="text" id="searchAudit" placeholder="Search by action, user or details..."
+               oninput="filterLogs()"
+               class="w-full border border-slate-300 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 text-sm text-slate-800 placeholder-slate-400">
+      </div>
+      <button onclick="exportLogs()" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
+        <i class="fas fa-download"></i> Export CSV
+      </button>
+      <button onclick="clearLogs()" class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
+        <i class="fas fa-trash"></i> Clear All
+      </button>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-slate-200">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-800 text-white">
+        <tr>
+          <th class="px-4 py-3.5 text-left font-semibold text-xs uppercase tracking-wide" style="width:180px">Timestamp</th>
+          <th class="px-4 py-3.5 text-left font-semibold text-xs uppercase tracking-wide" style="width:110px">User</th>
+          <th class="px-4 py-3.5 text-left font-semibold text-xs uppercase tracking-wide" style="width:180px">Action</th>
+          <th class="px-4 py-3.5 text-left font-semibold text-xs uppercase tracking-wide">Details</th>
+        </tr>
+      </thead>
+      <tbody id="auditBody" class="divide-y divide-slate-100"></tbody>
+    </table>
+  </div>
+  <p class="text-center text-slate-400 text-xs mt-4">Showing last 500 activities</p>
+</div>
+
+<script src="/src/api/client.js"></script><script src="/src/utils/formatters.js"></script><script src="/src/components/sidebar.js"></script>
+<script>
+checkAuth();
+let allLogs = [];
+async function loadLogs(){
+  allLogs = await APIClient.get('/auditLog');
+  renderLogs(allLogs);
+}
+function renderLogs(logs){
+  const tbody = document.getElementById('auditBody');
+  if(!logs.length){
+    tbody.innerHTML=`<tr><td colspan="4" class="px-4 py-12 text-center text-slate-400 text-sm">No audit records found.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = logs.map(log=>{
+    const badgeClass = log.action.includes('SALE') ? 'bg-emerald-100 text-emerald-700'
+      : log.action.includes('LOGIN') ? 'bg-blue-100 text-blue-700'
+      : log.action.includes('LOGOUT') ? 'bg-rose-100 text-rose-700'
+      : 'bg-purple-100 text-purple-700';
+    return `<tr class="hover:bg-slate-50 transition-colors">
+      <td class="px-4 py-3 text-xs text-slate-400 font-mono">${new Date(log.timestamp).toLocaleString('en-IN')}</td>
+      <td class="px-4 py-3 font-semibold text-slate-700 text-sm">${log.user}</td>
+      <td class="px-4 py-3"><span class="text-xs font-semibold px-2.5 py-1 rounded-full ${badgeClass}">${log.action}</span></td>
+      <td class="px-4 py-3 text-xs font-mono text-slate-500 bg-slate-50">${JSON.stringify(log.details).replace(/"/g,'')}</td>
+    </tr>`;
+  }).join('');
+}
+function filterLogs(){
+  const term = document.getElementById('searchAudit').value.toLowerCase().trim();
+  renderLogs(term ? allLogs.filter(l=>l.action.toLowerCase().includes(term)||l.user.toLowerCase().includes(term)||JSON.stringify(l.details).toLowerCase().includes(term)) : allLogs);
+}
+async function clearLogs(){
+  if(!confirm('Permanently delete ALL audit logs?')) return;
+  const all = await APIClient.get('/auditLog');
+  await Promise.all(all.map(l=>APIClient.delete(`/auditLog/${l.id}`)));
+  allLogs=[];renderLogs([]);alert('Audit log cleared.');
+}
+async function exportLogs(){
+  if(!allLogs.length) return alert('No logs to export!');
+  let csv="Timestamp,User,Action,Details\n";
+  allLogs.forEach(l=>{ csv+=`"${l.timestamp}","${l.user}","${l.action}","${JSON.stringify(l.details).replace(/,/g,';').replace(/"/g,"'")}"\n`; });
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=`Audit_Log_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+}
+loadLogs();
+logAudit('AUDIT_LOG_VIEWED',{page:'audit-log.html'});
+</script></body></html>

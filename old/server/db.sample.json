@@ -1,0 +1,95 @@
+{
+  "products": [
+    { "id": 1, "shortName": "Tata Salt 1kg",    "itemCode": "ITM001", "uom": "PCS", "category": "Grocery",   "hsnCode": "2501", "purchasePrice": 18,  "mrp": 24,  "salesPrice": 22,  "gstRate": 5,  "stock": 58, "reorderLevel": 10, "expiryDate": "" },
+    { "id": 2, "shortName": "Aashirvaad Atta",   "itemCode": "ITM002", "uom": "KG",  "category": "Grocery",   "hsnCode": "1101", "purchasePrice": 52,  "mrp": 65,  "salesPrice": 60,  "gstRate": 5,  "stock": 17, "reorderLevel": 10, "expiryDate": "" },
+    { "id": 3, "shortName": "Fortune Oil 1L",    "itemCode": "ITM003", "uom": "LTR", "category": "Grocery",   "hsnCode": "1511", "purchasePrice": 125, "mrp": 155, "salesPrice": 145, "gstRate": 5,  "stock": 12, "reorderLevel": 10, "expiryDate": "" },
+    { "id": 4, "shortName": "Surf Excel 500g",   "itemCode": "ITM004", "uom": "PCS", "category": "Household", "hsnCode": "3402", "purchasePrice": 68,  "mrp": 85,  "salesPrice": 78,  "gstRate": 18, "stock": 3,  "reorderLevel": 10, "expiryDate": "" },
+    { "id": 5, "shortName": "Parle-G Biscuits",  "itemCode": "ITM005", "uom": "PCS", "category": "Snacks",    "hsnCode": "1905", "purchasePrice": 10,  "mrp": 14,  "salesPrice": 12,  "gstRate": 5,  "stock": 60, "reorderLevel": 20, "expiryDate": "" },
+    { "id": 6, "shortName": "Colgate 200g",      "itemCode": "ITM006", "uom": "PCS", "category": "Personal",  "hsnCode": "3306", "purchasePrice": 95,  "mrp": 115, "salesPrice": 108, "gstRate": 18, "stock": 8,  "reorderLevel": 5,  "expiryDate": "" },
+    { "id": 7, "shortName": "Maggi 70g",         "itemCode": "ITM007", "uom": "PCS", "category": "Snacks",    "hsnCode": "1902", "purchasePrice": 12,  "mrp": 15,  "salesPrice": 14,  "gstRate": 12, "stock": 45, "reorderLevel": 15, "expiryDate": "" },
+    { "id": 8, "shortName": "Amul Butter 500g",  "itemCode": "ITM008", "uom": "PCS", "category": "Dairy",     "hsnCode": "0405", "purchasePrice": 245, "mrp": 275, "salesPrice": 260, "gstRate": 12, "stock": 6,  "reorderLevel": 5,  "expiryDate": "2026-05-15" },
+    { "id": 9, "shortName": "Red Label Tea 500g","itemCode": "ITM009", "uom": "PCS", "category": "Beverages", "hsnCode": "0902", "purchasePrice": 230, "mrp": 265, "salesPrice": 250, "gstRate": 5,  "stock": 22, "reorderLevel": 8,  "expiryDate": "" },
+    { "id": 10,"shortName": "Dettol Soap 75g",   "itemCode": "ITM010", "uom": "PCS", "category": "Personal",  "hsnCode": "3401", "purchasePrice": 42,  "mrp": 52,  "salesPrice": 48,  "gstRate": 18, "stock": 30, "reorderLevel": 10, "expiryDate": "" }
+  ],
+
+  "parties": [
+    { "id": 1, "type": "customer", "name": "Ramesh Kumar",            "phone": "9876543210", "balance": 450,  "payable": 0,    "lastSale": "2026-03-12", "notes": "VIP customer" },
+    { "id": 2, "type": "both",     "name": "Anand Provisional Stores","phone": "9443322110", "balance": 0,    "payable": 1280, "lastSale": "2026-03-15", "notes": "GSTIN: 33ABCDE1234F1Z5" },
+    { "id": 3, "type": "customer", "name": "Sangeetha",               "phone": "8123456789", "balance": 0,    "payable": 0,    "lastSale": "",           "notes": "Walk-in customer" },
+    { "id": 4, "type": "supplier", "name": "Sri Lakshmi Traders",     "phone": "9567841230", "balance": 0,    "payable": 8500, "lastSale": "",           "notes": "Wholesale supplier" },
+    { "id": 5, "type": "customer", "name": "Murugan",                 "phone": "9345678901", "balance": 120,  "payable": 0,    "lastSale": "2026-03-20", "notes": "" },
+    { "id": 6, "type": "supplier", "name": "Kavitha Agencies",        "phone": "9234567890", "balance": 0,    "payable": 3200, "lastSale": "",           "notes": "FMCG distributor" }
+  ],
+
+  "salesHistory": [
+    { "id": 1,  "invoice": "INV-1001", "date": "2025-10-05, 10:15 AM", "customerName": "Ramesh Kumar",             "paymentMode": "Cash",         "grandTotal": 345,  "subtotal": 329, "gst": 16, "items": [{"name":"Tata Salt 1kg","qty":2,"rate":22,"amount":44},{"name":"Aashirvaad Atta","qty":1,"rate":60,"amount":60},{"name":"Fortune Oil 1L","qty":1,"rate":145,"amount":145},{"name":"Parle-G Biscuits","qty":8,"rate":12,"amount":96}] },
+    { "id": 2,  "invoice": "INV-1002", "date": "2025-10-12, 02:45 PM", "customerName": "Walk-in Customer",         "paymentMode": "UPI",          "grandTotal": 218,  "subtotal": 208, "gst": 10, "items": [{"name":"Surf Excel 500g","qty":1,"rate":78,"amount":78},{"name":"Fortune Oil 1L","qty":1,"rate":145,"amount":145}] },
+    { "id": 3,  "invoice": "INV-1003", "date": "2025-10-20, 11:30 AM", "customerName": "Sangeetha",                "paymentMode": "Cash",         "grandTotal": 180,  "subtotal": 172, "gst": 8,  "items": [{"name":"Tata Salt 1kg","qty":3,"rate":22,"amount":66},{"name":"Parle-G Biscuits","qty":10,"rate":12,"amount":120}] },
+    { "id": 4,  "invoice": "INV-1004", "date": "2025-11-03, 09:50 AM", "customerName": "Ramesh Kumar",             "paymentMode": "UPI",          "grandTotal": 302,  "subtotal": 288, "gst": 14, "items": [{"name":"Surf Excel 500g","qty":2,"rate":78,"amount":156},{"name":"Aashirvaad Atta","qty":1,"rate":60,"amount":60},{"name":"Parle-G Biscuits","qty":7,"rate":12,"amount":84}] },
+    { "id": 5,  "invoice": "INV-1005", "date": "2025-11-18, 03:30 PM", "customerName": "Sangeetha",                "paymentMode": "Card",         "grandTotal": 260,  "subtotal": 248, "gst": 12, "items": [{"name":"Aashirvaad Atta","qty":2,"rate":60,"amount":120},{"name":"Surf Excel 500g","qty":1,"rate":78,"amount":78},{"name":"Parle-G Biscuits","qty":5,"rate":12,"amount":60}] },
+    { "id": 6,  "invoice": "INV-1006", "date": "2025-12-02, 10:20 AM", "customerName": "Ramesh Kumar",             "paymentMode": "Cash",         "grandTotal": 534,  "subtotal": 509, "gst": 25, "items": [{"name":"Fortune Oil 1L","qty":2,"rate":145,"amount":290},{"name":"Aashirvaad Atta","qty":2,"rate":60,"amount":120},{"name":"Surf Excel 500g","qty":1,"rate":78,"amount":78},{"name":"Parle-G Biscuits","qty":4,"rate":12,"amount":48}] },
+    { "id": 7,  "invoice": "INV-1007", "date": "2025-12-15, 01:00 PM", "customerName": "Anand Provisional Stores", "paymentMode": "Bank Transfer", "grandTotal": 720,  "subtotal": 686, "gst": 34, "items": [{"name":"Fortune Oil 1L","qty":4,"rate":145,"amount":580},{"name":"Surf Excel 500g","qty":1,"rate":78,"amount":78},{"name":"Tata Salt 1kg","qty":3,"rate":22,"amount":66}] },
+    { "id": 8,  "invoice": "INV-1008", "date": "2026-01-05, 11:45 AM", "customerName": "Ramesh Kumar",             "paymentMode": "UPI",          "grandTotal": 448,  "subtotal": 427, "gst": 21, "items": [{"name":"Fortune Oil 1L","qty":2,"rate":145,"amount":290},{"name":"Surf Excel 500g","qty":2,"rate":78,"amount":156},{"name":"Tata Salt 1kg","qty":1,"rate":22,"amount":22}] },
+    { "id": 9,  "invoice": "INV-1009", "date": "2026-01-20, 10:30 AM", "customerName": "Sangeetha",                "paymentMode": "Card",         "grandTotal": 390,  "subtotal": 372, "gst": 18, "items": [{"name":"Fortune Oil 1L","qty":1,"rate":145,"amount":145},{"name":"Aashirvaad Atta","qty":2,"rate":60,"amount":120},{"name":"Surf Excel 500g","qty":1,"rate":78,"amount":78},{"name":"Parle-G Biscuits","qty":4,"rate":12,"amount":48}] },
+    { "id": 10, "invoice": "INV-1010", "date": "2026-02-04, 09:30 AM", "customerName": "Ramesh Kumar",             "paymentMode": "UPI",          "grandTotal": 422,  "subtotal": 402, "gst": 20, "items": [{"name":"Fortune Oil 1L","qty":2,"rate":145,"amount":290},{"name":"Aashirvaad Atta","qty":1,"rate":60,"amount":60},{"name":"Surf Excel 500g","qty":1,"rate":78,"amount":78}] },
+    { "id": 11, "invoice": "INV-1011", "date": "2026-02-18, 11:00 AM", "customerName": "Anand Provisional Stores", "paymentMode": "Bank Transfer", "grandTotal": 865,  "subtotal": 824, "gst": 41, "items": [{"name":"Fortune Oil 1L","qty":4,"rate":145,"amount":580},{"name":"Aashirvaad Atta","qty":3,"rate":60,"amount":180},{"name":"Surf Excel 500g","qty":1,"rate":78,"amount":78}] },
+    { "id": 12, "invoice": "INV-1012", "date": "2026-03-03, 10:00 AM", "customerName": "Ramesh Kumar",             "paymentMode": "Cash",         "grandTotal": 490,  "subtotal": 467, "gst": 23, "items": [{"name":"Fortune Oil 1L","qty":2,"rate":145,"amount":290},{"name":"Surf Excel 500g","qty":2,"rate":78,"amount":156},{"name":"Tata Salt 1kg","qty":2,"rate":22,"amount":44}] },
+    { "id": 13, "invoice": "INV-1013", "date": "2026-03-10, 02:30 PM", "customerName": "Walk-in Customer",         "paymentMode": "UPI",          "grandTotal": 348,  "subtotal": 332, "gst": 16, "items": [{"name":"Aashirvaad Atta","qty":3,"rate":60,"amount":180},{"name":"Parle-G Biscuits","qty":14,"rate":12,"amount":168}] },
+    { "id": 14, "invoice": "INV-1014", "date": "2026-03-22, 09:45 AM", "customerName": "Walk-in Customer",         "paymentMode": "Cash",         "grandTotal": 282,  "subtotal": 269, "gst": 13, "items": [{"name":"Aashirvaad Atta","qty":2,"rate":60,"amount":120},{"name":"Fortune Oil 1L","qty":1,"rate":145,"amount":145},{"name":"Tata Salt 1kg","qty":1,"rate":22,"amount":22}] },
+    { "id": 15, "invoice": "INV-1015", "date": "2026-03-30, 09:10 AM", "customerName": "Ramesh Kumar",             "paymentMode": "Cash",         "grandTotal": 368,  "subtotal": 351, "gst": 17, "items": [{"name":"Fortune Oil 1L","qty":2,"rate":145,"amount":290},{"name":"Tata Salt 1kg","qty":2,"rate":22,"amount":44},{"name":"Parle-G Biscuits","qty":3,"rate":12,"amount":36}] },
+    { "id": 16, "invoice": "INV-1016", "date": "2026-03-30, 11:25 AM", "customerName": "Walk-in Customer",         "paymentMode": "UPI",          "grandTotal": 234,  "subtotal": 223, "gst": 11, "items": [{"name":"Aashirvaad Atta","qty":2,"rate":60,"amount":120},{"name":"Surf Excel 500g","qty":1,"rate":78,"amount":78},{"name":"Tata Salt 1kg","qty":2,"rate":22,"amount":44}] }
+  ],
+
+  "purchaseHistory": [
+    { "id": 1, "invoice": "PUR-001", "date": "2025-10-08, 10:00 AM", "partyName": "Sri Lakshmi Traders",     "paymentMode": "Bank Transfer", "grandTotal": 2850, "items": [{"name":"Tata Salt 1kg","qty":50,"price":18,"total":900},{"name":"Aashirvaad Atta","qty":20,"price":52,"total":1040},{"name":"Parle-G Biscuits","qty":91,"price":10,"total":910}] },
+    { "id": 2, "invoice": "PUR-002", "date": "2025-10-22, 11:30 AM", "partyName": "Anand Provisional Stores","paymentMode": "Cheque",        "grandTotal": 3625, "items": [{"name":"Fortune Oil 1L","qty":20,"price":125,"total":2500},{"name":"Surf Excel 500g","qty":16,"price":68,"total":1088},{"name":"Tata Salt 1kg","qty":4,"price":18,"total":72}] },
+    { "id": 3, "invoice": "PUR-003", "date": "2025-11-12, 09:00 AM", "partyName": "Sri Lakshmi Traders",     "paymentMode": "Bank Transfer", "grandTotal": 3180, "items": [{"name":"Aashirvaad Atta","qty":30,"price":52,"total":1560},{"name":"Fortune Oil 1L","qty":12,"price":125,"total":1500},{"name":"Parle-G Biscuits","qty":12,"price":10,"total":120}] },
+    { "id": 4, "invoice": "PUR-004", "date": "2025-12-08, 10:30 AM", "partyName": "Sri Lakshmi Traders",     "paymentMode": "Cheque",        "grandTotal": 4200, "items": [{"name":"Aashirvaad Atta","qty":40,"price":52,"total":2080},{"name":"Fortune Oil 1L","qty":16,"price":125,"total":2000},{"name":"Tata Salt 1kg","qty":7,"price":18,"total":126}] },
+    { "id": 5, "invoice": "PUR-005", "date": "2026-01-10, 11:00 AM", "partyName": "Sri Lakshmi Traders",     "paymentMode": "Bank Transfer", "grandTotal": 3510, "items": [{"name":"Aashirvaad Atta","qty":30,"price":52,"total":1560},{"name":"Fortune Oil 1L","qty":14,"price":125,"total":1750},{"name":"Tata Salt 1kg","qty":11,"price":18,"total":200}] },
+    { "id": 6, "invoice": "PUR-006", "date": "2026-02-07, 10:15 AM", "partyName": "Sri Lakshmi Traders",     "paymentMode": "Bank Transfer", "grandTotal": 3840, "items": [{"name":"Aashirvaad Atta","qty":35,"price":52,"total":1820},{"name":"Fortune Oil 1L","qty":16,"price":125,"total":2000},{"name":"Parle-G Biscuits","qty":2,"price":10,"total":20}] },
+    { "id": 7, "invoice": "PUR-007", "date": "2026-03-05, 09:00 AM", "partyName": "Kavitha Agencies",        "paymentMode": "Cheque",        "grandTotal": 4100, "items": [{"name":"Aashirvaad Atta","qty":40,"price":52,"total":2080},{"name":"Fortune Oil 1L","qty":16,"price":125,"total":2000},{"name":"Tata Salt 1kg","qty":1,"price":18,"total":20}] },
+    { "id": 8, "invoice": "PUR-008", "date": "2026-03-20, 11:00 AM", "partyName": "Anand Provisional Stores","paymentMode": "Bank Transfer", "grandTotal": 2890, "items": [{"name":"Fortune Oil 1L","qty":13,"price":125,"total":1625},{"name":"Surf Excel 500g","qty":18,"price":68,"total":1224},{"name":"Parle-G Biscuits","qty":4,"price":10,"total":40}] }
+  ],
+
+  "paymentModes": [
+    { "id": 1, "name": "Cash",          "desc": "Cash payment" },
+    { "id": 2, "name": "UPI",           "desc": "Unified Payments Interface" },
+    { "id": 3, "name": "Bank Transfer", "desc": "NEFT / RTGS / IMPS" },
+    { "id": 4, "name": "Cheque",        "desc": "Bank Cheque" },
+    { "id": 5, "name": "Card",          "desc": "Debit / Credit Card" }
+  ],
+
+  "paymentInHistory": [],
+  "paymentOutHistory": [],
+
+  "uomList": [
+    { "id": 1, "code": "KG",  "desc": "Kilogram" },
+    { "id": 2, "code": "PCS", "desc": "Piece" },
+    { "id": 3, "code": "LTR", "desc": "Litre" },
+    { "id": 4, "code": "GM",  "desc": "Gram" },
+    { "id": 5, "code": "MT",  "desc": "Metric Ton" },
+    { "id": 6, "code": "BOX", "desc": "Box" },
+    { "id": 7, "code": "PKT", "desc": "Packet" },
+    { "id": 8, "code": "BTL", "desc": "Bottle" }
+  ],
+
+  "cheques": [],
+  "cashTransactions": [],
+
+  "bankAccounts": [
+    { "id": 1, "bankName": "State Bank of India", "accountNo": "XXXX1234", "ifsc": "SBIN0001234", "balance": 45000, "type": "Current" }
+  ],
+
+  "loanAccounts": [],
+
+  "settings": {
+    "shopName": "Gramathaankadai SuperMart",
+    "address": "Main Road, Tamil Nadu",
+    "phone": "9876543210",
+    "gstin": "33ABCDE1234F1Z5",
+    "invoicePrefix": "INV",
+    "currency": "INR"
+  },
+
+  "auditLog": []
+}
