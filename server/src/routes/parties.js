@@ -15,39 +15,43 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { name, type, phone, email, address, gstin, balance, payable, lastSale, notes } = req.body;
+  const { name, type, partyType, phone, email, address, gstin, balance, payable, lastSale, notes } = req.body;
+  const resolvedPartyType = partyType === 'B2B' ? 'B2B' : 'B2C';
   const party = await prisma.party.create({
     data: {
       name,
-      type:     type     || 'customer',
-      phone:    phone    || null,
-      email:    email    || null,
-      address:  address  || null,
-      gstin:    gstin    || null,
-      balance:  balance  ?? 0,
-      payable:  payable  ?? 0,
-      lastSale: lastSale ? new Date(lastSale) : null,
-      notes:    notes    || null,
+      type:      type      || 'customer',
+      partyType: resolvedPartyType,
+      phone:     phone     || null,
+      email:     email     || null,
+      address:   address   || null,
+      gstin:     resolvedPartyType === 'B2B' ? (gstin || null) : null,
+      balance:   balance   ?? 0,
+      payable:   payable   ?? 0,
+      lastSale:  lastSale  ? new Date(lastSale) : null,
+      notes:     notes     || null,
     },
   });
   res.status(201).json(party);
 });
 
 router.put('/:id', async (req, res) => {
-  const { name, type, phone, email, address, gstin, balance, payable, lastSale, notes } = req.body;
+  const { name, type, partyType, phone, email, address, gstin, balance, payable, lastSale, notes } = req.body;
+  const resolvedPartyType = partyType === 'B2B' ? 'B2B' : 'B2C';
   const party = await prisma.party.update({
     where: { id: Number(req.params.id) },
     data: {
       name,
-      type:     type     || 'customer',
-      phone:    phone    || null,
-      email:    email    || null,
-      address:  address  || null,
-      gstin:    gstin    || null,
-      balance:  balance  ?? 0,
-      payable:  payable  ?? 0,
-      lastSale: lastSale ? new Date(lastSale) : null,
-      notes:    notes    || null,
+      type:      type      || 'customer',
+      partyType: resolvedPartyType,
+      phone:     phone     || null,
+      email:     email     || null,
+      address:   address   || null,
+      gstin:     resolvedPartyType === 'B2B' ? (gstin || null) : null,
+      balance:   balance   ?? 0,
+      payable:   payable   ?? 0,
+      lastSale:  lastSale  ? new Date(lastSale) : null,
+      notes:     notes     || null,
     },
   });
   res.json(party);

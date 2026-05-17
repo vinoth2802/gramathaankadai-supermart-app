@@ -6,12 +6,21 @@ import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import { PartiesAPI } from '../../api/parties.js';
 import { fmt } from '../../utils/formatters.js';
 
-const EMPTY = { name: '', type: 'customer', phone: '', email: '', address: '', gstin: '', balance: 0, payable: 0, notes: '' };
+const EMPTY = { name: '', type: 'customer', partyType: 'B2C', phone: '', email: '', address: '', gstin: '', balance: 0, payable: 0, notes: '' };
 const inp = 'w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 text-sm text-slate-800 bg-white';
 
 function TypeBadge({ type }) {
   const map = { customer: 'bg-blue-100 text-blue-700', supplier: 'bg-purple-100 text-purple-700', both: 'bg-emerald-100 text-emerald-700' };
   return <span className={`text-xs px-2.5 py-1 rounded-full font-semibold capitalize ${map[type] || 'bg-slate-100 text-slate-600'}`}>{type}</span>;
+}
+
+function PartyTypeBadge({ partyType }) {
+  const isB2B = partyType === 'B2B';
+  return (
+    <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${isB2B ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+      {isB2B ? 'B2B' : 'B2C'}
+    </span>
+  );
 }
 
 function RowMenu({ party, onEdit, onDelete }) {
@@ -73,7 +82,8 @@ export default function Parties() {
 
   const openAdd = () => { setForm(EMPTY); setEditId(null); setModal(true); };
   const openEdit = (p) => {
-    setForm({ name: p.name, type: p.type, phone: p.phone || '', email: p.email || '',
+    setForm({ name: p.name, type: p.type, partyType: p.partyType || 'B2C',
+      phone: p.phone || '', email: p.email || '',
       address: p.address || '', gstin: p.gstin || '', balance: p.balance || 0,
       payable: p.payable || 0, notes: p.notes || '' });
     setEditId(p.id); setModal(true);
@@ -111,16 +121,16 @@ export default function Parties() {
         <table className="w-full text-sm">
           <thead className="bg-slate-800 text-white">
             <tr>
-              {['Name','Phone','Receivable (Dr)','Payable','Type','Last Sale','Actions'].map(h => (
+              {['Name','Phone','Receivable (Dr)','Payable','Type','Party Type','Last Sale','Actions'].map(h => (
                 <th key={h} className="px-4 py-3.5 text-left font-semibold text-xs uppercase tracking-wide">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {isLoading ? (
-              <tr><td colSpan={7} className="text-center py-10 text-slate-400">Loading...</td></tr>
+              <tr><td colSpan={8} className="text-center py-10 text-slate-400">Loading...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-10 text-slate-400">No parties found</td></tr>
+              <tr><td colSpan={8} className="text-center py-10 text-slate-400">No parties found</td></tr>
             ) : filtered.map(p => (
               <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-4 py-3 font-semibold text-slate-800">{p.name}</td>
@@ -132,6 +142,7 @@ export default function Parties() {
                   {Number(p.payable) > 0 ? `₹${Number(p.payable).toFixed(2)}` : '—'}
                 </td>
                 <td className="px-4 py-3"><TypeBadge type={p.type} /></td>
+                <td className="px-4 py-3"><PartyTypeBadge partyType={p.partyType} /></td>
                 <td className="px-4 py-3 text-slate-400 text-xs">{p.lastSale ? fmt.date(p.lastSale) : '—'}</td>
                 <td className="px-4 py-3 text-center">
                   <RowMenu party={p} onEdit={openEdit} onDelete={(id) => setDeleteConfirm({ open: true, id })} />
@@ -167,6 +178,13 @@ export default function Parties() {
                   </select>
                 </div>
                 <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Party Type</label>
+                  <select value={form.partyType} onChange={(e) => setForm(prev => ({ ...prev, partyType: e.target.value, gstin: e.target.value === 'B2C' ? '' : prev.gstin }))} className={inp}>
+                    <option value="B2C">B2C — Consumer</option>
+                    <option value="B2B">B2B — Business</option>
+                  </select>
+                </div>
+                <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Phone</label>
                   <input value={form.phone} onChange={f('phone')} placeholder="9876543210" className={inp} />
                 </div>
@@ -174,10 +192,12 @@ export default function Parties() {
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Email</label>
                   <input type="email" value={form.email} onChange={f('email')} className={inp} />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">GSTIN</label>
-                  <input value={form.gstin} onChange={f('gstin')} placeholder="33ABCDE1234F1Z5" className={inp} />
-                </div>
+                {form.partyType === 'B2B' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">GSTIN</label>
+                    <input value={form.gstin} onChange={f('gstin')} placeholder="33ABCDE1234F1Z5" className={inp} />
+                  </div>
+                )}
                 <div className="col-span-2">
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Address</label>
                   <textarea value={form.address} onChange={f('address')} rows={2} className={inp} />

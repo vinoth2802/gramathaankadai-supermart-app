@@ -31,6 +31,7 @@ model Party {
   id        Int       @id @default(autoincrement())
   name      String
   type      String    @default("customer")
+  partyType String    @default("B2C") @map("party_type")
   phone     String?
   email     String?
   address   String?
