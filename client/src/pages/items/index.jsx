@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Download, AlertTriangle, List, MoreVertical, Pencil, Trash2, X, ChevronRight } from 'lucide-react';
+import { Plus, Download, AlertTriangle, List, MoreVertical, Pencil, Trash2, X, ChevronRight, Ban, Copy, FileText, RotateCcw, History } from 'lucide-react';
 import { toast } from 'sonner';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import { ItemsAPI } from '../../api/items.js';
@@ -11,103 +11,136 @@ import { fmt } from '../../utils/formatters.js';
 
 const EMPTY = { shortName: '', itemCode: '', category: '', hsnCode: '', batch: '', uom: 'PCS', purchasePrice: '0', mrp: '0', salesPrice: '0', gstRate: 5, expiryDate: '', stock: 0, reorderLevel: 10 };
 
+const normalizeKey = (value) => String(value ?? '').trim().toLowerCase();
+
+function isItemLine(line, item) {
+  const lineItemId = line.itemId ?? line.productId;
+  if (lineItemId !== undefined && String(lineItemId) === String(item.id)) return true;
+  if (normalizeKey(line.name) === normalizeKey(item.shortName)) return true;
+  return item.itemCode && normalizeKey(line.itemCode) === normalizeKey(item.itemCode);
+}
+
 function ItemTransactions({ item, sales = [], purchases = [] }) {
-  const itemTransactions = [];
-  
-  sales.forEach(s => {
-    if (s.items) {
-      const itemInSale = s.items.find(si => si.itemId === item.id);
-      if (itemInSale) {
-        itemTransactions.push({
-          type: 'Sale',
-          date: s.date,
-          invoiceNo: s.invoiceNo,
-          quantity: itemInSale.quantity,
-          price: itemInSale.salePrice,
-          total: itemInSale.quantity * itemInSale.salePrice,
-          party: s.partyName,
-        });
-      }
-    }
-  });
+  const itemTransactions = useMemo(() => {
+    const transactions = [];
 
-  purchases.forEach(p => {
-    if (p.items) {
-      const itemInPurchase = p.items.find(pi => pi.itemId === item.id);
-      if (itemInPurchase) {
-        itemTransactions.push({
-          type: 'Purchase',
-          date: p.date,
-          invoiceNo: p.billNo,
-          quantity: itemInPurchase.quantity,
-          price: itemInPurchase.purchasePrice,
-          total: itemInPurchase.quantity * itemInPurchase.purchasePrice,
-          party: p.partyName,
-        });
-      }
-    }
-  });
+    sales.forEach(s => {
+      if (s.items) {
+        const itemInSale = s.items.find(si => isItemLine(si, item));
+        if (itemInSale) {
+          const quantity = Number(itemInSale.quantity ?? itemInSale.qty ?? 0);
+          const price = Number(itemInSale.salePrice ?? itemInSale.rate ?? itemInSale.price ?? 0);
 
-  const sorted = itemTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+          transactions.push({
+            type: 'Sale',
+            date: s.date,
+            invoiceNo: s.invoiceNo ?? s.invoice,
+            quantity,
+            price,
+            total: Number(itemInSale.total ?? itemInSale.amount ?? quantity * price),
+            party: s.partyName ?? s.customerName ?? s.customer_name ?? 'Walk-in Customer',
+          });
+        }
+      }
+    });
+
+    purchases.forEach(p => {
+      if (p.items) {
+        const itemInPurchase = p.items.find(pi => isItemLine(pi, item));
+        if (itemInPurchase) {
+          const quantity = Number(itemInPurchase.quantity ?? itemInPurchase.qty ?? 0);
+          const price = Number(itemInPurchase.purchasePrice ?? itemInPurchase.price ?? 0);
+
+          transactions.push({
+            type: 'Purchase',
+            date: p.date,
+            invoiceNo: p.billNo ?? p.invoice,
+            quantity,
+            price,
+            total: Number(itemInPurchase.total ?? quantity * price),
+            party: p.partyName ?? 'Supplier',
+          });
+        }
+      }
+    });
+
+    return transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [item, sales, purchases]);
+
+  const saleCount = itemTransactions.filter(t => t.type === 'Sale').length;
+  const purchaseCount = itemTransactions.filter(t => t.type === 'Purchase').length;
 
   return (
     <div className="h-full flex flex-col">
-      <div className="px-6 py-4 border-b border-slate-200">
-        <h3 className="text-lg font-bold text-slate-800">{item.shortName}</h3>
-        <p className="text-xs text-slate-500 mt-1">Item Code: {item.itemCode || '—'}</p>
-        <div className="grid grid-cols-3 gap-3 mt-4">
-          <div className="bg-blue-50 px-3 py-2 rounded-lg">
-            <p className="text-xs text-slate-500">Stock</p>
-            <p className="text-xl font-bold text-blue-600">{item.stock}</p>
+      <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+        <div className="grid grid-cols-6 gap-3 items-center">
+          <div className="col-span-2">
+            <h3 className="text-lg font-bold text-slate-800">{item.shortName}</h3>
+            <p className="text-xs text-slate-500 mt-1">Item Code: {item.itemCode || '—'}</p>
           </div>
-          <div className="bg-emerald-50 px-3 py-2 rounded-lg">
-            <p className="text-xs text-slate-500">Sale Price</p>
-            <p className="text-xl font-bold text-emerald-600">₹{Number(item.salesPrice || 0).toFixed(2)}</p>
+          <div className="bg-amber-50 border border-amber-200 px-3 py-2.5 rounded-lg">
+            <p className="text-xs text-slate-500 font-semibold">Purchase Price</p>
+            <p className="text-lg font-bold text-amber-600">₹{Number(item.purchasePrice || 0).toFixed(2)}</p>
           </div>
-          <div className="bg-amber-50 px-3 py-2 rounded-lg">
-            <p className="text-xs text-slate-500">Purchase Price</p>
-            <p className="text-xl font-bold text-amber-600">₹{Number(item.purchasePrice || 0).toFixed(2)}</p>
+          <div className="bg-emerald-50 border border-emerald-200 px-3 py-2.5 rounded-lg">
+            <p className="text-xs text-slate-500 font-semibold">Sales Price</p>
+            <p className="text-lg font-bold text-emerald-600">₹{Number(item.salesPrice || 0).toFixed(2)}</p>
+          </div>
+          <div className="bg-purple-50 border border-purple-200 px-3 py-2.5 rounded-lg">
+            <p className="text-xs text-slate-500 font-semibold">MRP</p>
+            <p className="text-lg font-bold text-purple-600">₹{Number(item.mrp || 0).toFixed(2)}</p>
+          </div>
+          <div className="bg-blue-50 border border-blue-200 px-3 py-2.5 rounded-lg">
+            <p className="text-xs text-slate-500 font-semibold">Stock</p>
+            <p className="text-lg font-bold text-blue-600">{item.stock}</p>
           </div>
         </div>
       </div>
 
+      <div className="px-6 py-3 border-b border-slate-100 bg-white flex items-center gap-2 text-xs font-semibold">
+        <span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">{itemTransactions.length} Total</span>
+        <span className="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full">{saleCount} Sales</span>
+        <span className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full">{purchaseCount} Purchases</span>
+      </div>
+
       <div className="flex-1 overflow-y-auto">
         <div className="px-6 py-4">
-          <h4 className="font-semibold text-slate-700 text-sm mb-4">Transactions ({sorted.length})</h4>
-          {sorted.length === 0 ? (
+          <h4 className="font-semibold text-slate-700 text-sm mb-4">Transactions ({itemTransactions.length})</h4>
+          {itemTransactions.length === 0 ? (
             <div className="text-center py-8 text-slate-400">
               <p>No transactions found for this item</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {sorted.map((txn, idx) => (
-                <div key={idx} className={`border rounded-lg p-3.5 ${txn.type === 'Sale' ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${txn.type === 'Sale' ? 'bg-emerald-200 text-emerald-700' : 'bg-amber-200 text-amber-700'}`}>
-                        {txn.type}
-                      </span>
-                      <p className="text-xs text-slate-600 mt-1">{txn.party}</p>
-                    </div>
-                    <span className="text-xs text-slate-500">{new Date(txn.date).toLocaleDateString('en-IN')}</span>
-                  </div>
-                  <p className="text-xs font-mono text-slate-600 mb-2">Inv#: {txn.invoiceNo}</p>
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div>
-                      <span className="text-slate-500">Qty</span>
-                      <p className="font-bold">{txn.quantity}</p>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Rate</span>
-                      <p className="font-bold">₹{Number(txn.price).toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Total</span>
-                      <p className="font-bold">₹{Number(txn.total).toFixed(2)}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-800 text-white">
+                  <tr>
+                    {['S.No', 'Invoice No', 'Date', 'Party Name', 'Qty', 'Unit Rate', 'Type', 'Action'].map(h => (
+                      <th key={h} className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {itemTransactions.map((txn, idx) => (
+                    <tr key={`${txn.type}-${txn.invoiceNo}-${idx}`} className="hover:bg-slate-50 transition">
+                      <td className="px-4 py-3 text-slate-400">{idx + 1}</td>
+                      <td className="px-4 py-3 font-mono font-semibold text-slate-700">{txn.invoiceNo || '—'}</td>
+                      <td className="px-4 py-3 text-slate-600">{txn.date ? new Date(txn.date).toLocaleDateString('en-IN') : '—'}</td>
+                      <td className="px-4 py-3 font-medium text-slate-800">{txn.party || '—'}</td>
+                      <td className="px-4 py-3 font-bold text-center text-slate-700">{txn.quantity}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-700">₹{Number(txn.price).toFixed(2)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${txn.type === 'Sale' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {txn.type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <TransactionMenu txn={txn} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
@@ -165,6 +198,62 @@ function RowMenu({ item, onEdit, onDelete }) {
   );
 }
 
+function TransactionMenu({ txn }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, right: 0 });
+  const btnRef = useRef(null);
+
+  const toggle = (e) => {
+    e.stopPropagation();
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+    }
+    setOpen(o => !o);
+  };
+
+  const actions = [
+    { label: 'View/Edit', icon: Pencil, tone: 'text-slate-700', message: `Open ${txn.type} ${txn.invoiceNo || ''}` },
+    { label: 'Cancel', icon: Ban, tone: 'text-amber-600', message: `Cancel ${txn.type} ${txn.invoiceNo || ''}` },
+    { label: 'Delete', icon: Trash2, tone: 'text-rose-600', message: `Delete ${txn.type} ${txn.invoiceNo || ''}` },
+    { label: 'Duplicate', icon: Copy, tone: 'text-slate-700', message: `Duplicate ${txn.type} ${txn.invoiceNo || ''}` },
+    { label: 'Open PDF', icon: FileText, tone: 'text-blue-600', message: `Open PDF for ${txn.invoiceNo || txn.type}` },
+    { label: 'Convert to Return', icon: RotateCcw, tone: 'text-purple-600', message: `Convert ${txn.type} ${txn.invoiceNo || ''} to return` },
+    { label: 'Payment History', icon: History, tone: 'text-slate-700', message: `Payment history for ${txn.invoiceNo || txn.type}` },
+  ];
+
+  return (
+    <div className="inline-block">
+      <button ref={btnRef} onClick={toggle} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-100 rounded-lg transition">
+        <MoreVertical size={16} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div
+            className="fixed bg-white border border-slate-200 rounded-xl shadow-xl min-w-[190px] z-50 overflow-hidden"
+            style={{ top: pos.top, right: pos.right }}
+          >
+            {actions.map(({ label, icon: Icon, tone, message }) => (
+              <button
+                key={label}
+                onClick={() => {
+                  setOpen(false);
+                  toast.info(message.trim());
+                }}
+                className={`w-full px-4 py-2.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2 ${tone}`}
+              >
+                <Icon size={13} />
+                {label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Items() {
   const qc = useQueryClient();
   const { data: allItems = [], isLoading } = useQuery({ queryKey: ['items'], queryFn: ItemsAPI.getAll });
@@ -177,7 +266,7 @@ export default function Items() {
   const [editId, setEditId] = useState(null);
   const [showLow, setShowLow] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null });
-  const [selectedItem, setSelectedItem] = useState(null);
+  const [selectedItemId, setSelectedItemId] = useState(null);
 
   const saveMut = useMutation({
     mutationFn: (data) => editId ? ItemsAPI.update(editId, data) : ItemsAPI.create(data),
@@ -187,7 +276,12 @@ export default function Items() {
 
   const deleteMut = useMutation({
     mutationFn: ItemsAPI.delete,
-    onSuccess: () => { qc.invalidateQueries(['items']); toast.success('Item deleted'); },
+    onSuccess: (_data, deletedId) => {
+      qc.invalidateQueries(['items']);
+      if (String(selectedItemId) === String(deletedId)) setSelectedItemId(null);
+      setDeleteConfirm({ open: false, id: null });
+      toast.success('Item deleted');
+    },
     onError: () => toast.error('Failed to delete item'),
   });
 
@@ -216,10 +310,28 @@ export default function Items() {
     a.download = `Inventory_${fmt.today()}.csv`; a.click();
   };
 
-  const displayed = showLow ? allItems.filter(i => Number(i.stock || 0) <= Number(i.reorderLevel || 10)) : allItems;
+  const displayed = useMemo(
+    () => showLow ? allItems.filter(i => Number(i.stock || 0) <= Number(i.reorderLevel || 10)) : allItems,
+    [allItems, showLow],
+  );
+  const selectedItem = useMemo(
+    () => displayed.find(i => String(i.id) === String(selectedItemId)) || null,
+    [displayed, selectedItemId],
+  );
   const lowCount  = allItems.filter(i => Number(i.stock || 0) <= Number(i.reorderLevel || 10)).length;
   const soon = new Date(); soon.setDate(soon.getDate() + 30);
   const expCount  = allItems.filter(i => i.expiryDate && new Date(i.expiryDate) <= soon).length;
+
+  useEffect(() => {
+    if (!displayed.length) {
+      setSelectedItemId(null);
+      return;
+    }
+
+    setSelectedItemId(currentId =>
+      displayed.some(i => String(i.id) === String(currentId)) ? currentId : displayed[0].id,
+    );
+  }, [displayed]);
 
   return (
     <div className="p-8 h-screen flex flex-col">
@@ -254,43 +366,35 @@ export default function Items() {
       </div>
 
       {/* Split Layout - Items List and Details */}
-      <div className="flex-1 grid grid-cols-3 gap-4 min-h-0">
+      <div className="flex-1 grid grid-cols-6 gap-4 min-h-0">
         {/* Left Panel - Items List */}
         <div className="col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
           <table className="w-full text-sm flex-1">
             <thead className="bg-slate-800 text-white">
               <tr>
-                {['#','Item Name','Batch','UOM','Stock','Purchase ₹','MRP ₹','Sale ₹','GST%','Expiry','Status','Actions'].map(h => (
+                {['S.No','Item Name','Qty','Actions'].map(h => (
                   <th key={h} className="px-4 py-3.5 text-left font-semibold text-xs uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 overflow-y-auto">
               {isLoading ? (
-                <tr><td colSpan={12} className="text-center py-10 text-slate-400">Loading...</td></tr>
+                <tr><td colSpan={4} className="text-center py-10 text-slate-400">Loading...</td></tr>
               ) : displayed.length === 0 ? (
-                <tr><td colSpan={12} className="text-center py-10 text-slate-400">No items found</td></tr>
+                <tr><td colSpan={4} className="text-center py-10 text-slate-400">No items found</td></tr>
               ) : displayed.map((p, idx) => {
                 const stock = Number(p.stock || 0);
                 const isLow = stock <= Number(p.reorderLevel || 10);
-                const isSelected = selectedItem?.id === p.id;
+                const isSelected = String(selectedItemId) === String(p.id);
                 return (
                   <tr 
                     key={p.id} 
-                    onClick={() => setSelectedItem(p)}
+                    onClick={() => setSelectedItemId(p.id)}
                     className={`hover:bg-slate-50 transition-colors cursor-pointer ${isLow ? 'bg-orange-50' : ''} ${isSelected ? 'bg-blue-100 border-l-4 border-l-blue-500' : ''}`}>
-                    <td className="px-4 py-3 text-slate-400">{idx + 1}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-800">{p.shortName}</td>
-                    <td className="px-4 py-3 text-slate-500 font-mono text-xs">{p.batch || '—'}</td>
-                    <td className="px-4 py-3 text-slate-500">{p.uom}</td>
-                    <td className={`px-4 py-3 font-bold text-center ${stock <= 5 ? 'text-rose-600' : 'text-emerald-600'}`}>{stock}</td>
-                    <td className="px-4 py-3 text-slate-600">{'₹'}{Number(p.purchasePrice || 0).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-slate-600">{'₹'}{Number(p.mrp || 0).toFixed(2)}</td>
-                    <td className="px-4 py-3 font-semibold text-amber-600">{'₹'}{Number(p.salesPrice || 0).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-slate-500">{p.gstRate}%</td>
-                    <td className="px-4 py-3 text-slate-400 text-xs font-mono">{p.expiryDate ? new Date(p.expiryDate).toLocaleDateString('en-IN') : '—'}</td>
-                    <td className="px-4 py-3"><StatusBadge item={p} /></td>
-                    <td className="px-4 py-3 text-center"><RowMenu item={p} onEdit={openEdit} onDelete={handleDelete} /></td>
+                    <td className="px-4 py-1.5 text-slate-400">{idx + 1}</td>
+                    <td className="px-4 py-1.5 font-semibold text-slate-800">{p.shortName}</td>
+                    <td className={`px-4 py-1.5 font-bold text-center ${stock <= 5 ? 'text-rose-600' : 'text-emerald-600'}`}>{stock}</td>
+                    <td className="px-4 py-1.5 text-center"><RowMenu item={p} onEdit={openEdit} onDelete={handleDelete} /></td>
                   </tr>
                 );
               })}
@@ -299,7 +403,7 @@ export default function Items() {
         </div>
 
         {/* Right Panel - Item Details and Transactions */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+        <div className="col-span-4 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
           {selectedItem ? (
             <ItemTransactions item={selectedItem} sales={sales} purchases={purchases} />
           ) : (

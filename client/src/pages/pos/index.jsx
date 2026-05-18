@@ -8,13 +8,14 @@ import { PartiesAPI } from '../../api/parties.js';
 import { SalesAPI } from '../../api/sales.js';
 import { PaymentsAPI } from '../../api/payments.js';
 
-function genInvoice() {
-  const n = new Date();
-  return 'SAL-' + String(n.getFullYear()).slice(2) +
-    String(n.getMonth() + 1).padStart(2, '0') +
-    String(n.getDate()).padStart(2, '0') +
-    String(n.getHours()).padStart(2, '0') +
-    String(n.getMinutes()).padStart(2, '00');
+function genInvoice(sales = []) {
+  const invoiceNumbers = sales
+    .map(s => String(s.invoice || '').trim())
+    .filter(invoice => /^\d+$/.test(invoice))
+    .map(Number);
+
+  if (!invoiceNumbers.length) return '1';
+  return String(Math.max(...invoiceNumbers) + 1);
 }
 
 const RS = '₹';
@@ -24,6 +25,7 @@ export default function POS() {
   const { data: products = [] } = useQuery({ queryKey: ['items'], queryFn: ItemsAPI.getAll });
   const { data: parties = [] }  = useQuery({ queryKey: ['parties'], queryFn: PartiesAPI.getAll });
   const { data: modes = [] }    = useQuery({ queryKey: ['paymentModes'], queryFn: PaymentsAPI.getModes });
+  const { data: sales = [] }    = useQuery({ queryKey: ['sales'], queryFn: SalesAPI.getAll });
 
   const [search, setSearch]         = useState('');
   const [cart, setCart]             = useState([]);
@@ -31,7 +33,7 @@ export default function POS() {
   const [selectedParty, setSelectedParty] = useState(null);
   const [partyModal, setPartyModal] = useState(false);
   const [partySearch, setPartySearch] = useState('');
-  const [invoice, setInvoice]       = useState(genInvoice);
+  const [invoice, setInvoice]       = useState(() => genInvoice());
   const [stockMap, setStockMap]     = useState({});
   const [clearConfirm, setClearConfirm] = useState(false);
   const searchRef = useRef();
@@ -41,6 +43,10 @@ export default function POS() {
     products.forEach(p => { m[p.id] = Number(p.stock || 0); });
     setStockMap(m);
   }, [products]);
+
+  useEffect(() => {
+    if (!cart.length) setInvoice(genInvoice(sales));
+  }, [cart.length, sales]);
 
   const createSale = useMutation({
     mutationFn: SalesAPI.create,
@@ -106,13 +112,13 @@ export default function POS() {
       paymentMode: paymentLines[0]?.mode || 'Cash',
       totalReceived: received, changeGiven: change
     };
-    await createSale.mutateAsync(record);
+    const savedSale = await createSale.mutateAsync(record);
     if (selectedParty && received < grandTotal) {
       await PartiesAPI.updateBalance(selectedParty.id, grandTotal - received).catch(() => {});
     }
     toast.success(`Sale completed — Invoice: ${invoice} | Total: ${RS}${grandTotal.toFixed(2)}`);
     setCart([]); setPaymentLines([{ mode: modes[0]?.name || 'Cash', amount: 0 }]);
-    setSelectedParty(null); setInvoice(genInvoice());
+    setSelectedParty(null); setInvoice(genInvoice([...sales, savedSale]));
   };
 
   const filteredParties = parties.filter(p =>
