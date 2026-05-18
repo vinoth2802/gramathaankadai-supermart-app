@@ -32,6 +32,7 @@ const nav = [
     label: 'Purchase',
     children: [
       { to: '/purchases/purchase',    icon: Truck,         label: 'Purchase' },
+      { to: '/purchases/history',     icon: ShoppingBag,   label: 'Purchase History' },
       { to: '/purchases/payment-out', icon: ArrowUpToLine, label: 'Payment Out' },
       { to: '/purchases/return',      icon: Undo2,         label: 'Purchase Return' },
     ],

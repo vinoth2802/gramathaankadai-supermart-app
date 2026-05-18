@@ -27,17 +27,43 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { invoice, date, partyName, partyId, items = [], grandTotal, paymentMode } = req.body;
+  const { invoice, date, supplierInvoiceNo, supplierInvoiceDate, partyName, partyId, items = [], grandTotal, paymentMode } = req.body;
   const purchase = await prisma.purchase.create({
     data: {
       invoice,
-      date:        date ? new Date(date) : new Date(),
-      partyName:   partyName   || null,
-      partyId:     partyId     || null,
-      grandTotal:  grandTotal  ?? 0,
-      paymentMode: paymentMode || 'Cash',
+      date:                date ? new Date(date) : new Date(),
+      supplierInvoiceNo:   supplierInvoiceNo || null,
+      supplierInvoiceDate: supplierInvoiceDate ? new Date(supplierInvoiceDate) : null,
+      partyName:           partyName   || null,
+      partyId:             partyId     || null,
+      grandTotal:          grandTotal  ?? 0,
+      paymentMode:         paymentMode || 'Cash',
       items: {
-        create: items.map(({ name, qty, price, total }) => ({ name, qty, price, total })),
+        create: items.map(({
+          name,
+          batchNo,
+          expiryDate,
+          mfgDate,
+          mrp,
+          qty,
+          unit,
+          price,
+          gstRate,
+          gstAmount,
+          total,
+        }) => ({
+          name,
+          batchNo: batchNo || null,
+          expiryDate: expiryDate ? new Date(expiryDate) : null,
+          mfgDate: mfgDate ? new Date(mfgDate) : null,
+          mrp: mrp ?? 0,
+          qty,
+          unit: unit || null,
+          price,
+          gstRate: gstRate ?? 0,
+          gstAmount: gstAmount ?? 0,
+          total,
+        })),
       },
     },
     include,

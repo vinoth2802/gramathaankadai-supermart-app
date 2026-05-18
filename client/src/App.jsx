@@ -15,6 +15,7 @@ import PaymentIn    from './pages/sales/PaymentIn.jsx';
 import SaleReturn   from './pages/sales/Return.jsx';
 
 import Purchases    from './pages/purchases/index.jsx';
+import PurchaseHistory from './pages/purchases/History.jsx';
 import PaymentOut   from './pages/purchases/PaymentOut.jsx';
 import PurchaseReturn from './pages/purchases/Return.jsx';
 
@@ -71,6 +72,7 @@ export default function App() {
           <Route path="purchases">
             <Route index element={<Navigate to="/purchases/purchase" replace />} />
             <Route path="purchase"    element={<Purchases />} />
+            <Route path="history"     element={<PurchaseHistory />} />
             <Route path="payment-out" element={<PaymentOut />} />
             <Route path="return"      element={<PurchaseReturn />} />
           </Route>
