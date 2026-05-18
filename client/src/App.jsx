@@ -5,7 +5,7 @@ import Layout from './components/Layout.jsx';
 import Login        from './pages/auth/Login.jsx';
 import Dashboard    from './pages/dashboard/index.jsx';
 import POS          from './pages/pos/index.jsx';
-import Items        from './pages/inventory/index.jsx';
+import Items        from './pages/items/index.jsx';
 import Parties      from './pages/parties/index.jsx';
 
 import SalesInvoice from './pages/sales/Invoice.jsx';
