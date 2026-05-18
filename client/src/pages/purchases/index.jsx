@@ -233,7 +233,7 @@ export default function Purchases() {
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-6 gap-4 mb-4">
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">GRN No</label>
               <input value={invoice} readOnly className={`${inp} bg-slate-50 font-mono font-bold text-amber-600`} />
@@ -242,7 +242,7 @@ export default function Purchases() {
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">GRN Date</label>
               <input type="date" value={form.grnDate} onChange={e => setForm(f => ({ ...f, grnDate: e.target.value }))} className={inp} />
             </div>
-            <div>
+            <div className="col-span-2">
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Supplier</label>
               <select value={form.partyId} onChange={e => setForm(f => ({ ...f, partyId: e.target.value }))} className={inp}>
                 <option value="">— Select Supplier —</option>
@@ -259,15 +259,6 @@ export default function Purchases() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Payment Mode</label>
-              <select value={form.paymentMode} onChange={e => setForm(f => ({ ...f, paymentMode: e.target.value }))} className={inp}>
-                {modes.map(m => <option key={m.id}>{m.name}</option>)}
-              </select>
-            </div>
-          </div>
-
           {purchaseType === 'credit' && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-4 text-sm text-blue-700">
               <p className="font-semibold">Credit Purchase</p>
@@ -277,7 +268,7 @@ export default function Purchases() {
 
           <div className="mb-4">
             <ResizableTable 
-              headers={['S.No', 'Item Name', 'Batch No', 'Expiry Date', 'MFG Date', 'MRP', 'Qty', 'Unit', 'Purchase Price', 'GST Rate', 'GST Amount', 'Total Amount', '']}
+              headers={['ITEM', 'DESCRIPTION', 'COUNT', 'BATCH NO.', 'EXP. DATE', 'MFG. DATE', 'MRP', 'SIZE', 'QTY', 'FREE QTY', 'UNIT', 'PRICE/UNIT', 'DISCOUNT %', 'DISCOUNT AMOUNT', 'TAX %', 'TAX AMOUNT', 'AMOUNT', '']}
               className="border border-slate-200 rounded-xl overflow-x-auto"
             >
               {items.map((row, idx) => (
@@ -309,16 +300,27 @@ export default function Purchases() {
                       {products.map(p => <option key={p.id} value={p.shortName} />)}
                     </datalist>
                   </td>
+                  <td className="px-3 py-2"><input value={row.description || ''} onChange={e => updateRow(idx, 'description', e.target.value)} className={inp} /></td>
+                  <td className="px-3 py-2"><input value={row.count || ''} onChange={e => updateRow(idx, 'count', e.target.value)} className={inp} /></td>
                   <td className="px-3 py-2"><input value={row.batchNo} onChange={e => updateRow(idx, 'batchNo', e.target.value)} className={inp} /></td>
                   <td className="px-3 py-2"><input type="date" value={row.expiryDate} onChange={e => updateRow(idx, 'expiryDate', e.target.value)} className={inp} /></td>
                   <td className="px-3 py-2"><input type="date" value={row.mfgDate} onChange={e => updateRow(idx, 'mfgDate', e.target.value)} className={inp} /></td>
                   <td className="px-3 py-2"><input type="number" step="0.01" value={row.mrp} onChange={e => updateRow(idx, 'mrp', e.target.value)} className={inp} /></td>
+                  <td className="px-3 py-2"><input value={row.size || ''} onChange={e => updateRow(idx, 'size', e.target.value)} className={inp} /></td>
                   <td className="px-3 py-2"><input type="number" min="1" value={row.qty} onChange={e => updateRow(idx, 'qty', e.target.value)} className={inp} /></td>
+                  <td className="px-3 py-2"><input value={row.freeQty || ''} onChange={e => updateRow(idx, 'freeQty', e.target.value)} className={inp} /></td>
                   <td className="px-3 py-2"><input value={row.unit} onChange={e => updateRow(idx, 'unit', e.target.value)} className={inp} /></td>
-                  <td className="px-3 py-2"><input type="number" step="0.01" value={row.price} onChange={e => updateRow(idx, 'price', e.target.value)} className={inp} /></td>
-                  <td className="px-3 py-2"><input type="number" step="0.01" value={row.gstRate} onChange={e => updateRow(idx, 'gstRate', e.target.value)} className={inp} /></td>
-                  <td className="px-3 py-2 font-semibold text-slate-700 flex-shrink-0">{RS}{Number(row.gstAmount || 0).toFixed(2)}</td>
-                  <td className="px-3 py-2 font-bold text-slate-800 flex-shrink-0">{RS}{Number(row.total || 0).toFixed(2)}</td>
+                  <td className="px-3 py-2">
+                    <select value={row.priceType || 'With Tax'} onChange={e => updateRow(idx, 'priceType', e.target.value)} className={inp}>
+                      <option value="With Tax">With Tax</option>
+                      <option value="Without Tax">Without Tax</option>
+                    </select>
+                  </td>
+                  <td className="px-3 py-2"><input type="number" step="0.01" value={row.discountRate || ''} onChange={e => updateRow(idx, 'discountRate', e.target.value)} className={inp} /></td>
+                  <td className="px-3 py-2"><input type="number" step="0.01" value={row.discountAmount || ''} onChange={e => updateRow(idx, 'discountAmount', e.target.value)} className={inp} /></td>
+                  <td className="px-3 py-2"><input type="number" step="0.01" value={row.taxRate || ''} onChange={e => updateRow(idx, 'taxRate', e.target.value)} className={inp} /></td>
+                  <td className="px-3 py-2 font-semibold text-slate-700 flex-shrink-0">{RS}{Number(row.taxAmount || 0).toFixed(2)}</td>
+                  <td className="px-3 py-2 font-bold text-slate-800 flex-shrink-0">{RS}{Number(row.amount || 0).toFixed(2)}</td>
                   <td className="px-3 py-2 flex-shrink-0">
                     <button type="button" onClick={() => removeRow(idx)} className="w-9 h-9 flex items-center justify-center text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition">
                       <Trash2 size={14} />
@@ -329,16 +331,34 @@ export default function Purchases() {
             </ResizableTable>
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="mb-4">
             <button type="button" onClick={addRow} className="text-amber-600 hover:text-amber-700 text-sm font-semibold flex items-center gap-1.5 transition">
               <Plus size={15} /> Add Row
             </button>
-            <div className="flex items-center gap-4">
-              <span className="text-lg font-bold text-slate-800">Total: {RS}{grandTotal.toFixed(2)}</span>
-              <button type="submit" disabled={createMut.isPending} className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-6 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition shadow-sm">
-                <Check size={15} /> {createMut.isPending ? 'Saving...' : 'Save Purchase'}
-              </button>
+          </div>
+
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <div className="w-80">
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Payment Mode</label>
+              <select value={form.paymentMode} onChange={e => setForm(f => ({ ...f, paymentMode: e.target.value }))} className={inp}>
+                {modes.map(m => <option key={m.id}>{m.name}</option>)}
+              </select>
             </div>
+            <div className="flex items-end">
+              <span className="text-lg font-bold text-slate-800">Total: {RS}{grandTotal.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-4">
+            <button type="button" className="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
+              <Check size={15} /> Draft Purchase
+            </button>
+            <button type="button" className="bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-200 px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
+              <Check size={15} /> Print Purchase
+            </button>
+            <button type="submit" disabled={createMut.isPending} className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-6 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition shadow-sm">
+              <Check size={15} /> {createMut.isPending ? 'Saving...' : 'Save Purchase'}
+            </button>
           </div>
         </form>
       </div>
