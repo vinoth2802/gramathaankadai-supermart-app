@@ -13,6 +13,7 @@ model Product {
   itemCode      String?   @unique @map("item_code")
   category      String    @default("General")
   hsnCode       String?   @map("hsn_code")
+  batch         String?   @db.VarChar(50)
   uom           String    @default("PCS")
   purchasePrice Decimal   @default(0) @map("purchase_price") @db.Decimal(12, 2)
   mrp           Decimal   @default(0) @db.Decimal(12, 2)
