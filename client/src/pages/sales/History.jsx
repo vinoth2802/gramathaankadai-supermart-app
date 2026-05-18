@@ -4,9 +4,14 @@ import { ChevronDown, ChevronRight, Search, Printer } from 'lucide-react';
 import { SalesAPI } from '../../api/sales.js';
 import { fmt } from '../../utils/formatters.js';
 
+const RS = '₹';
+const saleCustomer = (sale) => sale.customerName ?? sale.customer_name ?? 'Cash Sale';
+const saleGrandTotal = (sale) => sale.grandTotal ?? sale.grand_total ?? 0;
+const salePaymentMode = (sale) => sale.paymentMode ?? sale.payment_mode ?? 'Cash';
+
 function printInvoice(sale) {
   const items = (sale.items || []).map(i =>
-    `<tr><td style="padding:6px 8px">${i.name}</td><td style="padding:6px 8px;text-align:center">${i.qty}</td><td style="padding:6px 8px;text-align:right">₹${Number(i.rate).toFixed(2)}</td><td style="padding:6px 8px;text-align:right">₹${Number(i.amount).toFixed(2)}</td></tr>`
+    `<tr><td style="padding:6px 8px">${i.name}</td><td style="padding:6px 8px;text-align:center">${i.qty}</td><td style="padding:6px 8px;text-align:right">${RS}${Number(i.rate).toFixed(2)}</td><td style="padding:6px 8px;text-align:right">${RS}${Number(i.amount).toFixed(2)}</td></tr>`
   ).join('');
   const w = window.open('', '_blank');
   w.document.write(`<!DOCTYPE html><html><head><title>${sale.invoice}</title>
@@ -18,14 +23,14 @@ function printInvoice(sale) {
   <h2>Gramathaankadai SuperMart</h2><p style="text-align:center">Main Road, Tamil Nadu | 9876543210</p>
   <div class="hr"></div>
   <p><b>Invoice:</b> ${sale.invoice}</p><p><b>Date:</b> ${fmt.datetime(sale.date)}</p>
-  <p><b>Customer:</b> ${sale.customer_name}</p><p><b>Payment:</b> ${sale.payment_mode}</p>
+  <p><b>Customer:</b> ${saleCustomer(sale)}</p><p><b>Payment:</b> ${salePaymentMode(sale)}</p>
   <div class="hr"></div>
   <table><thead><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
   <tbody>${items}</tbody></table>
   <div class="hr"></div>
-  <p>Subtotal: ₹${Number(sale.subtotal).toFixed(2)}</p>
-  <p>GST: ₹${Number(sale.gst).toFixed(2)}</p>
-  <p class="total">Grand Total: ₹${Number(sale.grand_total).toFixed(2)}</p>
+  <p>Subtotal: ${RS}${Number(sale.subtotal).toFixed(2)}</p>
+  <p>GST: ${RS}${Number(sale.gst).toFixed(2)}</p>
+  <p class="total">Grand Total: ${RS}${Number(saleGrandTotal(sale)).toFixed(2)}</p>
   <div class="hr"></div><p style="text-align:center">Thank you for shopping!</p>
   </body></html>`);
   w.document.close(); w.print();
@@ -38,7 +43,7 @@ export default function SalesHistory() {
 
   const filtered = sales.filter(s =>
     (s.invoice || '').toLowerCase().includes(search.toLowerCase()) ||
-    (s.customer_name || '').toLowerCase().includes(search.toLowerCase())
+    saleCustomer(s).toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -73,10 +78,10 @@ export default function SalesHistory() {
                 <div className="flex-1 grid grid-cols-4 gap-4 text-sm">
                   <span className="font-mono font-bold text-amber-600">{sale.invoice}</span>
                   <span className="text-slate-500">{fmt.datetime(sale.date)}</span>
-                  <span className="font-medium text-slate-700">{sale.customer_name}</span>
-                  <span className="font-bold text-emerald-600 text-right">₹{Number(sale.grand_total).toFixed(2)}</span>
+                  <span className="font-medium text-slate-700">{saleCustomer(sale)}</span>
+                  <span className="font-bold text-emerald-600 text-right">{RS}{Number(saleGrandTotal(sale)).toFixed(2)}</span>
                 </div>
-                <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-medium shrink-0">{sale.payment_mode}</span>
+                <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-medium shrink-0">{salePaymentMode(sale)}</span>
               </button>
 
               {isOpen && (
@@ -95,17 +100,17 @@ export default function SalesHistory() {
                         <tr key={i}>
                           <td className="py-1.5 text-slate-800">{item.name}</td>
                           <td className="py-1.5 text-center text-slate-600">{item.qty}</td>
-                          <td className="py-1.5 text-right text-slate-600">₹{Number(item.rate).toFixed(2)}</td>
-                          <td className="py-1.5 text-right font-semibold text-slate-800">₹{Number(item.amount).toFixed(2)}</td>
+                          <td className="py-1.5 text-right text-slate-600">{RS}{Number(item.rate).toFixed(2)}</td>
+                          <td className="py-1.5 text-right font-semibold text-slate-800">{RS}{Number(item.amount).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                   <div className="flex justify-between items-end">
                     <div className="text-sm space-y-0.5 text-slate-600">
-                      <div>Subtotal: <span className="font-medium">₹{Number(sale.subtotal).toFixed(2)}</span></div>
-                      <div>GST: <span className="font-medium">₹{Number(sale.gst).toFixed(2)}</span></div>
-                      <div className="text-base font-bold text-slate-800">Grand Total: ₹{Number(sale.grand_total).toFixed(2)}</div>
+                      <div>Subtotal: <span className="font-medium">{RS}{Number(sale.subtotal).toFixed(2)}</span></div>
+                      <div>GST: <span className="font-medium">{RS}{Number(sale.gst).toFixed(2)}</span></div>
+                      <div className="text-base font-bold text-slate-800">Grand Total: {RS}{Number(saleGrandTotal(sale)).toFixed(2)}</div>
                     </div>
                     <button onClick={() => printInvoice(sale)} className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
                       <Printer size={14} /> Print

@@ -9,6 +9,7 @@ import Items        from './pages/items/index.jsx';
 import Parties      from './pages/parties/index.jsx';
 
 import SalesInvoice from './pages/sales/Invoice.jsx';
+import SalesHistory from './pages/sales/History.jsx';
 import Quotation    from './pages/sales/Quotation.jsx';
 import PaymentIn    from './pages/sales/PaymentIn.jsx';
 import SaleReturn   from './pages/sales/Return.jsx';
@@ -59,7 +60,8 @@ export default function App() {
           <Route path="parties"   element={<Parties />} />
 
           <Route path="sales">
-            <Route index element={<Navigate to="/sales/invoice" replace />} />
+            <Route index element={<Navigate to="/sales/history" replace />} />
+            <Route path="history"    element={<SalesHistory />} />
             <Route path="invoice"    element={<SalesInvoice />} />
             <Route path="quotation"  element={<Quotation />} />
             <Route path="payment-in" element={<PaymentIn />} />

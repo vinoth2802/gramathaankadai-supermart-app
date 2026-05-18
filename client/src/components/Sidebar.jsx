@@ -20,6 +20,7 @@ const nav = [
     icon: Receipt,
     label: 'Sales',
     children: [
+      { to: '/sales/history',    icon: Receipt,            label: 'Sales History' },
       { to: '/sales/invoice',    icon: FileText,           label: 'Sales Invoice' },
       { to: '/sales/quotation',  icon: MessageSquareQuote, label: 'Quotation' },
       { to: '/sales/payment-in', icon: HandCoins,          label: 'Payment In' },
