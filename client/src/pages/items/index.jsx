@@ -7,7 +7,7 @@ import { ItemsAPI } from '../../api/items.js';
 import { AccountsAPI } from '../../api/accounts.js';
 import { fmt } from '../../utils/formatters.js';
 
-const EMPTY = { shortName: '', itemCode: '', category: '', hsnCode: '', uom: 'PCS', purchasePrice: '', mrp: '', salesPrice: '', gstRate: 5, expiryDate: '', stock: 0, reorderLevel: 10 };
+const EMPTY = { shortName: '', itemCode: '', category: '', hsnCode: '', uom: 'PCS', purchasePrice: '0', mrp: '0', salesPrice: '0', gstRate: 5, expiryDate: '', stock: 0, reorderLevel: 10 };
 
 function StatusBadge({ item }) {
   const stock = Number(item.stock || 0);
@@ -72,7 +72,7 @@ export default function Items() {
   const saveMut = useMutation({
     mutationFn: (data) => editId ? ItemsAPI.update(editId, data) : ItemsAPI.create(data),
     onSuccess: () => { qc.invalidateQueries(['items']); closeModal(); toast.success(editId ? 'Item updated' : 'Item added'); },
-    onError: () => toast.error('Failed to save item'),
+    onError: (err) => toast.error(err?.message || 'Failed to save item'),
   });
 
   const deleteMut = useMutation({
@@ -191,7 +191,19 @@ export default function Items() {
                 <X size={20} />
               </button>
             </div>
-            <form onSubmit={(e) => { e.preventDefault(); saveMut.mutate(form); }}>
+            <form onSubmit={(e) => { 
+              e.preventDefault(); 
+              const data = {
+                ...form,
+                purchasePrice: Number(form.purchasePrice) || 0,
+                mrp: Number(form.mrp) || 0,
+                salesPrice: Number(form.salesPrice) || 0,
+                gstRate: Number(form.gstRate) || 5,
+                stock: Number(form.stock) || 0,
+                reorderLevel: Number(form.reorderLevel) || 10,
+              };
+              saveMut.mutate(data);
+            }}>
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <Field label="Short Name *" required><input required value={form.shortName} onChange={e => setForm(f => ({ ...f, shortName: e.target.value }))} placeholder="e.g. Rice" className={inp} /></Field>
                 <Field label="Item Code"><input value={form.itemCode} onChange={e => setForm(f => ({ ...f, itemCode: e.target.value }))} placeholder="e.g. ITM001" className={inp} /></Field>
