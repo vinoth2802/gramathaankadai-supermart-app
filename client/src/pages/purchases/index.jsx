@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, X, Check } from 'lucide-react';
 import { toast } from 'sonner';
+import ResizableTable from '../../components/ResizableTable.jsx';
 import { PurchasesAPI } from '../../api/purchases.js';
 import { PartiesAPI } from '../../api/parties.js';
 import { PaymentsAPI } from '../../api/payments.js';
@@ -274,64 +275,58 @@ export default function Purchases() {
             </div>
           )}
 
-          <div className="mb-4 border border-slate-200 rounded-xl overflow-x-auto">
-            <table className="w-full min-w-[1320px] text-sm">
-              <thead className="bg-slate-800 text-white">
-                <tr>
-                  {['S.No', 'Item Name', 'Batch No', 'Expiry Date', 'MFG Date', 'MRP', 'Qty', 'Unit', 'Purchase Price', 'GST Rate', 'GST Amount', 'Total Amount', ''].map(h => (
-                    <th key={h} className="px-3 py-3 text-left font-semibold text-xs uppercase tracking-wide">{h}</th>
-                  ))}
+          <div className="mb-4">
+            <ResizableTable 
+              headers={['S.No', 'Item Name', 'Batch No', 'Expiry Date', 'MFG Date', 'MRP', 'Qty', 'Unit', 'Purchase Price', 'GST Rate', 'GST Amount', 'Total Amount', '']}
+              className="border border-slate-200 rounded-xl overflow-x-auto"
+            >
+              {items.map((row, idx) => (
+                <tr key={idx} className="align-top border-b border-slate-100 divide-x divide-slate-100 last:border-b-0 hover:bg-slate-50 transition">
+                  <td className="px-3 py-2 text-slate-400 flex-shrink-0">{idx + 1}</td>
+                  <td className="px-3 py-2">
+                    <input list={`items-${activeTab?.id}-${idx}`} value={row.name} onChange={e => {
+                      const prod = products.find(p => p.shortName === e.target.value);
+                      updateRow(idx, 'name', e.target.value);
+                      if (prod) {
+                        setItems(prev => prev.map((r, i) => {
+                          if (i !== idx) return r;
+                          const updated = {
+                            ...r,
+                            name: e.target.value,
+                            unit: prod.uom || r.unit || 'PCS',
+                            price: Number(prod.purchasePrice || 0),
+                            mrp: Number(prod.mrp || 0),
+                            gstRate: Number(prod.gstRate || 0),
+                          };
+                          const taxable = Number(updated.qty) * Number(updated.price);
+                          updated.gstAmount = taxable * (Number(updated.gstRate) || 0) / 100;
+                          updated.total = taxable + updated.gstAmount;
+                          return updated;
+                        }));
+                      }
+                    }} placeholder="Item name" className={inp} />
+                    <datalist id={`items-${activeTab?.id}-${idx}`}>
+                      {products.map(p => <option key={p.id} value={p.shortName} />)}
+                    </datalist>
+                  </td>
+                  <td className="px-3 py-2"><input value={row.batchNo} onChange={e => updateRow(idx, 'batchNo', e.target.value)} className={inp} /></td>
+                  <td className="px-3 py-2"><input type="date" value={row.expiryDate} onChange={e => updateRow(idx, 'expiryDate', e.target.value)} className={inp} /></td>
+                  <td className="px-3 py-2"><input type="date" value={row.mfgDate} onChange={e => updateRow(idx, 'mfgDate', e.target.value)} className={inp} /></td>
+                  <td className="px-3 py-2"><input type="number" step="0.01" value={row.mrp} onChange={e => updateRow(idx, 'mrp', e.target.value)} className={inp} /></td>
+                  <td className="px-3 py-2"><input type="number" min="1" value={row.qty} onChange={e => updateRow(idx, 'qty', e.target.value)} className={inp} /></td>
+                  <td className="px-3 py-2"><input value={row.unit} onChange={e => updateRow(idx, 'unit', e.target.value)} className={inp} /></td>
+                  <td className="px-3 py-2"><input type="number" step="0.01" value={row.price} onChange={e => updateRow(idx, 'price', e.target.value)} className={inp} /></td>
+                  <td className="px-3 py-2"><input type="number" step="0.01" value={row.gstRate} onChange={e => updateRow(idx, 'gstRate', e.target.value)} className={inp} /></td>
+                  <td className="px-3 py-2 font-semibold text-slate-700 flex-shrink-0">{RS}{Number(row.gstAmount || 0).toFixed(2)}</td>
+                  <td className="px-3 py-2 font-bold text-slate-800 flex-shrink-0">{RS}{Number(row.total || 0).toFixed(2)}</td>
+                  <td className="px-3 py-2 flex-shrink-0">
+                    <button type="button" onClick={() => removeRow(idx)} className="w-9 h-9 flex items-center justify-center text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition">
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {items.map((row, idx) => (
-                  <tr key={idx} className="align-top">
-                    <td className="px-3 py-2 text-slate-400">{idx + 1}</td>
-                    <td className="px-3 py-2 min-w-52">
-                      <input list={`items-${activeTab?.id}-${idx}`} value={row.name} onChange={e => {
-                        const prod = products.find(p => p.shortName === e.target.value);
-                        updateRow(idx, 'name', e.target.value);
-                        if (prod) {
-                          setItems(prev => prev.map((r, i) => {
-                            if (i !== idx) return r;
-                            const updated = {
-                              ...r,
-                              name: e.target.value,
-                              unit: prod.uom || r.unit || 'PCS',
-                              price: Number(prod.purchasePrice || 0),
-                              mrp: Number(prod.mrp || 0),
-                              gstRate: Number(prod.gstRate || 0),
-                            };
-                            const taxable = Number(updated.qty) * Number(updated.price);
-                            updated.gstAmount = taxable * (Number(updated.gstRate) || 0) / 100;
-                            updated.total = taxable + updated.gstAmount;
-                            return updated;
-                          }));
-                        }
-                      }} placeholder="Item name" className={inp} />
-                      <datalist id={`items-${activeTab?.id}-${idx}`}>
-                        {products.map(p => <option key={p.id} value={p.shortName} />)}
-                      </datalist>
-                    </td>
-                    <td className="px-3 py-2"><input value={row.batchNo} onChange={e => updateRow(idx, 'batchNo', e.target.value)} className={inp} /></td>
-                    <td className="px-3 py-2"><input type="date" value={row.expiryDate} onChange={e => updateRow(idx, 'expiryDate', e.target.value)} className={inp} /></td>
-                    <td className="px-3 py-2"><input type="date" value={row.mfgDate} onChange={e => updateRow(idx, 'mfgDate', e.target.value)} className={inp} /></td>
-                    <td className="px-3 py-2"><input type="number" step="0.01" value={row.mrp} onChange={e => updateRow(idx, 'mrp', e.target.value)} className={inp} /></td>
-                    <td className="px-3 py-2"><input type="number" min="1" value={row.qty} onChange={e => updateRow(idx, 'qty', e.target.value)} className={inp} /></td>
-                    <td className="px-3 py-2"><input value={row.unit} onChange={e => updateRow(idx, 'unit', e.target.value)} className={inp} /></td>
-                    <td className="px-3 py-2"><input type="number" step="0.01" value={row.price} onChange={e => updateRow(idx, 'price', e.target.value)} className={inp} /></td>
-                    <td className="px-3 py-2"><input type="number" step="0.01" value={row.gstRate} onChange={e => updateRow(idx, 'gstRate', e.target.value)} className={inp} /></td>
-                    <td className="px-3 py-2 font-semibold text-slate-700">{RS}{Number(row.gstAmount || 0).toFixed(2)}</td>
-                    <td className="px-3 py-2 font-bold text-slate-800">{RS}{Number(row.total || 0).toFixed(2)}</td>
-                    <td className="px-3 py-2">
-                      <button type="button" onClick={() => removeRow(idx)} className="w-9 h-9 flex items-center justify-center text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition">
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              ))}
+            </ResizableTable>
           </div>
 
           <div className="flex items-center justify-between">
