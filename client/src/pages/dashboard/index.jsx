@@ -73,33 +73,36 @@ export default function Dashboard() {
     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
     return expiryDate <= thirtyDaysFromNow;
   }).length;
-  const receivable    = parties.reduce((sum, p) => sum + Number(p.balance || 0), 0);
-  const payable       = parties.reduce((sum, p) => sum + Number(p.payable || 0), 0);
+  const receivable = parties.reduce((sum, p) => sum + Number(p.balance || 0), 0);
+  const payable    = parties.reduce((sum, p) => sum + Number(p.payable || 0), 0);
 
   const chartData = buildChartData(sales, purchases);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   return (
     <div className="p-8">
+
       {/* Header */}
       <div className="flex items-center justify-between mb-7">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Welcome back, {user.username || 'Admin'} — {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          <p className="text-slate-500 text-sm mt-0.5">
+            Welcome back, {user.username || 'Admin'} —{' '}
+            {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
         </div>
         <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
           <Store className="text-amber-600" size={20} />
         </div>
       </div>
 
-      {/* Stats */}
       {/* Sales Segment */}
       <div className="mb-7">
         <h2 className="text-lg font-semibold text-slate-800 mb-4">Sales</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <StatCard label="Today's Sales"   value={fmt.currency(todaySales)}  icon={TrendingUp}  color="text-emerald-600" />
-          <StatCard label="Total Sales"     value={fmt.currency(totalSales)}   icon={TrendingUp}  color="text-blue-600" />
-          <StatCard label="Receivable"      value={fmt.currency(receivable)}   icon={ArrowUpRight} color="text-rose-600" sub="from customers" />
+          <StatCard label="Today's Sales" value={fmt.currency(todaySales)}  icon={TrendingUp}   color="text-emerald-600" />
+          <StatCard label="Total Sales"   value={fmt.currency(totalSales)}  icon={TrendingUp}   color="text-blue-600" />
+          <StatCard label="Receivable"    value={fmt.currency(receivable)}  icon={ArrowUpRight} color="text-rose-600" sub="from customers" />
         </div>
       </div>
 
@@ -107,9 +110,9 @@ export default function Dashboard() {
       <div className="mb-7">
         <h2 className="text-lg font-semibold text-slate-800 mb-4">Purchase</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <StatCard label="Today Purchase"  value={fmt.currency(todayPurchase)} icon={ShoppingBag} color="text-orange-600" />
-          <StatCard label="Total Purchase"  value={fmt.currency(totalPurchase)} icon={ShoppingBag} color="text-purple-600" />
-          <StatCard label="Payable"         value={fmt.currency(payable)}      icon={Users}       color="text-indigo-600" sub="to suppliers" />
+          <StatCard label="Today Purchase" value={fmt.currency(todayPurchase)} icon={ShoppingBag} color="text-orange-600" />
+          <StatCard label="Total Purchase" value={fmt.currency(totalPurchase)} icon={ShoppingBag} color="text-purple-600" />
+          <StatCard label="Payable"        value={fmt.currency(payable)}       icon={Users}       color="text-indigo-600" sub="to suppliers" />
         </div>
       </div>
 
@@ -117,9 +120,9 @@ export default function Dashboard() {
       <div className="mb-7">
         <h2 className="text-lg font-semibold text-slate-800 mb-4">Stock</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <StatCard label="Low Stock"       value={lowStock}                   icon={Package}     color="text-amber-600" sub="items below reorder" />
-          <StatCard label="Expiry Stock"    value={expiryStock}                icon={Clock}       color="text-red-600" sub="items expiring soon" />
-          <StatCard label="Total Stock"     value={totalStock}                 icon={Boxes}       color="text-cyan-600" sub="items in inventory" />
+          <StatCard label="Low Stock"    value={lowStock}    icon={Package} color="text-amber-600" sub="items below reorder" />
+          <StatCard label="Expiry Stock" value={expiryStock} icon={Clock}   color="text-red-600"   sub="items expiring soon" />
+          <StatCard label="Total Stock"  value={totalStock}  icon={Boxes}   color="text-cyan-600"  sub="items in inventory" />
         </div>
       </div>
 
@@ -153,6 +156,7 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
       </div>
+
     </div>
   );
 }
