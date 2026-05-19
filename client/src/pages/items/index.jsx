@@ -21,6 +21,9 @@ function isItemLine(line, item) {
 }
 
 function ItemTransactions({ item, sales = [], purchases = [] }) {
+  const [sortColumn, setSortColumn] = useState(null);
+  const [sortDirection, setSortDirection] = useState('asc');
+
   const itemTransactions = useMemo(() => {
     const transactions = [];
 
@@ -64,8 +67,37 @@ function ItemTransactions({ item, sales = [], purchases = [] }) {
       }
     });
 
-    return transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [item, sales, purchases]);
+    let sorted = transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    if (sortColumn) {
+      sorted = [...sorted].sort((a, b) => {
+        let aVal = a[sortColumn];
+        let bVal = b[sortColumn];
+
+        if (typeof aVal === 'string') {
+          aVal = aVal.toLowerCase();
+          bVal = bVal?.toString().toLowerCase() || '';
+        }
+
+        if (sortDirection === 'asc') {
+          return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+        } else {
+          return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+        }
+      });
+    }
+
+    return sorted;
+  }, [item, sales, purchases, sortColumn, sortDirection]);
+
+  const handleHeaderClick = (column) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
 
   const saleCount = itemTransactions.filter(t => t.type === 'Sale').length;
   const purchaseCount = itemTransactions.filter(t => t.type === 'Purchase').length;
@@ -73,26 +105,30 @@ function ItemTransactions({ item, sales = [], purchases = [] }) {
   return (
     <div className="h-full flex flex-col">
       <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
-        <div className="grid grid-cols-6 gap-3 items-center">
+        <div className="grid grid-cols-7 gap-3 items-center">
           <div className="col-span-2">
             <h3 className="text-lg font-bold text-slate-800">{item.shortName}</h3>
             <p className="text-xs text-slate-500 mt-1">Item Code: {item.itemCode || '—'}</p>
           </div>
-          <div className="bg-amber-50 border border-amber-200 px-3 py-2.5 rounded-lg">
+          <div className="col-span-1 bg-amber-50 border border-amber-200 rounded-lg h-20 flex flex-col items-center justify-center px-3">
             <p className="text-xs text-slate-500 font-semibold">Purchase Price</p>
             <p className="text-lg font-bold text-amber-600">₹{Number(item.purchasePrice || 0).toFixed(2)}</p>
           </div>
-          <div className="bg-emerald-50 border border-emerald-200 px-3 py-2.5 rounded-lg">
+          <div className="col-span-1 bg-emerald-50 border border-emerald-200 rounded-lg h-20 flex flex-col items-center justify-center px-3">
             <p className="text-xs text-slate-500 font-semibold">Sales Price</p>
             <p className="text-lg font-bold text-emerald-600">₹{Number(item.salesPrice || 0).toFixed(2)}</p>
           </div>
-          <div className="bg-purple-50 border border-purple-200 px-3 py-2.5 rounded-lg">
+          <div className="col-span-1 bg-purple-50 border border-purple-200 rounded-lg h-20 flex flex-col items-center justify-center px-3">
             <p className="text-xs text-slate-500 font-semibold">MRP</p>
             <p className="text-lg font-bold text-purple-600">₹{Number(item.mrp || 0).toFixed(2)}</p>
           </div>
-          <div className="bg-blue-50 border border-blue-200 px-3 py-2.5 rounded-lg">
-            <p className="text-xs text-slate-500 font-semibold">Stock</p>
+          <div className="col-span-1 bg-blue-50 border border-blue-200 rounded-lg h-20 flex flex-col items-center justify-center px-3">
+            <p className="text-xs text-slate-500 font-semibold">Qty</p>
             <p className="text-lg font-bold text-blue-600">{item.stock}</p>
+          </div>
+          <div className="col-span-1 bg-slate-50 border border-slate-200 rounded-lg h-20 flex flex-col items-center justify-center px-3">
+            <p className="text-xs text-slate-500 font-semibold">Stock Value</p>
+            <p className="text-lg font-bold text-slate-800">₹{(Number(item.stock || 0) * Number(item.purchasePrice || 0)).toFixed(2)}</p>
           </div>
         </div>
       </div>
@@ -103,47 +139,66 @@ function ItemTransactions({ item, sales = [], purchases = [] }) {
         <span className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full">{purchaseCount} Purchases</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 flex flex-col min-h-0">
         <div className="px-6 py-4">
           <h4 className="font-semibold text-slate-700 text-sm mb-4">Transactions ({itemTransactions.length})</h4>
-          {itemTransactions.length === 0 ? (
-            <div className="text-center py-8 text-slate-400">
-              <p>No transactions found for this item</p>
-            </div>
-          ) : (
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
+        </div>
+        {itemTransactions.length === 0 ? (
+          <div className="text-center py-8 text-slate-400 flex-1 flex items-center justify-center">
+            <p>No transactions found for this item</p>
+          </div>
+        ) : (
+          <div className="px-6 pb-4 flex-1 flex flex-col min-h-0">
+            <div className="border border-slate-200 rounded-xl overflow-hidden flex flex-col min-h-0">
               <table className="w-full text-sm">
                 <thead className="bg-slate-800 text-white">
-                  <tr>
-                    {['S.No', 'Invoice No', 'Date', 'Party Name', 'Qty', 'Unit Rate', 'Type', 'Action'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {itemTransactions.map((txn, idx) => (
-                    <tr key={`${txn.type}-${txn.invoiceNo}-${idx}`} className="hover:bg-slate-50 transition">
-                      <td className="px-4 py-3 text-slate-400">{idx + 1}</td>
-                      <td className="px-4 py-3 font-mono font-semibold text-slate-700">{txn.invoiceNo || '—'}</td>
-                      <td className="px-4 py-3 text-slate-600">{txn.date ? new Date(txn.date).toLocaleDateString('en-IN') : '—'}</td>
-                      <td className="px-4 py-3 font-medium text-slate-800">{txn.party || '—'}</td>
-                      <td className="px-4 py-3 font-bold text-center text-slate-700">{txn.quantity}</td>
-                      <td className="px-4 py-3 font-semibold text-slate-700">₹{Number(txn.price).toFixed(2)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${txn.type === 'Sale' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                          {txn.type}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <TransactionMenu txn={txn} />
-                      </td>
+                    <tr>
+                      {['S.No', 'Invoice No', 'Date', 'Party Name', 'Qty', 'Unit Rate', 'Type', 'Action'].map(h => (
+                        <th 
+                          key={h} 
+                          onClick={() => h !== 'S.No' && h !== 'Type' && h !== 'Action' && handleHeaderClick(h === 'Invoice No' ? 'invoiceNo' : h === 'Party Name' ? 'party' : h === 'Unit Rate' ? 'price' : h.toLowerCase())}
+                          className={`px-3 py-2 text-left font-semibold text-xs uppercase tracking-wide border-r border-slate-700 ${h !== 'S.No' && h !== 'Type' && h !== 'Action' ? 'cursor-pointer hover:bg-slate-700' : ''}`}
+                        >
+                          <div className="flex items-center gap-1">
+                            {h}
+                            {sortColumn === (h === 'Invoice No' ? 'invoiceNo' : h === 'Party Name' ? 'party' : h === 'Unit Rate' ? 'price' : h.toLowerCase()) && (
+                              <span className="text-xs">
+                                {sortDirection === 'asc' ? '▲' : '▼'}
+                              </span>
+                            )}
+                          </div>
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
+                  </thead>
               </table>
+              <div className="overflow-y-auto flex-1">
+                <table className="w-full text-sm">
+                  <tbody className="divide-y divide-slate-100">
+                    {itemTransactions.map((txn, idx) => (
+                      <tr key={`${txn.type}-${txn.invoiceNo}-${idx}`} className="hover:bg-slate-50 transition">
+                        <td className="px-3 py-2 text-slate-400">{idx + 1}</td>
+                        <td className="px-3 py-2 font-mono font-semibold text-slate-700">{txn.invoiceNo || '—'}</td>
+                        <td className="px-3 py-2 text-slate-600">{txn.date ? new Date(txn.date).toLocaleDateString('en-IN') : '—'}</td>
+                        <td className="px-3 py-2 font-medium text-slate-800">{txn.party || '—'}</td>
+                        <td className="px-3 py-2 font-bold text-center text-slate-700">{txn.quantity}</td>
+                        <td className="px-3 py-2 font-semibold text-slate-700">₹{Number(txn.price).toFixed(2)}</td>
+                        <td className="px-3 py-2">
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${txn.type === 'Sale' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {txn.type}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <TransactionMenu txn={txn} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -335,75 +390,65 @@ export default function Items() {
 
   return (
     <div className="p-8 h-screen flex flex-col">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Items</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Manage your stock and item catalogue</p>
-        </div>
-      </div>
-
-      {/* Alert box */}
-      <div className="bg-amber-50 border border-amber-200 border-l-4 border-l-amber-500 px-5 py-3.5 rounded-xl mb-5 flex items-center gap-2">
-        <AlertTriangle className="text-amber-500" size={16} />
-        <span className="text-amber-800 font-semibold text-sm">Alerts:</span>
-        <span className="text-amber-700 text-sm">{lowCount} low stock | {expCount} near expiry</span>
-      </div>
-
-      {/* Toolbar */}
-      <div className="flex flex-wrap gap-2.5 mb-5">
-        <button onClick={openAdd} className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition shadow-sm">
-          <Plus size={15} /> Add Item
-        </button>
-        <button onClick={exportCSV} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition shadow-sm">
-          <Download size={15} /> Export
-        </button>
-        <button onClick={() => setShowLow(true)} className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition shadow-sm">
-          <AlertTriangle size={15} /> Low Stock
-        </button>
-        <button onClick={() => setShowLow(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition">
-          <List size={15} /> All Items
-        </button>
-      </div>
 
       {/* Split Layout - Items List and Details */}
       <div className="flex-1 grid grid-cols-6 gap-4 min-h-0">
-        {/* Left Panel - Items List */}
-        <div className="col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-          <table className="w-full text-sm flex-1">
-            <thead className="bg-slate-800 text-white">
-              <tr>
-                {['S.No','Item Name','Qty','Actions'].map(h => (
-                  <th key={h} className="px-4 py-3.5 text-left font-semibold text-xs uppercase tracking-wide">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 overflow-y-auto">
-              {isLoading ? (
-                <tr><td colSpan={4} className="text-center py-10 text-slate-400">Loading...</td></tr>
-              ) : displayed.length === 0 ? (
-                <tr><td colSpan={4} className="text-center py-10 text-slate-400">No items found</td></tr>
-              ) : displayed.map((p, idx) => {
-                const stock = Number(p.stock || 0);
-                const isLow = stock <= Number(p.reorderLevel || 10);
-                const isSelected = String(selectedItemId) === String(p.id);
-                return (
-                  <tr 
-                    key={p.id} 
-                    onClick={() => setSelectedItemId(p.id)}
-                    className={`hover:bg-slate-50 transition-colors cursor-pointer ${isLow ? 'bg-orange-50' : ''} ${isSelected ? 'bg-blue-100 border-l-4 border-l-blue-500' : ''}`}>
-                    <td className="px-4 py-1.5 text-slate-400">{idx + 1}</td>
-                    <td className="px-4 py-1.5 font-semibold text-slate-800">{p.shortName}</td>
-                    <td className={`px-4 py-1.5 font-bold text-center ${stock <= 5 ? 'text-rose-600' : 'text-emerald-600'}`}>{stock}</td>
-                    <td className="px-4 py-1.5 text-center"><RowMenu item={p} onEdit={openEdit} onDelete={handleDelete} /></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        {/* Left Panel - Items List (compact header + warning card) */}
+        <div className="col-span-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+          <div className="px-4 py-4 border-b border-slate-200">
+            <div className="flex flex-col gap-3">
+              <div className="bg-amber-50 border border-amber-200 border-l-4 border-l-amber-500 px-4 py-3 rounded-xl flex items-center gap-2">
+                <AlertTriangle className="text-amber-500" size={16} />
+                <div className="text-sm">
+                  <div className="font-semibold text-amber-800">Alerts:</div>
+                  <div className="text-amber-700">{lowCount} low stock | {expCount} near expiry</div>
+                </div>
+              </div>
+              <button onClick={openAdd} className="w-full bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition shadow-sm whitespace-nowrap">
+                <Plus size={15} /> Add Item
+              </button>
+            </div>
+          </div>
+          <div className="w-full">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-800 text-white">
+                <tr>
+                  {['S.No','Item Name','Qty'].map(h => (
+                    <th key={h} className="px-3 py-2 text-left font-semibold text-xs uppercase tracking-wide">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+            </table>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            <table className="w-full text-sm">
+              <tbody className="divide-y divide-slate-100">
+                {isLoading ? (
+                  <tr><td colSpan={3} className="text-center py-6 text-slate-400">Loading...</td></tr>
+                ) : displayed.length === 0 ? (
+                  <tr><td colSpan={3} className="text-center py-6 text-slate-400">No items found</td></tr>
+                ) : displayed.map((p, idx) => {
+                  const stock = Number(p.stock || 0);
+                  const isLow = stock <= Number(p.reorderLevel || 10);
+                  const isSelected = String(selectedItemId) === String(p.id);
+                  return (
+                    <tr
+                      key={p.id}
+                      onClick={() => setSelectedItemId(p.id)}
+                      className={`transition-colors cursor-pointer ${isLow ? 'bg-orange-50' : ''} ${isSelected ? 'bg-emerald-100 border-l-4 border-l-emerald-500' : 'hover:bg-slate-50'}`}>
+                      <td className="px-3 py-2 text-slate-400 text-xs">{idx + 1}</td>
+                      <td className="px-3 py-2 font-semibold text-slate-800 text-xs">{p.shortName}</td>
+                      <td className={`px-3 py-2 font-bold text-center text-xs ${stock <= 5 ? 'text-rose-600' : 'text-emerald-600'}`}>{stock}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Right Panel - Item Details and Transactions */}
-        <div className="col-span-4 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+        <div className="col-span-5 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
           {selectedItem ? (
             <ItemTransactions item={selectedItem} sales={sales} purchases={purchases} />
           ) : (
