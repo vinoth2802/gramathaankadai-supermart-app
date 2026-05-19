@@ -6,7 +6,8 @@ import Login        from './pages/auth/Login.jsx';
 import Dashboard    from './pages/dashboard/index.jsx';
 import POS          from './pages/pos/index.jsx';
 import Items        from './pages/items/index.jsx';
-import Parties      from './pages/parties/index.jsx';
+import Parties        from './pages/parties/index.jsx';
+import LoyaltyPoints  from './pages/parties/Loyaltypoints.jsx';
 
 import SalesInvoice from './pages/sales/Invoice.jsx';
 import SalesHistory from './pages/sales/History.jsx';
@@ -58,7 +59,10 @@ export default function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="pos"       element={<POS />} />
           <Route path="items"     element={<Items />} />
-          <Route path="parties"   element={<Parties />} />
+          <Route path="parties">
+            <Route index element={<Parties />} />
+            <Route path="loyalty" element={<LoyaltyPoints />} />
+          </Route>
 
           <Route path="sales">
             <Route index element={<Navigate to="/sales/history" replace />} />

@@ -71,6 +71,40 @@ router.post('/', async (req, res) => {
   res.status(201).json(purchase);
 });
 
+router.patch('/:id', async (req, res) => {
+  try {
+    const { status, partyName, paymentMode, date, grandTotal, items } = req.body;
+    const data = {};
+    if (status      !== undefined) data.status      = status;
+    if (partyName   !== undefined) data.partyName   = partyName;
+    if (paymentMode !== undefined) data.paymentMode = paymentMode;
+    if (date        !== undefined) data.date        = new Date(date);
+    if (grandTotal  !== undefined) data.grandTotal  = grandTotal;
+    if (items) {
+      await prisma.purchaseItem.deleteMany({ where: { purchaseId: Number(req.params.id) } });
+      data.items = {
+        create: items.map(({ name, batchNo, expiryDate, mfgDate, mrp, qty, unit, price, gstRate, gstAmount, total }) => ({
+          name,
+          batchNo: batchNo || null,
+          expiryDate: expiryDate ? new Date(expiryDate) : null,
+          mfgDate: mfgDate ? new Date(mfgDate) : null,
+          mrp: Number(mrp) ?? 0,
+          qty: Number(qty),
+          unit: unit || null,
+          price: Number(price),
+          gstRate: Number(gstRate) ?? 0,
+          gstAmount: Number(gstAmount) ?? 0,
+          total: Number(total),
+        })),
+      };
+    }
+    const purchase = await prisma.purchase.update({ where: { id: Number(req.params.id) }, data, include });
+    res.json(purchase);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.delete('/:id', async (req, res) => {
   await prisma.purchase.delete({ where: { id: Number(req.params.id) } });
   res.status(204).end();

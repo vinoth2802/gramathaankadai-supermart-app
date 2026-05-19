@@ -1,12 +1,474 @@
-﻿import { HandCoins } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  ChevronDown, Settings, Plus, Search, Filter,
+  Printer, FileSpreadsheet, MoreVertical, Calendar, Share2, X,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import PaymentInModal from './PaymentInModal.jsx';
+import { PartiesAPI } from '../../api/parties.js';
+import { PaymentsAPI } from '../../api/payments.js';
 
-export default function PaymentIn() {
+/* ── Normalize API record → row shape ── */
+function normalizeRow(r) {
+  const received  = Number(r.amount   ?? 0);
+  const discount  = Number(r.discount ?? 0);
+  const createdAt = new Date(r.createdAt);
+  const payDate   = r.date ? new Date(r.date) : createdAt;
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const displayDate = `${pad(payDate.getDate())}/${pad(payDate.getMonth() + 1)}/${payDate.getFullYear()}`;
+  let h = createdAt.getHours();
+  const m = pad(createdAt.getMinutes());
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  const displayTime = `${h}:${m} ${ampm}`;
+
+  return {
+    id:          r.id,
+    ref:         r.id,
+    date:        r.createdAt,
+    displayDate,
+    displayTime,
+    party:       r.party?.name ?? r.partyName ?? '—',
+    partyId:     r.partyId,
+    paymentType: r.paymentMode ?? 'Cash',
+    received,
+    discount,
+    total:       Math.max(0, received - discount),
+    status:      r.status ?? 'Unused',
+    history:     [{ action: 'Created', timestamp: createdAt.toLocaleString('en-IN') }],
+  };
+}
+
+/* ── Parse DD/MM/YYYY → YYYY-MM-DD ── */
+function parseDMY(s) {
+  if (!s) return undefined;
+  const [d, m, y] = s.split('/');
+  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+}
+
+/* ── Print a payment receipt ── */
+function doPrint(row) {
+  const html = `<!DOCTYPE html><html><head><title>Receipt #${row.ref}</title>
+  <style>
+    body{font-family:Arial,sans-serif;max-width:360px;margin:30px auto;font-size:13px}
+    h2{text-align:center;margin:0 0 4px}
+    p{margin:3px 0}.hr{border-top:2px dashed #e2e8f0;margin:10px 0}
+    .row{display:flex;justify-content:space-between}
+    .total{font-size:15px;font-weight:bold}
+  </style></head><body>
+  <h2>Gramathaankadai SuperMart</h2>
+  <p style="text-align:center;color:#666">Payment Receipt</p>
+  <div class="hr"></div>
+  <div class="row"><span>Receipt No</span><b>#${row.ref}</b></div>
+  <div class="row"><span>Date</span><span>${row.displayDate} ${row.displayTime}</span></div>
+  <div class="row"><span>Party</span><b>${row.party}</b></div>
+  <div class="row"><span>Payment Type</span><span>${row.paymentType}</span></div>
+  <div class="hr"></div>
+  <div class="row"><span>Received</span><span>₹${Number(row.received).toLocaleString('en-IN',{minimumFractionDigits:2})}</span></div>
+  <div class="row"><span>Discount</span><span>₹${Number(row.discount??0).toLocaleString('en-IN',{minimumFractionDigits:2})}</span></div>
+  <div class="hr"></div>
+  <div class="row total"><span>Total</span><span>₹${Number(row.total).toLocaleString('en-IN',{minimumFractionDigits:2})}</span></div>
+  <div class="hr"></div>
+  <p style="text-align:center;color:#888">Thank you!</p>
+  </body></html>`;
+  const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  const w = window.open(url);
+  if (w) w.addEventListener('load', () => { w.print(); URL.revokeObjectURL(url); });
+}
+
+/* ── View History mini-modal ── */
+function HistoryModal({ payment, onClose }) {
   return (
-    <div className="flex flex-col items-center justify-center h-64 gap-3 text-slate-400">
-      <HandCoins size={40} className="text-slate-600" />
-      <p className="text-lg font-medium">Payment In</p>
-      <p className="text-sm">Coming soon</p>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+          <h3 className="text-sm font-bold text-slate-800">History — Receipt #{payment.ref}</h3>
+          <button onClick={onClose}
+            className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition">
+            <X size={13} />
+          </button>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          {payment.history.map((h, i) => (
+            <div key={i} className="flex items-start gap-3">
+              <div className="mt-1 w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-slate-700">{h.action}</p>
+                <p className="text-xs text-slate-400">{h.timestamp}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="px-5 py-3 border-t border-slate-100 flex justify-end">
+          <button onClick={onClose}
+            className="px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition">
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
+/* ── 3-dot row menu ── */
+function RowMenu({ onEdit, onPrint, onDelete, onDuplicate, onHistory }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos]   = useState({ top: 0, right: 0 });
+  const btnRef = useRef(null);
+
+  const toggle = (e) => {
+    e.stopPropagation();
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+    }
+    setOpen(o => !o);
+  };
+
+  const act = (fn) => { setOpen(false); fn?.(); };
+
+  const items = [
+    { label: 'View/Edit',    fn: onEdit,      danger: false },
+    { label: 'Print',        fn: onPrint,     danger: false },
+    { label: 'Duplicate',    fn: onDuplicate, danger: false },
+    { label: 'View History', fn: onHistory,   danger: false },
+    { label: 'Delete',       fn: onDelete,    danger: true  },
+  ];
+
+  return (
+    <div className="inline-block">
+      <button ref={btnRef} onClick={toggle}
+        className="w-7 h-7 flex items-center justify-center text-slate-400 hover:bg-slate-100 rounded-lg transition">
+        <MoreVertical size={14} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="fixed bg-white border border-slate-200 rounded-xl shadow-xl min-w-[160px] z-50 overflow-hidden"
+            style={{ top: pos.top, right: pos.right }}>
+            {items.map(({ label, fn, danger }) => (
+              <button key={label} onClick={() => act(fn)}
+                className={`w-full px-4 py-2.5 text-left text-sm hover:bg-slate-50 transition
+                  ${danger ? 'text-rose-600' : 'text-slate-700'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ── Status badge ── */
+function StatusBadge({ status }) {
+  const map = {
+    Used:    'text-emerald-700 bg-emerald-50',
+    Partial: 'text-amber-700 bg-amber-50',
+    Unused:  'text-rose-600 bg-rose-50',
+  };
+  return (
+    <span className={`text-xs font-semibold px-2.5 py-0.5 rounded ${map[status] || 'text-slate-500 bg-slate-100'}`}>
+      {status}
+    </span>
+  );
+}
+
+/* ── Filter pill ── */
+function FilterPill({ icon, children }) {
+  return (
+    <button className="flex items-center gap-1.5 border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white hover:bg-gray-50 transition whitespace-nowrap">
+      {icon && <span className="text-gray-400">{icon}</span>}
+      {children}
+      <ChevronDown size={12} className="text-gray-400 shrink-0" />
+    </button>
+  );
+}
+
+/* ── Column header ── */
+function Th({ label, filterable = true, className = '' }) {
+  return (
+    <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 bg-slate-50 border-b border-slate-100 ${className}`}>
+      <div className="flex items-center gap-1.5">
+        {label}
+        {filterable && <Filter size={10} className="text-slate-400 shrink-0" />}
+      </div>
+    </th>
+  );
+}
+
+/* ── Helpers ── */
+const fmtAmt = (n) => `₹ ${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+const fmtDt  = (iso) => {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString('en-IN')}, ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;
+};
+
+/* ══════════════════════════════════════════
+   Main Page
+══════════════════════════════════════════ */
+export default function PaymentIn() {
+  const [modal,       setModal]       = useState(false);
+  const [editPayment, setEditPayment] = useState(null);
+  const [historyRow,  setHistoryRow]  = useState(null);
+  const [search,      setSearch]      = useState('');
+
+  const qc = useQueryClient();
+
+  const { data: rawPayments = [], isLoading } = useQuery({
+    queryKey: ['paymentIn'],
+    queryFn:  PaymentsAPI.getPaymentsIn,
+  });
+
+  const { data: parties = [] } = useQuery({
+    queryKey: ['parties'],
+    queryFn:  PartiesAPI.getAll,
+  });
+
+  const createMut = useMutation({
+    mutationFn: (data) => PaymentsAPI.savePaymentIn(data),
+    onSuccess:  () => { qc.invalidateQueries(['paymentIn']); setModal(false); toast.success('Payment saved'); },
+    onError:    () => toast.error('Failed to save payment'),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, data }) => PaymentsAPI.updatePaymentIn(id, data),
+    onSuccess:  () => { qc.invalidateQueries(['paymentIn']); setModal(false); setEditPayment(null); toast.success('Payment updated'); },
+    onError:    () => toast.error('Failed to update payment'),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id) => PaymentsAPI.deletePaymentIn(id),
+    onSuccess:  () => { qc.invalidateQueries(['paymentIn']); toast.success('Payment deleted'); },
+    onError:    () => toast.error('Failed to delete payment'),
+  });
+
+  /* ── Save (new or edit) ── */
+  const handleSave = (form) => {
+    const party   = parties.find(p => String(p.id) === String(form.party));
+    const payload = {
+      partyId:     form.party ? Number(form.party) : null,
+      partyName:   party?.name ?? null,
+      amount:      Number(form.received || 0),
+      discount:    Number(form.discount || 0),
+      paymentMode: form.paymentType,
+      status:      editPayment?.status ?? 'Unused',
+      date:        parseDMY(form.date),
+    };
+
+    if (editPayment) {
+      updateMut.mutate({ id: editPayment.id, data: payload });
+    } else {
+      createMut.mutate(payload);
+    }
+  };
+
+  /* ── Delete ── */
+  const handleDelete = (id) => {
+    if (!window.confirm('Delete this payment?')) return;
+    deleteMut.mutate(id);
+  };
+
+  /* ── Duplicate ── */
+  const handleDuplicate = (row) => {
+    createMut.mutate({
+      partyId:     row.partyId,
+      partyName:   row.party,
+      amount:      row.received,
+      discount:    row.discount,
+      paymentMode: row.paymentType,
+      status:      'Unused',
+    });
+  };
+
+  /* ── Edit ── */
+  const handleEdit = (row) => {
+    setEditPayment(row);
+    setModal(true);
+  };
+
+  const payments = rawPayments.map(normalizeRow);
+
+  const rows = payments.filter(r =>
+    r.party.toLowerCase().includes(search.toLowerCase()) ||
+    String(r.ref).includes(search),
+  );
+
+  const totalAmount   = rows.reduce((s, r) => s + r.total,    0);
+  const totalReceived = rows.reduce((s, r) => s + r.received, 0);
+  const isSaving      = createMut.isPending || updateMut.isPending;
+
+  return (
+    <div className="h-full flex flex-col bg-slate-50 overflow-auto">
+      <div className="px-6 py-5 space-y-4">
+
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between">
+          <button className="flex items-center gap-1.5 text-xl font-bold text-slate-800 hover:text-blue-600 transition">
+            Payment-In <ChevronDown size={18} />
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setEditPayment(null); setModal(true); }}
+              className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold px-3.5 py-2 rounded-xl transition">
+              <Plus size={14} /> Add Payment-In
+            </button>
+            <button className="p-2 text-slate-500 hover:text-slate-700 hover:bg-white border border-slate-200 rounded-xl transition">
+              <Settings size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* ── Filter bar ── */}
+        <div className="flex items-center gap-2 flex-wrap bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+          <span className="text-sm text-gray-500 font-medium mr-1 shrink-0">Filter by:</span>
+          <FilterPill>This Month, Last Month, This Quarter, This Year</FilterPill>
+          <FilterPill icon={<Calendar size={13} />}>01/05/2026 To 31/05/2026</FilterPill>
+          <FilterPill>All Firms</FilterPill>
+          <FilterPill>All Users</FilterPill>
+          <FilterPill>All Additional Fields</FilterPill>
+          <FilterPill>Filter By Additional Fields</FilterPill>
+        </div>
+
+        {/* ── Summary card ── */}
+        <div className="bg-white border border-slate-200 rounded-xl px-5 py-4 flex items-center justify-between shadow-sm">
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Total Amount</p>
+            <p className="text-2xl font-bold text-slate-800">{fmtAmt(totalAmount)}</p>
+            <p className="text-xs text-slate-500 mt-1.5">Received: {fmtAmt(totalReceived)}</p>
+          </div>
+          <div className="text-right">
+            <span className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg">
+              {rows.length} record{rows.length !== 1 ? 's' : ''}
+            </span>
+            <p className="text-xs text-slate-400 mt-1">total transactions</p>
+          </div>
+        </div>
+
+        {/* ── Transactions table ── */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+            <h2 className="text-sm font-bold text-slate-700">Transactions</h2>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search…"
+                  className="pl-8 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg w-44
+                    focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
+                />
+              </div>
+              <button className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+                <FileSpreadsheet size={13} /> Excel
+              </button>
+              <button className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition">
+                <Printer size={15} />
+              </button>
+            </div>
+          </div>
+
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <Th label="Date" />
+                <Th label="Ref. No." />
+                <Th label="Party Name" />
+                <Th label="Total Amount" className="text-right" />
+                <Th label="Received" className="text-right" />
+                <Th label="Payment Type" />
+                <Th label="Status" />
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 bg-slate-50 border-b border-slate-100 w-28">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={8} className="text-center py-12 text-slate-400 text-sm">Loading…</td>
+                </tr>
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="text-center py-12 text-slate-400 text-sm">
+                    No transactions found. Click "+ Add Payment-In" to create one.
+                  </td>
+                </tr>
+              ) : rows.map((row) => (
+                <tr key={row.id} className="hover:bg-emerald-50/50 transition">
+                  <td className="px-4 py-3 text-slate-600 text-xs whitespace-nowrap">
+                    {fmtDt(row.date)}
+                  </td>
+                  <td className="px-4 py-3 font-mono font-semibold text-slate-700 text-xs">
+                    #{row.ref}
+                  </td>
+                  <td className="px-4 py-3 font-semibold text-slate-800 text-xs uppercase tracking-wide">
+                    {row.party}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold text-slate-800">
+                    {fmtAmt(row.total)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-slate-600">
+                    {fmtAmt(row.received)}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 text-xs">
+                    {row.paymentType}
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusBadge status={row.status} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        onClick={() => doPrint(row)}
+                        title="Print"
+                        className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition">
+                        <Printer size={13} />
+                      </button>
+                      <button
+                        onClick={() => handleDuplicate(row)}
+                        title="Duplicate"
+                        className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition">
+                        <Share2 size={13} />
+                      </button>
+                      <RowMenu
+                        onEdit={()      => handleEdit(row)}
+                        onPrint={()     => doPrint(row)}
+                        onDelete={()    => handleDelete(row.id)}
+                        onDuplicate={() => handleDuplicate(row)}
+                        onHistory={()   => setHistoryRow(row)}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── Add / Edit modal ── */}
+      {modal && (
+        <PaymentInModal
+          receiptNo={editPayment?.id ?? null}
+          editData={editPayment}
+          onClose={() => { setModal(false); setEditPayment(null); }}
+          onSave={handleSave}
+          isSaving={isSaving}
+        />
+      )}
+
+      {/* ── View History modal ── */}
+      {historyRow && (
+        <HistoryModal
+          payment={historyRow}
+          onClose={() => setHistoryRow(null)}
+        />
+      )}
+    </div>
+  );
+}

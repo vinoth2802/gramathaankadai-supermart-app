@@ -5,5 +5,6 @@ export const PurchasesAPI = {
   getById:        (id)       => http.get(`/purchases/${id}`),
   getByDateRange: (from, to) => http.get('/purchases', { params: { from, to } }),
   create:         (data)     => http.post('/purchases', data),
+  update:         (id, data) => http.patch(`/purchases/${id}`, data),
   delete:         (id)       => http.delete(`/purchases/${id}`),
 };

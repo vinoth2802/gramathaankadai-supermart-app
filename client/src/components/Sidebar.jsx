@@ -8,14 +8,21 @@ import {
   Truck, ArrowUpToLine, Undo2,
   Landmark, Building2, Wallet, FileCheck, TrendingDown, HardDrive,
   Wrench, Upload, Download, QrCode,
-  SlidersHorizontal, ArrowLeftRight, Printer, Percent, UserCog, Box, Ruler, Star,
+  SlidersHorizontal, ArrowLeftRight, Printer, Percent, UserCog, Box, Ruler, Star, Gift,
 } from 'lucide-react';
 
 const nav = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/pos',       icon: ShoppingCart,    label: 'Point of Sale' },
   { to: '/items',     icon: Package,         label: 'Items' },
-  { to: '/parties',   icon: Users,           label: 'Parties' },
+  {
+    icon: Users,
+    label: 'Parties',
+    children: [
+      { to: '/parties',         icon: Users, label: 'Parties',        end: true },
+      { to: '/parties/loyalty', icon: Gift,  label: 'Loyalty Points' },
+    ],
+  },
   {
     icon: Receipt,
     label: 'Sales',
@@ -128,6 +135,7 @@ function NavItem({ item, open, onToggle }) {
               <NavLink
                 key={child.to}
                 to={child.to}
+                end={child.end ?? false}
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                     isActive

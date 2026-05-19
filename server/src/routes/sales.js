@@ -49,6 +49,30 @@ router.post('/', async (req, res) => {
   res.status(201).json(sale);
 });
 
+router.patch('/:id', async (req, res) => {
+  try {
+    const { status, customerName, paymentMode, date, subtotal, gst, grandTotal, totalReceived, changeGiven, items } = req.body;
+    const data = {};
+    if (status       !== undefined) data.status        = status;
+    if (customerName !== undefined) data.customerName  = customerName;
+    if (paymentMode  !== undefined) data.paymentMode   = paymentMode;
+    if (date         !== undefined) data.date          = new Date(date);
+    if (subtotal     !== undefined) data.subtotal      = subtotal;
+    if (gst          !== undefined) data.gst           = gst;
+    if (grandTotal   !== undefined) data.grandTotal    = grandTotal;
+    if (totalReceived !== undefined) data.totalReceived = totalReceived;
+    if (changeGiven  !== undefined) data.changeGiven   = changeGiven;
+    if (items) {
+      await prisma.saleItem.deleteMany({ where: { saleId: Number(req.params.id) } });
+      data.items = { create: items.map(({ name, qty, rate, amount }) => ({ name, qty: Number(qty), rate: Number(rate), amount: Number(amount) })) };
+    }
+    const sale = await prisma.sale.update({ where: { id: Number(req.params.id) }, data, include });
+    res.json(sale);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.delete('/:id', async (req, res) => {
   await prisma.sale.delete({ where: { id: Number(req.params.id) } });
   res.status(204).end();
