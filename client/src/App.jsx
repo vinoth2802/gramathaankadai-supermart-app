@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { Toaster as HotToaster } from 'react-hot-toast';
 import Layout from './components/Layout.jsx';
 
 import Login        from './pages/auth/Login.jsx';
@@ -10,6 +11,7 @@ import Parties        from './pages/parties/index.jsx';
 import LoyaltyPoints  from './pages/parties/Loyaltypoints.jsx';
 
 import SalesInvoice from './pages/sales/Invoice.jsx';
+import AddSale      from './pages/sales/AddSale.jsx';
 import SalesHistory from './pages/sales/History.jsx';
 import Quotation    from './pages/sales/Quotation.jsx';
 import PaymentIn    from './pages/sales/PaymentIn.jsx';
@@ -52,6 +54,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Toaster position="top-right" richColors closeButton expand />
+          <HotToaster position="top-right" />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
@@ -68,6 +71,7 @@ export default function App() {
             <Route index element={<Navigate to="/sales/history" replace />} />
             <Route path="history"    element={<SalesHistory />} />
             <Route path="invoice"    element={<SalesInvoice />} />
+            <Route path="add"        element={<AddSale />} />
             <Route path="quotation"  element={<Quotation />} />
             <Route path="payment-in" element={<PaymentIn />} />
             <Route path="return"     element={<SaleReturn />} />

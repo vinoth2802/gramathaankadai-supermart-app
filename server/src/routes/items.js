@@ -4,9 +4,22 @@ import prisma from '../db.js';
 
 const router = Router();
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const items = await prisma.product.findMany({ orderBy: { shortName: 'asc' } });
+    const { q } = req.query;
+    const where = q?.trim()
+      ? {
+          OR: [
+            { shortName: { contains: q.trim(), mode: 'insensitive' } },
+            { itemCode:  { contains: q.trim(), mode: 'insensitive' } },
+          ],
+        }
+      : undefined;
+    const items = await prisma.product.findMany({
+      where,
+      orderBy: { shortName: 'asc' },
+      take: q?.trim() ? 25 : undefined,
+    });
     res.json(items);
   } catch (err) {
     console.error('Get items error:', err);

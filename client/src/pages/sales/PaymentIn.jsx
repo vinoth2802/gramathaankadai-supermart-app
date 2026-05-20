@@ -2,12 +2,16 @@ import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronDown, Settings, Plus, Search, Filter,
-  Printer, FileSpreadsheet, MoreVertical, Calendar, Share2, X,
+  Printer, FileSpreadsheet, MoreVertical, Share2, X,
 } from 'lucide-react';
+
 import { toast } from 'sonner';
 import PaymentInModal from './PaymentInModal.jsx';
+import DateFilterDropdown from '../../components/DateFilterDropdown.jsx';
 import { PartiesAPI } from '../../api/parties.js';
 import { PaymentsAPI } from '../../api/payments.js';
+
+const _pad = (n) => String(n).padStart(2, '0');
 
 /* ── Normalize API record → row shape ── */
 function normalizeRow(r) {
@@ -16,36 +20,24 @@ function normalizeRow(r) {
   const createdAt = new Date(r.createdAt);
   const payDate   = r.date ? new Date(r.date) : createdAt;
 
-  const pad = (n) => String(n).padStart(2, '0');
-  const displayDate = `${pad(payDate.getDate())}/${pad(payDate.getMonth() + 1)}/${payDate.getFullYear()}`;
-  let h = createdAt.getHours();
-  const m = pad(createdAt.getMinutes());
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  const displayTime = `${h}:${m} ${ampm}`;
+  const payInDate = `${_pad(payDate.getDate())}/${_pad(payDate.getMonth() + 1)}/${payDate.getFullYear()}`;
 
   return {
-    id:          r.id,
-    ref:         r.id,
-    date:        r.createdAt,
-    displayDate,
-    displayTime,
-    party:       r.party?.name ?? r.partyName ?? '—',
-    partyId:     r.partyId,
-    paymentType: r.paymentMode ?? 'Cash',
+    id:           r.id,
+    ref:          r.id,
+    payInDate,                   // "DD/MM/YYYY" — the user-set payment date
+    payInDateIso: payDate.toISOString(),  // for date range filtering
+    entryDate:    r.createdAt,   // ISO — system entry timestamp
+    displayDate:  payInDate,     // for edit form pre-fill
+    party:        r.party?.name ?? r.partyName ?? '—',
+    partyId:      r.partyId,
+    paymentType:  r.paymentMode ?? 'Cash',
     received,
     discount,
-    total:       Math.max(0, received - discount),
-    status:      r.status ?? 'Unused',
-    history:     [{ action: 'Created', timestamp: createdAt.toLocaleString('en-IN') }],
+    total:        Math.max(0, received - discount),
+    status:       r.status ?? 'Unused',
+    history:      [{ action: 'Created', timestamp: createdAt.toLocaleString('en-IN') }],
   };
-}
-
-/* ── Parse DD/MM/YYYY → YYYY-MM-DD ── */
-function parseDMY(s) {
-  if (!s) return undefined;
-  const [d, m, y] = s.split('/');
-  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
 }
 
 /* ── Print a payment receipt ── */
@@ -62,7 +54,8 @@ function doPrint(row) {
   <p style="text-align:center;color:#666">Payment Receipt</p>
   <div class="hr"></div>
   <div class="row"><span>Receipt No</span><b>#${row.ref}</b></div>
-  <div class="row"><span>Date</span><span>${row.displayDate} ${row.displayTime}</span></div>
+  <div class="row"><span>Pay In Date</span><span>${row.payInDate}</span></div>
+  <div class="row"><span>Entry Date</span><span>${new Date(row.entryDate).toLocaleString('en-IN')}</span></div>
   <div class="row"><span>Party</span><b>${row.party}</b></div>
   <div class="row"><span>Payment Type</span><span>${row.paymentType}</span></div>
   <div class="hr"></div>
@@ -214,6 +207,7 @@ export default function PaymentIn() {
   const [editPayment, setEditPayment] = useState(null);
   const [historyRow,  setHistoryRow]  = useState(null);
   const [search,      setSearch]      = useState('');
+  const [dateFilter,  setDateFilter]  = useState({ label: 'This Month', from: null, to: null });
 
   const qc = useQueryClient();
 
@@ -255,7 +249,7 @@ export default function PaymentIn() {
       discount:    Number(form.discount || 0),
       paymentMode: form.paymentType,
       status:      editPayment?.status ?? 'Unused',
-      date:        parseDMY(form.date),
+      date:        form.date || undefined,
     };
 
     if (editPayment) {
@@ -291,10 +285,21 @@ export default function PaymentIn() {
 
   const payments = rawPayments.map(normalizeRow);
 
-  const rows = payments.filter(r =>
-    r.party.toLowerCase().includes(search.toLowerCase()) ||
-    String(r.ref).includes(search),
-  );
+  const rows = payments.filter((r) => {
+    const matchesSearch =
+      r.party.toLowerCase().includes(search.toLowerCase()) ||
+      String(r.ref).includes(search);
+
+    if (!matchesSearch) return false;
+
+    if (dateFilter.from && dateFilter.to) {
+      const d = new Date(r.payInDateIso);
+      const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      return day >= dateFilter.from && day <= dateFilter.to;
+    }
+
+    return true;
+  });
 
   const totalAmount   = rows.reduce((s, r) => s + r.total,    0);
   const totalReceived = rows.reduce((s, r) => s + r.received, 0);
@@ -324,8 +329,7 @@ export default function PaymentIn() {
         {/* ── Filter bar ── */}
         <div className="flex items-center gap-2 flex-wrap bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
           <span className="text-sm text-gray-500 font-medium mr-1 shrink-0">Filter by:</span>
-          <FilterPill>This Month, Last Month, This Quarter, This Year</FilterPill>
-          <FilterPill icon={<Calendar size={13} />}>01/05/2026 To 31/05/2026</FilterPill>
+          <DateFilterDropdown onChange={setDateFilter} />
           <FilterPill>All Firms</FilterPill>
           <FilterPill>All Users</FilterPill>
           <FilterPill>All Additional Fields</FilterPill>
@@ -375,7 +379,8 @@ export default function PaymentIn() {
           <table className="w-full text-sm">
             <thead>
               <tr>
-                <Th label="Date" />
+                <Th label="Pay In Date" />
+                <Th label="Entry Date" />
                 <Th label="Ref. No." />
                 <Th label="Party Name" />
                 <Th label="Total Amount" className="text-right" />
@@ -390,18 +395,21 @@ export default function PaymentIn() {
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-slate-400 text-sm">Loading…</td>
+                  <td colSpan={9} className="text-center py-12 text-slate-400 text-sm">Loading…</td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-slate-400 text-sm">
+                  <td colSpan={9} className="text-center py-12 text-slate-400 text-sm">
                     No transactions found. Click "+ Add Payment-In" to create one.
                   </td>
                 </tr>
               ) : rows.map((row) => (
                 <tr key={row.id} className="hover:bg-emerald-50/50 transition">
                   <td className="px-4 py-3 text-slate-600 text-xs whitespace-nowrap">
-                    {fmtDt(row.date)}
+                    {row.payInDate}
+                  </td>
+                  <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
+                    {fmtDt(row.entryDate)}
                   </td>
                   <td className="px-4 py-3 font-mono font-semibold text-slate-700 text-xs">
                     #{row.ref}
