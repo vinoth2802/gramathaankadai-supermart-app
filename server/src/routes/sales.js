@@ -19,13 +19,25 @@ function deriveStatus(grandTotal, totalReceived, explicit) {
 
 /* ── Next invoice number ── */
 router.get('/next-number', async (req, res) => {
-  const [last, settings] = await Promise.all([
-    prisma.sale.findFirst({ orderBy: { id: 'desc' }, select: { id: true } }),
-    prisma.settings.findFirst({ select: { invoicePrefix: true } }),
-  ]);
-  const nextId = (last?.id ?? 0) + 1;
-  const prefix = settings?.invoicePrefix ?? 'INV';
-  res.json({ invoice: `${prefix}-${String(nextId).padStart(4, '0')}`, number: nextId });
+  try {
+    const [allSales, settings] = await Promise.all([
+      prisma.sale.findMany({ select: { invoice: true } }),
+      prisma.settings.findFirst({ select: { invoicePrefix: true } }),
+    ]);
+    const prefix = settings?.invoicePrefix ?? 'INV';
+
+    let maxNum = 0;
+    for (const s of allSales) {
+      const m = String(s.invoice || '').trim().match(/(\d+)$/);
+      if (m) maxNum = Math.max(maxNum, Number(m[1]));
+    }
+
+    const nextNum = maxNum + 1;
+    res.json({ invoice: `${prefix}-${String(nextNum).padStart(4, '0')}`, number: nextNum });
+  } catch (err) {
+    console.error('next-number error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.get('/', async (req, res) => {
@@ -86,6 +98,7 @@ router.post('/', async (req, res) => {
       terms:            terms            || null,
       items: {
         create: items.map((i) => ({
+          productId:   i.productId   ? Number(i.productId) : null,
           name:        i.name        || '',
           description: i.description || null,
           itemCount:   Number(i.itemCount ?? i.count ?? 0),
@@ -147,6 +160,7 @@ router.patch('/:id', async (req, res) => {
       await prisma.saleItem.deleteMany({ where: { saleId: Number(req.params.id) } });
       data.items = {
         create: items.map((i) => ({
+          productId:   i.productId   ? Number(i.productId) : null,
           name:        i.name        || '',
           description: i.description || null,
           itemCount:   Number(i.itemCount ?? i.count ?? 0),

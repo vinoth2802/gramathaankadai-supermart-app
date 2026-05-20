@@ -90,8 +90,8 @@ export default function POS() {
     onSuccess: () => { qc.invalidateQueries(['sales']); qc.invalidateQueries(['items']); }
   });
 
-  const subtotal  = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const gst       = Math.round(subtotal * 0.05);
+  const subtotal   = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const gst        = cart.reduce((s, i) => s + (i.price * i.qty * (i.gstRate || 0) / 100), 0);
   const grandTotal = subtotal + gst;
   const received  = Number(receivedAmount) || 0;
   const change    = Math.max(received - grandTotal, 0);
@@ -108,7 +108,7 @@ export default function POS() {
     setCart(prev => {
       const idx = prev.findIndex(i => i.id === product.id);
       if (idx >= 0) return prev.map((i, j) => j === idx ? { ...i, qty: i.qty + 1 } : i);
-      return [...prev, { id: product.id, name: product.shortName, price: Number(product.salesPrice || 0), qty: 1, batch: 'N/A', uom: product.uom || 'Pcs' }];
+      return [...prev, { id: product.id, name: product.shortName, price: Number(product.salesPrice || 0), qty: 1, gstRate: Number(product.gstRate || 0), batch: 'N/A', uom: product.uom || 'Pcs' }];
     });
     ItemsAPI.adjustStock(product.id, -1).catch(() => {});
   };
@@ -283,13 +283,13 @@ export default function POS() {
           <div className="flex items-center bg-slate-200 rounded-lg p-1">
             <button
               onClick={() => setSaleType('cash')}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${saleType === 'cash' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${saleType === 'cash' ? 'bg-green-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
             >
               Cash Sale
             </button>
             <button
               onClick={() => setSaleType('credit')}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${saleType === 'credit' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${saleType === 'credit' ? 'bg-green-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
             >
               Credit Sale
             </button>
@@ -355,7 +355,7 @@ export default function POS() {
                       </td>
                       <td className="px-3 py-2 text-slate-600">{item.uom}</td>
                       <td className="px-3 py-2 text-right font-bold text-emerald-600">{RS}{item.price.toFixed(2)}</td>
-                      <td className="px-3 py-2 text-right font-bold text-blue-600">5%</td>
+                      <td className="px-3 py-2 text-right font-bold text-blue-600">{item.gstRate || 0}%</td>
                       <td className="px-3 py-2 text-right font-bold text-slate-800">{RS}{itemTotal.toFixed(2)}</td>
                       <td className="px-3 py-2 text-center">
                         <button onClick={() => removeFromCart(i)} className="text-rose-500 hover:text-rose-700 p-0.5 rounded transition"><X size={13} /></button>
@@ -426,7 +426,7 @@ export default function POS() {
           {/* Totals Section */}
           <div className="space-y-1.5 text-sm">
             <div className="flex justify-between"><span className="text-slate-600">Subtotal</span><span className="font-bold text-slate-800">{RS}{subtotal.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-slate-600">Tax (5%)</span><span className="font-bold text-slate-800">{RS}{gst.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-slate-600">Tax (GST)</span><span className="font-bold text-slate-800">{RS}{gst.toFixed(2)}</span></div>
             <div className="flex justify-between text-base font-bold border-t pt-1.5 mt-1"><span>Grand Total</span><span className="text-emerald-600">{RS}{grandTotal.toFixed(2)}</span></div>
           </div>
 

@@ -25,8 +25,8 @@ function Field({ label, required, children }) {
   );
 }
 
-export default function AddItemModal({ onClose, onSave, onSaveAndNew, uoms = [], editData = null, existingItems = [] }) {
-  const [productType, setProductType] = useState('Product');
+export default function AddItemModal({ onClose, onSave, onSaveAndNew, uoms = [], editData = null, existingItems = [], initialType = 'Product', categories = [] }) {
+  const [productType, setProductType] = useState(editData?.type || initialType);
   const [activeTab, setActiveTab] = useState('Pricing');
   const [form, setForm] = useState(() => editData ? {
     ...EMPTY_FORM,
@@ -56,6 +56,7 @@ export default function AddItemModal({ onClose, onSave, onSaveAndNew, uoms = [],
 
   const buildPayload = () => ({
     shortName: form.shortName,
+    type: productType,
     hsnCode: form.hsnCode || '',
     itemCode: form.itemCode || '',
     uom: form.uom || 'PCS',
@@ -97,7 +98,7 @@ export default function AddItemModal({ onClose, onSave, onSaveAndNew, uoms = [],
             <div className="flex items-center bg-slate-100 rounded-full p-1">
               {['Product', 'Service'].map(t => (
                 <button key={t} onClick={() => setProductType(t)}
-                  className={`px-4 py-1 rounded-full text-sm font-semibold transition ${productType === t ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                  className={`px-4 py-1 rounded-full text-sm font-semibold transition ${productType === t ? 'bg-green-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                   {t}
                 </button>
               ))}
@@ -142,9 +143,9 @@ export default function AddItemModal({ onClose, onSave, onSaveAndNew, uoms = [],
           <div className="grid grid-cols-3 gap-4 mb-5">
             <Field label="Category">
               <select value={form.category} onChange={e => setF('category', e.target.value)} className={inp}>
-                <option value="">Select Category</option>
-                {['Grocery', 'Beverage', 'Dairy', 'Snacks', 'Personal Care', 'Household', 'Electronics', 'Stationery'].map(c => (
-                  <option key={c} value={c}>{c}</option>
+                <option value="General">General</option>
+                {categories.map(c => (
+                  <option key={c.id} value={c.name}>{c.name}</option>
                 ))}
               </select>
             </Field>
