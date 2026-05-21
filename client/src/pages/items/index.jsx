@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, MoreVertical, Pencil, Trash2, ChevronRight, Ban } from 'lucide-react';
+import { Plus, MoreVertical, Pencil, Trash2, ChevronRight, Ban, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import { ItemsAPI } from '../../api/items.js';
@@ -34,6 +34,8 @@ export default function Items() {
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [rowMenu, setRowMenu] = useState(null);
   const [txnWarning, setTxnWarning] = useState(false);
+  const [search, setSearch] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
 
   const toggleSort = (col) => {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -78,15 +80,20 @@ export default function Items() {
   };
 
   const displayed = useMemo(() => {
-    return [...allItems].sort((a, b) => {
-      if (sortCol === 'stock') {
-        const diff = Number(a.stock || 0) - Number(b.stock || 0);
-        return sortDir === 'asc' ? diff : -diff;
-      }
-      const cmp = (a.shortName || '').localeCompare(b.shortName || '');
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-  }, [allItems, sortCol, sortDir]);
+    return [...allItems]
+      .filter(item => !search ||
+        (item.shortName || '').toLowerCase().includes(search.toLowerCase()) ||
+        (item.name || '').toLowerCase().includes(search.toLowerCase())
+      )
+      .sort((a, b) => {
+        if (sortCol === 'stock') {
+          const diff = Number(a.stock || 0) - Number(b.stock || 0);
+          return sortDir === 'asc' ? diff : -diff;
+        }
+        const cmp = (a.shortName || '').localeCompare(b.shortName || '');
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+  }, [allItems, sortCol, sortDir, search]);
 
   const selectedItem = useMemo(
     () => displayed.find(i => String(i.id) === String(selectedItemId)) || null,
@@ -150,30 +157,47 @@ export default function Items() {
       <div className={`flex-1 grid grid-cols-7 gap-4 min-h-0 ${modal || pageTab !== 'Items' ? 'hidden' : ''}`}>
         {/* Left Panel */}
         <div className="col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-          <div className="border-b border-slate-200">
-            <div className="flex flex-col gap-0">
-              <table className="w-full text-xs border-b border-amber-200">
-                <thead className="bg-amber-500 text-white">
-                  <tr>
-                    <th className="px-3 py-1.5 text-left font-semibold border-r border-amber-400">Qty</th>
-                    <th className="px-3 py-1.5 text-left font-semibold">Alerts</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-amber-50 divide-y divide-amber-100">
-                  <tr>
-                    <td className="px-3 py-1.5 font-bold text-amber-700 border-r border-amber-100">{lowCount}</td>
-                    <td className="px-3 py-1.5 text-amber-800">Low Stock</td>
-                  </tr>
-                  <tr>
-                    <td className="px-3 py-1.5 font-bold text-amber-700 border-r border-amber-100">{expCount}</td>
-                    <td className="px-3 py-1.5 text-amber-800">Near Expiry</td>
-                  </tr>
-                </tbody>
-              </table>
-              <button onClick={openAdd} className="w-full bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 font-semibold text-sm flex items-center justify-center gap-2 transition whitespace-nowrap">
-                <Plus size={15} /> Add Item
+          <div className="border-b border-slate-200 flex flex-col">
+            {/* Search + Add Item bar */}
+            <div className="flex items-center gap-2 px-2 py-2 border-b border-slate-100">
+              <button
+                onClick={() => setShowSearch(s => !s)}
+                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition shrink-0">
+                <Search size={15} />
+              </button>
+              {showSearch && (
+                <input
+                  autoFocus
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search items…"
+                  className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-amber-400" />
+              )}
+              <button
+                onClick={openAdd}
+                className="ml-auto flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition whitespace-nowrap shrink-0">
+                <Plus size={13} /> Add Item
               </button>
             </div>
+            {/* Alerts table */}
+            <table className="w-full text-xs">
+              <thead className="bg-amber-500 text-white">
+                <tr>
+                  <th className="px-3 py-1.5 text-left font-semibold border-r border-amber-400">Qty</th>
+                  <th className="px-3 py-1.5 text-left font-semibold">Alerts</th>
+                </tr>
+              </thead>
+              <tbody className="bg-amber-50 divide-y divide-amber-100">
+                <tr>
+                  <td className="px-3 py-1.5 font-bold text-amber-700 border-r border-amber-100">{lowCount}</td>
+                  <td className="px-3 py-1.5 text-amber-800">Low Stock</td>
+                </tr>
+                <tr>
+                  <td className="px-3 py-1.5 font-bold text-amber-700 border-r border-amber-100">{expCount}</td>
+                  <td className="px-3 py-1.5 text-amber-800">Near Expiry</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
           <div className="flex-1 overflow-y-auto">
             <table className="w-full text-sm border-collapse">

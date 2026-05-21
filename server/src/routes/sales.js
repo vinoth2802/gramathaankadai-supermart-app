@@ -192,8 +192,34 @@ router.patch('/:id', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
-  await prisma.sale.delete({ where: { id: Number(req.params.id) } });
-  res.status(204).end();
+  try {
+    const saleId = Number(req.params.id);
+
+    const sale = await prisma.sale.findUnique({
+      where: { id: saleId },
+      include: { items: true },
+    });
+    if (!sale) return res.status(404).json({ error: 'Sale not found' });
+
+    // Restore stock for every line item that is linked to a product
+    const stockRestores = sale.items
+      .filter(i => i.productId && Number(i.qty) > 0)
+      .map(i =>
+        prisma.item.update({
+          where: { id: i.productId },
+          data:  { stock: { increment: Number(i.qty) } },
+        })
+      );
+
+    await prisma.$transaction([
+      ...stockRestores,
+      prisma.sale.delete({ where: { id: saleId } }),
+    ]);
+
+    res.status(204).end();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;

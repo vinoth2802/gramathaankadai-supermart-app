@@ -8,26 +8,25 @@ datasource db {
 }
 
 model Product {
-  id            Int       @id @default(autoincrement())
-  shortName     String    @map("short_name")
-  itemCode      String?   @unique @map("item_code")
-  type          String    @default("Product")
-  category      String    @default("General")
-  hsnCode       String?   @map("hsn_code")
+  id            Int        @id @default(autoincrement())
+  shortName     String     @map("short_name")
+  itemCode      String?    @unique @map("item_code")
+  category      String     @default("General")
+  hsnCode       String?    @map("hsn_code")
+  uom           String     @default("PCS")
+  purchasePrice Decimal    @default(0) @map("purchase_price") @db.Decimal(12, 2)
+  mrp           Decimal    @default(0) @db.Decimal(12, 2)
+  salesPrice    Decimal    @default(0) @map("sales_price") @db.Decimal(12, 2)
+  gstRate       Decimal    @default(5) @map("gst_rate") @db.Decimal(5, 2)
+  stock         Decimal    @default(0) @db.Decimal(12, 3)
+  reorderLevel  Decimal    @default(10) @map("reorder_level") @db.Decimal(12, 3)
+  expiryDate    DateTime?  @map("expiry_date") @db.Date
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @default(now()) @updatedAt @map("updated_at")
+  batch         String?    @db.VarChar(50)
+  pcsPerUnit    Int?       @map("pcs_per_unit")
   description   String?
-  batch         String?   @db.VarChar(50)
-  uom           String    @default("PCS")
-  pcsPerUnit    Int?      @map("pcs_per_unit")
-  purchasePrice Decimal   @default(0) @map("purchase_price") @db.Decimal(12, 2)
-  mrp           Decimal   @default(0) @db.Decimal(12, 2)
-  salesPrice    Decimal   @default(0) @map("sales_price") @db.Decimal(12, 2)
-  gstRate       Decimal   @default(5) @map("gst_rate") @db.Decimal(5, 2)
-  stock         Decimal   @default(0) @db.Decimal(12, 3)
-  reorderLevel  Decimal   @default(10) @map("reorder_level") @db.Decimal(12, 3)
-  expiryDate    DateTime? @map("expiry_date") @db.Date
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at")
-
+  type          String     @default("Product")
   saleItems     SaleItem[]
 
   @@index([shortName])
@@ -43,124 +42,119 @@ model Category {
 }
 
 model Party {
-  id        Int       @id @default(autoincrement())
-  name      String
-  type      String    @default("customer")
-  partyType String    @default("B2C") @map("party_type")
-  phone     String?
-  email     String?
-  address   String?
-  gstin     String?
-  balance   Decimal   @default(0) @db.Decimal(12, 2)
-  payable   Decimal   @default(0) @db.Decimal(12, 2)
-  lastSale  DateTime? @map("last_sale") @db.Date
-  notes     String?
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at")
-
-  sales             Sale[]
-  purchases         Purchase[]
+  id                Int                 @id @default(autoincrement())
+  name              String
+  type              String              @default("customer")
+  phone             String?
+  email             String?
+  address           String?
+  gstin             String?
+  balance           Decimal             @default(0) @db.Decimal(12, 2)
+  payable           Decimal             @default(0) @db.Decimal(12, 2)
+  lastSale          DateTime?           @map("last_sale") @db.Date
+  notes             String?
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at")
+  partyType         String              @default("B2C") @map("party_type")
+  cheques           Cheque[]
   paymentInHistory  PaymentInHistory[]
   paymentOutHistory PaymentOutHistory[]
-  cheques           Cheque[]
+  purchases         Purchase[]
+  sales             Sale[]
 
   @@map("parties")
 }
 
 model Sale {
-  id            Int      @id @default(autoincrement())
-  invoice       String   @unique
-  date          DateTime @default(now())
-  customerName  String   @default("Walk-in Customer") @map("customer_name")
-  partyId       Int?     @map("party_id")
-  subtotal      Decimal  @default(0) @db.Decimal(12, 2)
-  gst           Decimal  @default(0) @db.Decimal(12, 2)
-  grandTotal    Decimal  @default(0) @map("grand_total") @db.Decimal(12, 2)
-  paymentMode   String?  @map("payment_mode")
-  totalReceived Decimal  @default(0) @map("total_received") @db.Decimal(12, 2)
-  changeGiven   Decimal  @default(0) @map("change_given") @db.Decimal(12, 2)
-  paymentStatus    String    @default("Paid") @map("payment_status")
-  dueDate          DateTime? @map("due_date") @db.Date
-  billingAddress   String?   @map("billing_address")
-  shippingAddress  String?   @map("shipping_address")
+  id               Int        @id @default(autoincrement())
+  invoice          String     @unique
+  date             DateTime   @default(now())
+  customerName     String     @default("Walk-in Customer") @map("customer_name")
+  partyId          Int?       @map("party_id")
+  subtotal         Decimal    @default(0) @db.Decimal(12, 2)
+  gst              Decimal    @default(0) @db.Decimal(12, 2)
+  grandTotal       Decimal    @default(0) @map("grand_total") @db.Decimal(12, 2)
+  paymentMode      String?    @map("payment_mode")
+  totalReceived    Decimal    @default(0) @map("total_received") @db.Decimal(12, 2)
+  changeGiven      Decimal    @default(0) @map("change_given") @db.Decimal(12, 2)
+  createdAt        DateTime   @default(now()) @map("created_at")
+  status           String     @default("active")
+  paymentStatus    String     @default("Paid") @map("payment_status")
+  dueDate          DateTime?  @map("due_date") @db.Date
+  billingAddress   String?    @map("billing_address")
+  shippingAddress  String?    @map("shipping_address")
   phone            String?
-  stateOfSupply    String    @default("Tamil Nadu") @map("state_of_supply")
-  vehicleNo        String?   @map("vehicle_no")
-  deliveryDate     DateTime? @map("delivery_date") @db.Date
-  deliveryLocation String?   @map("delivery_location")
-  dispatchLocation String?   @map("dispatch_location")
+  stateOfSupply    String     @default("Tamil Nadu") @map("state_of_supply")
+  vehicleNo        String?    @map("vehicle_no")
+  deliveryDate     DateTime?  @map("delivery_date") @db.Date
+  deliveryLocation String?    @map("delivery_location")
+  dispatchLocation String?    @map("dispatch_location")
   notes            String?
   terms            String?
-  status           String    @default("active")
-  createdAt        DateTime  @default(now()) @map("created_at")
-
-  party Party?     @relation(fields: [partyId], references: [id], onDelete: SetNull)
-  items SaleItem[]
+  items            SaleItem[]
+  party            Party?     @relation(fields: [partyId], references: [id])
 
   @@map("sales")
 }
 
 model SaleItem {
-  id          Int       @id @default(autoincrement())
-  saleId      Int       @map("sale_id")
-  productId   Int?      @map("product_id")
+  id          Int      @id @default(autoincrement())
+  saleId      Int      @map("sale_id")
   name        String
+  qty         Decimal  @db.Decimal(12, 3)
+  rate        Decimal  @db.Decimal(12, 2)
+  amount      Decimal  @db.Decimal(12, 2)
   description String?
-  itemCount   Decimal   @default(0) @map("item_count") @db.Decimal(12, 3)
-  batchNo     String?   @map("batch_no")
-  expiryDate  String?   @map("exp_date") @db.VarChar(20)
-  mfgDate     String?   @map("mfg_date") @db.VarChar(20)
-  mrp         Decimal   @default(0) @db.Decimal(12, 2)
+  itemCount   Decimal  @default(0) @map("item_count") @db.Decimal(12, 3)
+  batchNo     String?  @map("batch_no")
+  expiryDate  String?  @map("exp_date") @db.VarChar(20)
+  mfgDate     String?  @map("mfg_date") @db.VarChar(20)
+  mrp         Decimal  @default(0) @db.Decimal(12, 2)
   size        String?
-  qty         Decimal   @db.Decimal(12, 3)
-  freeQty     Decimal   @default(0) @map("free_qty") @db.Decimal(12, 3)
+  freeQty     Decimal  @default(0) @map("free_qty") @db.Decimal(12, 3)
   unit        String?
-  rate        Decimal   @db.Decimal(12, 2)
-  gstRate     Decimal   @default(0) @map("gst_rate") @db.Decimal(5, 2)
-  gstAmount   Decimal   @default(0) @map("gst_amount") @db.Decimal(12, 2)
-  amount      Decimal   @db.Decimal(12, 2)
-
-  sale    Sale     @relation(fields: [saleId],    references: [id], onDelete: Cascade)
-  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  gstRate     Decimal  @default(0) @map("gst_rate") @db.Decimal(5, 2)
+  gstAmount   Decimal  @default(0) @map("gst_amount") @db.Decimal(12, 2)
+  productId   Int?     @map("product_id")
+  product     Product? @relation(fields: [productId], references: [id])
+  sale        Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
   @@map("sale_items")
 }
 
 model Purchase {
-  id          Int      @id @default(autoincrement())
-  invoice     String   @unique
-  date        DateTime @default(now())
-  supplierInvoiceNo   String?   @map("supplier_invoice_no")
-  supplierInvoiceDate DateTime? @map("supplier_invoice_date") @db.Date
-  partyName   String?  @map("party_name")
-  partyId     Int?     @map("party_id")
-  grandTotal  Decimal  @default(0) @map("grand_total") @db.Decimal(12, 2)
-  paymentMode String?  @map("payment_mode")
-  status      String   @default("active")
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  party Party?         @relation(fields: [partyId], references: [id], onDelete: SetNull)
-  items PurchaseItem[]
+  id                  Int            @id @default(autoincrement())
+  invoice             String         @unique
+  date                DateTime       @default(now())
+  partyName           String?        @map("party_name")
+  partyId             Int?           @map("party_id")
+  grandTotal          Decimal        @default(0) @map("grand_total") @db.Decimal(12, 2)
+  paymentMode         String?        @map("payment_mode")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  supplierInvoiceNo   String?        @map("supplier_invoice_no")
+  supplierInvoiceDate DateTime?      @map("supplier_invoice_date") @db.Date
+  status              String         @default("active")
+  items               PurchaseItem[]
+  party               Party?         @relation(fields: [partyId], references: [id])
 
   @@map("purchases")
 }
 
 model PurchaseItem {
-  id         Int     @id @default(autoincrement())
-  purchaseId Int     @map("purchase_id")
+  id         Int       @id @default(autoincrement())
+  purchaseId Int       @map("purchase_id")
   name       String
-  batchNo    String?  @map("batch_no")
+  qty        Decimal   @db.Decimal(12, 3)
+  price      Decimal   @db.Decimal(12, 2)
+  total      Decimal   @db.Decimal(12, 2)
+  batchNo    String?   @map("batch_no")
   expiryDate DateTime? @map("expiry_date") @db.Date
   mfgDate    DateTime? @map("mfg_date") @db.Date
-  mrp        Decimal @default(0) @db.Decimal(12, 2)
-  qty        Decimal @db.Decimal(12, 3)
-  unit       String? @db.VarChar(50)
-  price      Decimal @db.Decimal(12, 2)
-  gstRate    Decimal @default(0) @map("gst_rate") @db.Decimal(5, 2)
-  gstAmount  Decimal @default(0) @map("gst_amount") @db.Decimal(12, 2)
-  total      Decimal @db.Decimal(12, 2)
-
-  purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  mrp        Decimal   @default(0) @db.Decimal(12, 2)
+  unit       String?   @db.VarChar(50)
+  gstRate    Decimal   @default(0) @map("gst_rate") @db.Decimal(5, 2)
+  gstAmount  Decimal   @default(0) @map("gst_amount") @db.Decimal(12, 2)
+  purchase   Purchase  @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
 
   @@map("purchase_items")
 }
@@ -179,15 +173,14 @@ model PaymentInHistory {
   partyId     Int?     @map("party_id")
   partyName   String?  @map("party_name")
   amount      Decimal  @db.Decimal(12, 2)
-  discount    Decimal  @default(0) @db.Decimal(12, 2)
   paymentMode String?  @map("payment_mode")
   reference   String?
   notes       String?
-  status      String   @default("Unused")
   date        DateTime @default(dbgenerated("CURRENT_DATE")) @db.Date
   createdAt   DateTime @default(now()) @map("created_at")
-
-  party Party? @relation(fields: [partyId], references: [id], onDelete: SetNull)
+  discount    Decimal  @default(0) @db.Decimal(12, 2)
+  status      String   @default("Unused")
+  party       Party?   @relation(fields: [partyId], references: [id])
 
   @@map("payment_in_history")
 }
@@ -202,8 +195,7 @@ model PaymentOutHistory {
   notes       String?
   date        DateTime @default(dbgenerated("CURRENT_DATE")) @db.Date
   createdAt   DateTime @default(now()) @map("created_at")
-
-  party Party? @relation(fields: [partyId], references: [id], onDelete: SetNull)
+  party       Party?   @relation(fields: [partyId], references: [id])
 
   @@map("payment_out_history")
 }
@@ -211,7 +203,7 @@ model PaymentOutHistory {
 model CashTransaction {
   id          Int      @id @default(autoincrement())
   date        DateTime @default(dbgenerated("CURRENT_DATE")) @db.Date
-  type        String
+  type        String   @db.VarChar(50)
   amount      Decimal  @db.Decimal(12, 2)
   description String?
   createdAt   DateTime @default(now()) @map("created_at")
@@ -243,8 +235,7 @@ model Cheque {
   type      String
   status    String    @default("pending")
   createdAt DateTime  @default(now()) @map("created_at")
-
-  party Party? @relation(fields: [partyId], references: [id], onDelete: SetNull)
+  party     Party?    @relation(fields: [partyId], references: [id])
 
   @@map("cheques")
 }
@@ -276,10 +267,9 @@ model Settings {
 }
 
 model Uom {
-  id    Int    @id @default(autoincrement())
-  code  String @unique
-  descr String
-
+  id                     Int             @id @default(autoincrement())
+  code                   String          @unique
+  descr                  String
   conversionsAsBase      UomConversion[] @relation("BaseUom")
   conversionsAsSecondary UomConversion[] @relation("SecondaryUom")
 
@@ -292,9 +282,8 @@ model UomConversion {
   factor         Float    @default(1)
   secondaryUomId Int      @map("secondary_uom_id")
   createdAt      DateTime @default(now()) @map("created_at")
-
-  baseUom      Uom @relation("BaseUom",      fields: [baseUomId],      references: [id], onDelete: Cascade)
-  secondaryUom Uom @relation("SecondaryUom", fields: [secondaryUomId], references: [id], onDelete: Cascade)
+  baseUom        Uom      @relation("BaseUom", fields: [baseUomId], references: [id], onDelete: Cascade)
+  secondaryUom   Uom      @relation("SecondaryUom", fields: [secondaryUomId], references: [id], onDelete: Cascade)
 
   @@map("uom_conversions")
 }
@@ -307,4 +296,19 @@ model AuditLog {
   details  Json?
 
   @@map("audit_log")
+}
+
+model flyway_schema_history {
+  installed_rank Int      @id(map: "flyway_schema_history_pk")
+  version        String?  @db.VarChar(50)
+  description    String   @db.VarChar(200)
+  type           String   @db.VarChar(20)
+  script         String   @db.VarChar(1000)
+  checksum       Int?
+  installed_by   String   @db.VarChar(100)
+  installed_on   DateTime @default(now()) @db.Timestamp(6)
+  execution_time Int
+  success        Boolean
+
+  @@index([success], map: "flyway_schema_history_s_idx")
 }

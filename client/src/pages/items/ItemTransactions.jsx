@@ -222,7 +222,13 @@ export default function ItemTransactions({ item, sales = [], purchases = [] }) {
 
   const delMut = useMutation({
     mutationFn: (txn) => txn.type === 'Sale' ? SalesAPI.delete(txn.id) : PurchasesAPI.delete(txn.id),
-    onSuccess: () => { qc.invalidateQueries(['sales']); qc.invalidateQueries(['purchases']); setDeleteConfirm({ open: false, txn: null }); toast.success('Transaction deleted'); },
+    onSuccess: () => {
+      qc.invalidateQueries(['sales']);
+      qc.invalidateQueries(['purchases']);
+      qc.invalidateQueries(['items']);
+      setDeleteConfirm({ open: false, txn: null });
+      toast.success('Transaction deleted');
+    },
     onError: () => toast.error('Failed to delete transaction'),
   });
 
@@ -266,14 +272,14 @@ export default function ItemTransactions({ item, sales = [], purchases = [] }) {
   }, [item, sales, purchases, sortColumn, sortDirection]);
 
   const COLUMNS = [
-    { label: 'S.No',           key: null },
-    { label: 'Type',           key: 'type' },
-    { label: 'Invoice/GRN No', key: 'invoiceNo' },
-    { label: 'Date',           key: 'date' },
-    { label: 'Party',          key: 'party' },
-    { label: 'Qty',            key: 'quantity' },
-    { label: 'Unit Rate',      key: 'price' },
-    { label: 'Action',         key: null },
+    { label: 'S.No',      key: null,        cls: 'w-10' },
+    { label: 'Type',      key: 'type',      cls: 'w-24' },
+    { label: 'Ref.No',    key: 'invoiceNo', cls: 'w-20' },
+    { label: 'Date',      key: 'date',      cls: 'w-28' },
+    { label: 'Party',     key: 'party',     cls: '' },
+    { label: 'Qty',       key: 'quantity',  cls: 'w-16 text-center' },
+    { label: 'Unit Rate', key: 'price',     cls: 'w-24 text-right' },
+    { label: 'Action',    key: null,        cls: 'w-12 text-center' },
   ];
 
   const handleHeaderClick = (key) => {
@@ -336,9 +342,9 @@ export default function ItemTransactions({ item, sales = [], purchases = [] }) {
                 <table className="w-full text-sm">
                   <thead className="bg-slate-800 text-white sticky top-0 z-10">
                     <tr>
-                      {COLUMNS.map(({ label, key }) => (
+                      {COLUMNS.map(({ label, key, cls }) => (
                         <th key={label} onClick={() => key && handleHeaderClick(key)}
-                          className={`px-3 py-2 text-left font-semibold text-xs uppercase tracking-wide border-r border-slate-700 ${key ? 'cursor-pointer hover:bg-slate-700' : ''}`}>
+                          className={`px-3 py-2 text-left font-semibold text-xs uppercase tracking-wide border-r border-slate-700 ${cls} ${key ? 'cursor-pointer hover:bg-slate-700' : ''}`}>
                           <div className="flex items-center gap-1">
                             {label}
                             {key && sortColumn === key && <span className="text-xs">{sortDirection === 'asc' ? '▲' : '▼'}</span>}

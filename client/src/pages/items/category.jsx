@@ -17,6 +17,8 @@ export default function CategoryTab({ allItems }) {
   const [moveCatOpen, setMoveCatOpen] = useState(false);
   const [moveCatSearch, setMoveCatSearch] = useState('');
   const [moveCatSelected, setMoveCatSelected] = useState([]);
+  const [catSearch, setCatSearch] = useState('');
+  const [showCatSearch, setShowCatSearch] = useState(false);
 
   const catCreateMut = useMutation({
     mutationFn: CategoriesAPI.create,
@@ -109,11 +111,24 @@ export default function CategoryTab({ allItems }) {
     <div className="flex-1 grid grid-cols-7 gap-4 min-h-0">
       {/* Left Panel */}
       <div className="col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-        <div className="border-b border-slate-200">
+        <div className="border-b border-slate-200 flex items-center gap-2 px-2 py-2">
+          <button
+            onClick={() => setShowCatSearch(s => !s)}
+            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition shrink-0">
+            <Search size={15} />
+          </button>
+          {showCatSearch && (
+            <input
+              autoFocus
+              value={catSearch}
+              onChange={e => setCatSearch(e.target.value)}
+              placeholder="Search categories…"
+              className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-amber-400" />
+          )}
           <button
             onClick={() => { setCatForm(true); setCatName(''); setCatEditId(null); }}
-            className="w-full bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 font-semibold text-sm flex items-center justify-center gap-2 transition">
-            <Plus size={15} /> Add Category
+            className="ml-auto flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition whitespace-nowrap shrink-0">
+            <Plus size={13} /> Add Category
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -127,7 +142,7 @@ export default function CategoryTab({ allItems }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {allCats.map((cat, idx) => {
+              {allCats.filter(c => !catSearch || c.name.toLowerCase().includes(catSearch.toLowerCase())).map((cat, idx) => {
                 const count = getCatItems(cat).length;
                 const isSelected = activeCat.id === cat.id;
                 const isDefault = cat.id === 'general';

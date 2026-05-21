@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ShoppingCart, User, Search, X, Check, Trash2, Minus, Plus, Printer } from 'lucide-react';
+import { ShoppingCart, User, Search, X, Check, Trash2, Plus, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import { ItemsAPI } from '../../api/items.js';
@@ -113,15 +113,6 @@ export default function POS() {
     ItemsAPI.adjustStock(product.id, -1).catch(() => {});
   };
 
-  const changeQty = (idx, delta) => {
-    const item = cart[idx];
-    if (delta === -1 && item.qty === 1) { removeFromCart(idx); return; }
-    const avail = stockMap[item.id] ?? 0;
-    if (delta === 1 && avail <= 0) { toast.error('Out of stock!'); return; }
-    setStockMap(m => ({ ...m, [item.id]: (m[item.id] ?? 0) - delta }));
-    setCart(prev => prev.map((i, j) => j === idx ? { ...i, qty: i.qty + delta } : i));
-    ItemsAPI.adjustStock(item.id, delta).catch(() => {});
-  };
 
   const removeFromCart = (idx) => {
     const item = cart[idx];
@@ -319,18 +310,18 @@ export default function POS() {
           </div>
           <div className="overflow-y-auto flex-1">
             <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-slate-50 border-b border-slate-200">
+              <thead className="sticky top-0 bg-slate-50 border-b border-slate-100">
                 <tr>
-                  <th className="px-3 py-2.5 text-left font-semibold text-slate-600 w-8">#</th>
-                  <th className="px-3 py-2.5 text-left font-semibold text-slate-600">Item Name</th>
-                  <th className="px-3 py-2.5 text-left font-semibold text-slate-600 w-16">Batch</th>
-                  <th className="px-3 py-2.5 text-right font-semibold text-slate-600 w-16">MRP</th>
-                  <th className="px-3 py-2.5 text-center font-semibold text-slate-600 w-14">Qty</th>
-                  <th className="px-3 py-2.5 text-left font-semibold text-slate-600 w-12">Unit</th>
-                  <th className="px-3 py-2.5 text-right font-semibold text-slate-600 w-20">Rate Inc Tax</th>
-                  <th className="px-3 py-2.5 text-right font-semibold text-slate-600 w-14">GST %</th>
-                  <th className="px-3 py-2.5 text-right font-semibold text-slate-600 w-18">Total</th>
-                  <th className="px-3 py-2.5 text-center font-semibold text-slate-600 w-10">Action</th>
+                  <th className="px-2 py-2 text-center font-semibold text-slate-600 w-10 border-r border-slate-200">S.No</th>
+                  <th className="px-2 py-2 text-center font-semibold text-slate-600 border-r border-slate-200">Item Name</th>
+                  <th className="px-2 py-2 text-center font-semibold text-slate-600 w-16 border-r border-slate-200">Batch</th>
+                  <th className="px-2 py-2 text-center font-semibold text-slate-600 w-16 border-r border-slate-200">MRP</th>
+                  <th className="px-2 py-2 text-center font-semibold text-slate-600 w-10 border-r border-slate-200">Qty</th>
+                  <th className="px-2 py-2 text-center font-semibold text-slate-600 w-12 border-r border-slate-200">Unit</th>
+                  <th className="px-2 py-2 text-center font-semibold text-slate-600 w-20 border-r border-slate-200">Rate Inc Tax</th>
+                  <th className="px-2 py-2 text-center font-semibold text-slate-600 w-14 border-r border-slate-200">GST %</th>
+                  <th className="px-2 py-2 text-center font-semibold text-slate-600 w-24 border-r border-slate-200">Total Amount</th>
+                  <th className="px-2 py-2 text-center font-semibold text-slate-600 w-10">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -341,24 +332,18 @@ export default function POS() {
                 ) : cart.map((item, i) => {
                   const itemTotal = item.price * item.qty;
                   return (
-                    <tr key={i} className="border-b border-slate-100 hover:bg-amber-50 transition">
-                      <td className="px-3 py-2 font-semibold text-slate-600">{i + 1}</td>
-                      <td className="px-3 py-2 font-medium text-slate-800">{item.name}</td>
-                      <td className="px-3 py-2 text-slate-500">{item.batch || 'N/A'}</td>
-                      <td className="px-3 py-2 text-right font-bold text-amber-600">{RS}{item.price.toFixed(2)}</td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center justify-center gap-0.5">
-                          <button onClick={() => changeQty(i, -1)} className="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-xs font-bold text-slate-600 flex items-center justify-center"><Minus size={9} /></button>
-                          <span className="w-6 text-center font-bold text-sm">{item.qty}</span>
-                          <button onClick={() => changeQty(i, 1)} className="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-xs font-bold text-slate-600 flex items-center justify-center"><Plus size={9} /></button>
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-slate-600">{item.uom}</td>
-                      <td className="px-3 py-2 text-right font-bold text-emerald-600">{RS}{item.price.toFixed(2)}</td>
-                      <td className="px-3 py-2 text-right font-bold text-blue-600">{item.gstRate || 0}%</td>
-                      <td className="px-3 py-2 text-right font-bold text-slate-800">{RS}{itemTotal.toFixed(2)}</td>
-                      <td className="px-3 py-2 text-center">
-                        <button onClick={() => removeFromCart(i)} className="text-rose-500 hover:text-rose-700 p-0.5 rounded transition"><X size={13} /></button>
+                    <tr key={i} className="border-b border-slate-50 hover:bg-amber-50 transition">
+                      <td className="px-3 py-1.5 font-semibold text-slate-600 border-r border-slate-100">{i + 1}</td>
+                      <td className="px-3 py-1.5 font-medium text-slate-800 border-r border-slate-100">{item.name}</td>
+                      <td className="px-3 py-1.5 text-slate-500 border-r border-slate-100">{item.batch || 'N/A'}</td>
+                      <td className="px-3 py-1.5 text-right font-bold text-amber-600 border-r border-slate-100">{RS}{item.price.toFixed(2)}</td>
+                      <td className="px-3 py-1.5 text-center font-bold text-slate-700 border-r border-slate-100">{item.qty}</td>
+                      <td className="px-3 py-1.5 text-slate-600 border-r border-slate-100">{item.uom}</td>
+                      <td className="px-3 py-1.5 text-right font-bold text-emerald-600 border-r border-slate-100">{RS}{item.price.toFixed(2)}</td>
+                      <td className="px-3 py-1.5 text-right font-bold text-blue-600 border-r border-slate-100">{item.gstRate || 0}%</td>
+                      <td className="px-3 py-1.5 text-right font-bold text-slate-800 border-r border-slate-100">{RS}{itemTotal.toFixed(2)}</td>
+                      <td className="px-3 py-1.5 text-center">
+                        <button onClick={() => removeFromCart(i)} className="text-rose-500 hover:text-rose-700 p-0.5 rounded transition"><Trash2 size={13} /></button>
                       </td>
                     </tr>
                   );

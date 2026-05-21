@@ -1,4 +1,5 @@
-import { ChevronRight, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronRight, MoreVertical, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import ItemTransactions from './ItemTransactions.jsx';
 
 export default function ServicesTab({
@@ -13,9 +14,17 @@ export default function ServicesTab({
   openEdit,
   handleDelete,
 }) {
-  const services = allItems.filter(i => i.type === 'Service');
+  const [search, setSearch] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
 
-  if (services.length === 0) {
+  const allServices = allItems.filter(i => i.type === 'Service');
+  const services = allServices.filter(s =>
+    !search ||
+    (s.shortName || '').toLowerCase().includes(search.toLowerCase()) ||
+    (s.name || '').toLowerCase().includes(search.toLowerCase())
+  );
+
+  if (allServices.length === 0) {
     return (
       <div className="flex-1 bg-white rounded-xl border border-slate-200 flex flex-col items-center justify-center gap-6">
         <div className="relative flex items-center justify-center" style={{ width: 180, height: 156 }}>
@@ -47,17 +56,30 @@ export default function ServicesTab({
     );
   }
 
-  const selectedSvc = services.find(i => String(i.id) === String(selectedItemId)) || services[0];
+  const selectedSvc = allServices.find(i => String(i.id) === String(selectedItemId)) || allServices[0];
 
   return (
     <div className="flex-1 grid grid-cols-7 gap-4 min-h-0">
       {/* Left Panel */}
       <div className="col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-        <div className="border-b border-slate-200">
+        <div className="border-b border-slate-200 flex items-center gap-2 px-2 py-2">
+          <button
+            onClick={() => setShowSearch(s => !s)}
+            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition shrink-0">
+            <Search size={15} />
+          </button>
+          {showSearch && (
+            <input
+              autoFocus
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search services…"
+              className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-amber-400" />
+          )}
           <button
             onClick={openAddService}
-            className="w-full bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 font-semibold text-sm flex items-center justify-center gap-2 transition whitespace-nowrap">
-            <Plus size={15} /> Add Service
+            className="ml-auto flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition whitespace-nowrap shrink-0">
+            <Plus size={13} /> Add Service
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">
