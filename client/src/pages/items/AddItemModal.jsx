@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Search, Camera, Settings, Plus } from 'lucide-react';
+import { X, Search, Camera, Settings, Plus, Trash2 } from 'lucide-react';
 
 const TABS = ['Pricing', 'Stock', 'Manufacturing'];
 
@@ -44,6 +44,10 @@ export default function AddItemModal({ onClose, onSave, onSaveAndNew, uoms = [],
   } : { ...EMPTY_FORM });
 
   const [rawMaterials, setRawMaterials] = useState([EMPTY_ROW(), EMPTY_ROW()]);
+  const [hoveredRow, setHoveredRow] = useState(null);
+
+  const deleteRawMaterial = (idx) =>
+    setRawMaterials(r => r.filter((_, i) => i !== idx));
 
   const setF = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
@@ -283,8 +287,15 @@ export default function AddItemModal({ onClose, onSave, onSaveAndNew, uoms = [],
                     {rawMaterials.map((row, idx) => {
                       const estimated = (Number(row.qty) || 0) * (Number(row.purchasePrice) || 0);
                       return (
-                        <tr key={row.id} className="hover:bg-slate-50">
-                          <td className="w-10 px-3 py-2 text-slate-400 text-center text-xs border-r border-slate-100">{idx + 1}</td>
+                        <tr key={row.id} className="hover:bg-slate-50"
+                          onMouseEnter={() => setHoveredRow(idx)}
+                          onMouseLeave={() => setHoveredRow(null)}>
+                          <td className="w-10 px-3 py-2 text-center text-xs border-r border-slate-100">
+                            {hoveredRow === idx
+                              ? <button onClick={() => deleteRawMaterial(idx)} className="text-rose-500 hover:text-rose-700 transition"><Trash2 size={13} /></button>
+                              : <span className="text-slate-400">{idx + 1}</span>
+                            }
+                          </td>
                           <td className="px-3 py-2 border-r border-slate-100">
                             <input value={row.material} onChange={e => updateRawMaterial(idx, 'material', e.target.value)}
                               placeholder="Enter raw material" className="w-full text-sm text-slate-800 focus:outline-none bg-transparent placeholder:text-slate-300" />

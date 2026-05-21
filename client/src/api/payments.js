@@ -9,6 +9,9 @@ export const PaymentsAPI = {
   savePaymentIn:    (data)     => http.post('/payments/in', data),
   updatePaymentIn:  (id, data) => http.patch(`/payments/in/${id}`, data),
   deletePaymentIn:  (id)       => http.delete(`/payments/in/${id}`),
-  getPaymentsOut:   ()         => http.get('/payments/out'),
-  savePaymentOut:   (data)     => http.post('/payments/out', data),
+  getPaymentsOut:    ()         => http.get('/payments/out'),
+  getPaymentOut:     (id)       => http.get(`/payments/out/${id}`),
+  savePaymentOut:    (data)     => http.post('/payments/out', data),
+  updatePaymentOut:  (id, data) => http.patch(`/payments/out/${id}`, data),
+  deletePaymentOut:  (id)       => http.delete(`/payments/out/${id}`),
 };

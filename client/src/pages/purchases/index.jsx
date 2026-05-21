@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, X, Check } from 'lucide-react';
+import { Plus, Trash2, X, Check, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import ResizableTable from '../../components/ResizableTable.jsx';
+import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import { PurchasesAPI } from '../../api/purchases.js';
 import { PartiesAPI } from '../../api/parties.js';
 import { PaymentsAPI } from '../../api/payments.js';
@@ -75,6 +76,7 @@ function makePurchaseTab(invoice) {
       ewayBillNo: '',
       stateOfSupply: 'Tamil Nadu',
       dueDate: '',
+      priceType: 'With Tax',
     },
     items: [{ ...ITEM_ROW }],
   };
@@ -90,6 +92,7 @@ export default function Purchases() {
 
   const [purchaseTabs, setPurchaseTabs] = useState(() => [makePurchaseTab(genPurchaseBill())]);
   const [activeTabId, setActiveTabId] = useState(() => purchaseTabs[0].id);
+  const [saveConfirm, setSaveConfirm] = useState(false);
 
   const activeTab = purchaseTabs.find(t => t.id === activeTabId) || purchaseTabs[0];
   const items = activeTab?.items || [{ ...ITEM_ROW }];
@@ -163,6 +166,36 @@ export default function Purchases() {
     const freshTab = makePurchaseTab(genPurchaseBill([...purchases, savedPurchase]));
     setPurchaseTabs([freshTab]);
     setActiveTabId(freshTab.id);
+  };
+
+  const [scanSearch, setScanSearch] = useState('');
+  const scanRef = useRef(null);
+
+  const filteredScan = scanSearch.trim()
+    ? products.filter(p =>
+        (p.shortName || '').toLowerCase().includes(scanSearch.toLowerCase()) ||
+        (p.itemCode  || '').toLowerCase().includes(scanSearch.toLowerCase())
+      )
+    : [];
+
+  const addProductRow = (prod) => {
+    const newRow = {
+      ...ITEM_ROW,
+      name:     prod.shortName,
+      unit:     prod.uom || 'PCS',
+      price:    Number(prod.purchasePrice || 0),
+      mrp:      Number(prod.mrp || 0),
+      gstRate:  Number(prod.gstRate || 0),
+      gstAmount: Number(prod.purchasePrice || 0) * (Number(prod.gstRate || 0) / 100),
+      total:    Number(prod.purchasePrice || 0) + Number(prod.purchasePrice || 0) * (Number(prod.gstRate || 0) / 100),
+    };
+    setItems(prev => {
+      const emptyIdx = prev.findIndex(r => !r.name);
+      if (emptyIdx >= 0) return prev.map((r, i) => i === emptyIdx ? newRow : r);
+      return [...prev, newRow];
+    });
+    setScanSearch('');
+    setTimeout(() => scanRef.current?.focus(), 0);
   };
 
   const addRow = () => setItems(prev => [...prev, { ...ITEM_ROW }]);
@@ -331,9 +364,64 @@ export default function Purchases() {
           </div>
 
 
+          {/* ── Scan / Search bar ── */}
+          <div className="mb-3 relative">
+            <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 focus-within:border-amber-500 bg-white">
+              <Search size={14} className="text-slate-400 shrink-0" />
+              <input
+                ref={scanRef}
+                value={scanSearch}
+                onChange={e => setScanSearch(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && filteredScan.length) addProductRow(filteredScan[0]); }}
+                placeholder="Search or scan barcode to add item…"
+                className="flex-1 text-sm focus:outline-none bg-transparent text-slate-800 placeholder:text-slate-400"
+              />
+              {scanSearch && (
+                <button type="button" onClick={() => { setScanSearch(''); scanRef.current?.focus(); }}
+                  className="text-slate-400 hover:text-slate-600">
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+            {filteredScan.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-52 overflow-y-auto">
+                {filteredScan.map(p => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onMouseDown={() => addProductRow(p)}
+                    className="w-full flex items-center justify-between px-4 py-2 hover:bg-amber-50 transition text-left">
+                    <div>
+                      <span className="text-sm font-semibold text-slate-800">{p.shortName}</span>
+                      {p.itemCode && <span className="text-xs text-slate-400 ml-2">{p.itemCode}</span>}
+                    </div>
+                    <div className="text-right shrink-0 ml-4">
+                      <span className="text-xs font-bold text-amber-600">₹{Number(p.purchasePrice || 0).toFixed(2)}</span>
+                      <span className={`ml-2 text-xs font-semibold ${Number(p.stock) <= 5 ? 'text-rose-500' : 'text-emerald-600'}`}>
+                        Stock: {Number(p.stock || 0)}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="mb-4">
             <ResizableTable 
-              headers={['ITEM', 'DESCRIPTION', 'COUNT', 'BATCH NO.', 'EXP. DATE', 'MFG. DATE', 'MRP', 'SIZE', 'QTY', 'FREE QTY', 'UNIT', 'PRICE/UNIT', 'DISCOUNT %', 'DISCOUNT AMOUNT', 'TAX %', 'TAX AMOUNT', 'AMOUNT', '']}
+              headers={['S.No', 'ITEM', 'COUNT', 'BATCH NO.', 'EXP. DATE', 'MFG. DATE', 'MRP', 'QTY', 'FREE QTY', 'UNIT',
+                <div key="price" className="flex flex-col gap-0.5">
+                  <span className="text-xs font-semibold uppercase tracking-wide">Price/Unit</span>
+                  <select
+                    value={form.priceType}
+                    onChange={e => setForm(f => ({ ...f, priceType: e.target.value }))}
+                    onClick={e => e.stopPropagation()}
+                    className="text-[10px] font-normal bg-slate-700 border border-slate-500 rounded px-1 py-0.5 text-white focus:outline-none normal-case tracking-normal">
+                    <option value="With Tax">With Tax</option>
+                    <option value="Without Tax">Without Tax</option>
+                  </select>
+                </div>,
+                'GST RATE', 'GST AMOUNT', 'TOTAL AMOUNT', '']}
               className="border border-slate-200 overflow-x-auto"
             >
               {items.map((row, idx) => (
@@ -365,27 +453,20 @@ export default function Purchases() {
                       {products.map(p => <option key={p.id} value={p.shortName} />)}
                     </datalist>
                   </td>
-                  <td className="border-r border-slate-200 p-0"><input value={row.description || ''} onChange={e => updateRow(idx, 'description', e.target.value)} className={cellInp} /></td>
                   <td className="border-r border-slate-200 p-0"><input value={row.count || ''} onChange={e => updateRow(idx, 'count', e.target.value)} className={`${cellInp} text-right`} /></td>
                   <td className="border-r border-slate-200 p-0"><input value={row.batchNo} onChange={e => updateRow(idx, 'batchNo', e.target.value)} className={cellInp} /></td>
                   <td className="border-r border-slate-200 p-0"><input type="text" value={row.expiryDate} onChange={e => updateRow(idx, 'expiryDate', e.target.value)} placeholder="MM/YY" className={cellInp} /></td>
                   <td className="border-r border-slate-200 p-0"><input type="text" value={row.mfgDate} onChange={e => updateRow(idx, 'mfgDate', e.target.value)} placeholder="MM/YY" className={cellInp} /></td>
                   <td className="border-r border-slate-200 p-0"><input type="number" step="0.01" value={row.mrp} onChange={e => updateRow(idx, 'mrp', e.target.value)} className={`${cellInp} text-right`} /></td>
-                  <td className="border-r border-slate-200 p-0"><input value={row.size || ''} onChange={e => updateRow(idx, 'size', e.target.value)} className={cellInp} /></td>
                   <td className="border-r border-slate-200 p-0"><input type="number" min="1" value={row.qty} onChange={e => updateRow(idx, 'qty', e.target.value)} className={`${cellInp} text-right font-semibold`} /></td>
                   <td className="border-r border-slate-200 p-0"><input value={row.freeQty || ''} onChange={e => updateRow(idx, 'freeQty', e.target.value)} className={`${cellInp} text-right`} /></td>
                   <td className="border-r border-slate-200 p-0"><input value={row.unit} onChange={e => updateRow(idx, 'unit', e.target.value)} className={cellInp} /></td>
                   <td className="border-r border-slate-200 p-0">
-                    <select value={row.priceType || 'With Tax'} onChange={e => updateRow(idx, 'priceType', e.target.value)} className={`${cellInp} appearance-none`}>
-                      <option value="With Tax">With Tax</option>
-                      <option value="Without Tax">Without Tax</option>
-                    </select>
+                    <input type="number" step="0.01" value={row.price} onChange={e => updateRow(idx, 'price', e.target.value)} className={`${cellInp} text-right`} />
                   </td>
-                  <td className="border-r border-slate-200 p-0"><input type="number" step="0.01" value={row.discountRate || ''} onChange={e => updateRow(idx, 'discountRate', e.target.value)} className={`${cellInp} text-right`} /></td>
-                  <td className="border-r border-slate-200 p-0"><input type="number" step="0.01" value={row.discountAmount || ''} onChange={e => updateRow(idx, 'discountAmount', e.target.value)} className={`${cellInp} text-right`} /></td>
-                  <td className="border-r border-slate-200 p-0"><input type="number" step="0.01" value={row.taxRate || ''} onChange={e => updateRow(idx, 'taxRate', e.target.value)} className={`${cellInp} text-right`} /></td>
-                  <td className="border-r border-slate-200 px-2 py-1 text-right text-xs text-slate-600">{Number(row.taxAmount || 0).toFixed(2)}</td>
-                  <td className="border-r border-slate-200 px-2 py-1 text-right text-xs font-semibold text-slate-800">{Number(row.amount || 0).toFixed(2)}</td>
+                  <td className="border-r border-slate-200 p-0"><input type="number" step="0.01" value={row.gstRate ?? ''} onChange={e => updateRow(idx, 'gstRate', e.target.value)} className={`${cellInp} text-right`} /></td>
+                  <td className="border-r border-slate-200 px-2 py-1 text-right text-xs text-slate-600">{Number(row.gstAmount || 0).toFixed(2)}</td>
+                  <td className="border-r border-slate-200 px-2 py-1 text-right text-xs font-semibold text-slate-800">{Number(row.total || 0).toFixed(2)}</td>
                   <td className="px-1 py-1 text-center">
                     <button type="button" onClick={() => removeRow(idx)} className="p-1 text-slate-300 hover:text-rose-500 transition">
                       <Trash2 size={13} />
@@ -415,18 +496,31 @@ export default function Purchases() {
           </div>
 
           <div className="flex items-center justify-end gap-4">
+            <button type="button" onClick={() => setItems([{ ...ITEM_ROW }])}
+              className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
+              <Trash2 size={15} /> Clear
+            </button>
             <button type="button" className="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
               <Check size={15} /> Draft Purchase
             </button>
             <button type="button" className="bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-200 px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
               <Check size={15} /> Print Purchase
             </button>
-            <button type="submit" disabled={createMut.isPending} className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-6 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition shadow-sm">
+            <button type="button" onClick={() => setSaveConfirm(true)} disabled={createMut.isPending} className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-6 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition shadow-sm">
               <Check size={15} /> {createMut.isPending ? 'Saving...' : 'Save Purchase'}
             </button>
           </div>
         </form>
       </div>
+
+      <ConfirmDialog
+        open={saveConfirm}
+        title="Save Purchase"
+        message={`Save purchase bill ${invoice} with ${items.filter(i => i.name).length} item(s)? Total: ₹${grandTotal.toFixed(2)}`}
+        confirmLabel="Save"
+        onConfirm={() => { setSaveConfirm(false); handleSubmit({ preventDefault: () => {} }); }}
+        onClose={() => setSaveConfirm(false)}
+      />
     </div>
   );
 }

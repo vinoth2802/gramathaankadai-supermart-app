@@ -195,6 +195,8 @@ model PaymentOutHistory {
   notes       String?
   date        DateTime @default(dbgenerated("CURRENT_DATE")) @db.Date
   createdAt   DateTime @default(now()) @map("created_at")
+  discount    Decimal  @default(0) @db.Decimal(12, 2)
+  status      String   @default("Unused") @db.VarChar(20)
   party       Party?   @relation(fields: [partyId], references: [id])
 
   @@map("payment_out_history")

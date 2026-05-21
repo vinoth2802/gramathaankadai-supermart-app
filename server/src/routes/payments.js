@@ -94,24 +94,72 @@ router.delete('/in/:id', async (req, res) => {
 router.get('/out', async (_req, res) => {
   const records = await prisma.paymentOutHistory.findMany({
     orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    include: { party: { select: { id: true, name: true } } },
   });
   res.json(records);
 });
 
-router.post('/out', async (req, res) => {
-  const { partyId, partyName, amount, paymentMode, reference, notes, date } = req.body;
-  const record = await prisma.paymentOutHistory.create({
-    data: {
-      partyId:     partyId     || null,
-      partyName:   partyName   || null,
-      amount,
-      paymentMode: paymentMode || 'Cash',
-      reference:   reference   || null,
-      notes:       notes       || null,
-      date:        date ? new Date(date) : undefined,
-    },
+router.get('/out/:id', async (req, res) => {
+  const record = await prisma.paymentOutHistory.findUnique({
+    where: { id: Number(req.params.id) },
+    include: { party: { select: { id: true, name: true } } },
   });
-  res.status(201).json(record);
+  if (!record) return res.status(404).json({ error: 'Not found' });
+  res.json(record);
+});
+
+router.post('/out', async (req, res) => {
+  try {
+    const { partyId, partyName, amount, discount, paymentMode, reference, notes, status, date } = req.body;
+    const record = await prisma.paymentOutHistory.create({
+      data: {
+        partyId:     partyId     ? Number(partyId) : null,
+        partyName:   partyName   || null,
+        amount:      Number(amount   || 0),
+        discount:    Number(discount || 0),
+        paymentMode: paymentMode || 'Cash',
+        reference:   reference   || null,
+        notes:       notes       || null,
+        status:      status      || 'Unused',
+        date:        date ? new Date(date) : undefined,
+      },
+    });
+    res.status(201).json(record);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/out/:id', async (req, res) => {
+  try {
+    const { partyId, partyName, amount, discount, paymentMode, reference, notes, status, date } = req.body;
+    const data = {};
+    if (partyId     !== undefined) data.partyId     = partyId ? Number(partyId) : null;
+    if (partyName   !== undefined) data.partyName   = partyName   || null;
+    if (amount      !== undefined) data.amount      = Number(amount);
+    if (discount    !== undefined) data.discount    = Number(discount);
+    if (paymentMode !== undefined) data.paymentMode = paymentMode;
+    if (reference   !== undefined) data.reference   = reference   || null;
+    if (notes       !== undefined) data.notes       = notes       || null;
+    if (status      !== undefined) data.status      = status;
+    if (date        !== undefined) data.date        = new Date(date);
+    const record = await prisma.paymentOutHistory.update({
+      where: { id: Number(req.params.id) },
+      data,
+    });
+    res.json(record);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/out/:id', async (req, res) => {
+  try {
+    await prisma.paymentOutHistory.delete({ where: { id: Number(req.params.id) } });
+    res.status(204).end();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;

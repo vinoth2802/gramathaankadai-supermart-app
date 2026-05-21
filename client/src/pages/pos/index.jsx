@@ -111,6 +111,8 @@ export default function POS() {
       return [...prev, { id: product.id, name: product.shortName, price: Number(product.salesPrice || 0), qty: 1, gstRate: Number(product.gstRate || 0), batch: 'N/A', uom: product.uom || 'Pcs' }];
     });
     ItemsAPI.adjustStock(product.id, -1).catch(() => {});
+    setSearch('');
+    setTimeout(() => searchRef.current?.focus(), 0);
   };
 
 

@@ -36,6 +36,7 @@ export default function Items() {
   const [txnWarning, setTxnWarning] = useState(false);
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [activeFilter, setActiveFilter] = useState(null); // 'low' | 'expiry' | null
 
   const toggleSort = (col) => {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -79,12 +80,24 @@ export default function Items() {
     else { setDeleteConfirm({ open: true, id: item.id }); }
   };
 
+  const today        = new Date(); today.setHours(0, 0, 0, 0);
+  const soon         = new Date(today); soon.setDate(soon.getDate() + 30);
+  const lowCount     = allItems.filter(i => Number(i.stock || 0) <= Number(i.reorderLevel || 10)).length;
+  const expiredCount = allItems.filter(i => i.expiryDate && new Date(i.expiryDate) < today).length;
+  const expCount     = allItems.filter(i => i.expiryDate && new Date(i.expiryDate) >= today && new Date(i.expiryDate) <= soon).length;
+
   const displayed = useMemo(() => {
     return [...allItems]
       .filter(item => !search ||
         (item.shortName || '').toLowerCase().includes(search.toLowerCase()) ||
         (item.name || '').toLowerCase().includes(search.toLowerCase())
       )
+      .filter(item => {
+        if (activeFilter === 'low')     return Number(item.stock || 0) <= Number(item.reorderLevel || 10);
+        if (activeFilter === 'expiry')  return item.expiryDate && new Date(item.expiryDate) >= today && new Date(item.expiryDate) <= soon;
+        if (activeFilter === 'expired') return item.expiryDate && new Date(item.expiryDate) < today;
+        return true;
+      })
       .sort((a, b) => {
         if (sortCol === 'stock') {
           const diff = Number(a.stock || 0) - Number(b.stock || 0);
@@ -93,15 +106,12 @@ export default function Items() {
         const cmp = (a.shortName || '').localeCompare(b.shortName || '');
         return sortDir === 'asc' ? cmp : -cmp;
       });
-  }, [allItems, sortCol, sortDir, search]);
+  }, [allItems, sortCol, sortDir, search, activeFilter]);
 
   const selectedItem = useMemo(
     () => displayed.find(i => String(i.id) === String(selectedItemId)) || null,
     [displayed, selectedItemId],
   );
-  const lowCount = allItems.filter(i => Number(i.stock || 0) <= Number(i.reorderLevel || 10)).length;
-  const soon = new Date(); soon.setDate(soon.getDate() + 30);
-  const expCount = allItems.filter(i => i.expiryDate && new Date(i.expiryDate) <= soon).length;
 
   useEffect(() => {
     if (!displayed.length) { setSelectedItemId(null); return; }
@@ -180,6 +190,7 @@ export default function Items() {
               </button>
             </div>
             {/* Alerts table */}
+            <div className="w-3/4 mx-auto rounded-lg overflow-hidden border border-amber-300 my-2">
             <table className="w-full text-xs">
               <thead className="bg-amber-500 text-white">
                 <tr>
@@ -188,16 +199,37 @@ export default function Items() {
                 </tr>
               </thead>
               <tbody className="bg-amber-50 divide-y divide-amber-100">
-                <tr>
+                <tr
+                  onClick={() => setActiveFilter(f => f === 'low' ? null : 'low')}
+                  className={`cursor-pointer transition ${activeFilter === 'low' ? 'bg-orange-200' : 'hover:bg-amber-100'}`}>
                   <td className="px-3 py-1.5 font-bold text-amber-700 border-r border-amber-100">{lowCount}</td>
-                  <td className="px-3 py-1.5 text-amber-800">Low Stock</td>
+                  <td className="px-3 py-1.5 text-amber-800 flex items-center justify-between">
+                    Low Stock
+                    {activeFilter === 'low' && <span className="text-orange-600 font-bold text-xs">✕</span>}
+                  </td>
                 </tr>
-                <tr>
+                <tr
+                  onClick={() => setActiveFilter(f => f === 'expiry' ? null : 'expiry')}
+                  className={`cursor-pointer transition ${activeFilter === 'expiry' ? 'bg-orange-200' : 'hover:bg-amber-100'}`}>
                   <td className="px-3 py-1.5 font-bold text-amber-700 border-r border-amber-100">{expCount}</td>
-                  <td className="px-3 py-1.5 text-amber-800">Near Expiry</td>
+                  <td className="px-3 py-1.5 text-amber-800 flex items-center justify-between">
+                    Near Expiry
+                    {activeFilter === 'expiry' && <span className="text-orange-600 font-bold text-xs">✕</span>}
+                  </td>
+                </tr>
+                <tr
+                  onClick={() => setActiveFilter(f => f === 'expired' ? null : 'expired')}
+                  className={`cursor-pointer transition ${activeFilter === 'expired' ? 'bg-red-200' : 'hover:bg-amber-100'}`}>
+                  <td className="px-3 py-1.5 font-bold text-rose-600 border-r border-amber-100">{expiredCount}</td>
+                  <td className="px-3 py-1.5 text-rose-700 flex items-center justify-between">
+                    Expired
+                    {activeFilter === 'expired' && <span className="text-rose-600 font-bold text-xs">✕</span>}
+                  </td>
                 </tr>
               </tbody>
             </table>
+            </div>
+            <hr className="border-slate-200 mt-2" />
           </div>
           <div className="flex-1 overflow-y-auto">
             <table className="w-full text-sm border-collapse">
@@ -226,13 +258,13 @@ export default function Items() {
                   <tr><td colSpan={4} className="text-center py-6 text-slate-400">No items found</td></tr>
                 ) : displayed.map((p, idx) => {
                   const stock = Number(p.stock || 0);
-                  const isLow = stock <= Number(p.reorderLevel || 10);
                   const isSelected = String(selectedItemId) === String(p.id);
                   return (
                     <tr
                       key={p.id}
                       onClick={() => setSelectedItemId(p.id)}
-                      className={`transition-colors cursor-pointer ${isLow ? 'bg-orange-50' : ''} ${isSelected ? 'bg-emerald-100 border-l-4 border-l-emerald-500' : 'hover:bg-slate-50'}`}>
+                      onDoubleClick={() => openEdit(p)}
+                      className={`transition-colors cursor-pointer ${isSelected ? 'bg-emerald-100 border-l-4 border-l-emerald-500' : 'hover:bg-slate-50'}`}>
                       <td className="px-3 py-2 text-slate-400 text-xs border-r border-slate-100">{idx + 1}</td>
                       <td className="px-3 py-2 font-semibold text-slate-800 text-xs border-r border-slate-100">{p.shortName}</td>
                       <td className={`px-3 py-2 font-bold text-center text-xs border-r border-slate-100 ${stock <= 5 ? 'text-rose-600' : 'text-emerald-600'}`}>{stock}</td>
