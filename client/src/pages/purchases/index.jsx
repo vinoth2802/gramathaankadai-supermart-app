@@ -27,6 +27,31 @@ const ITEM_ROW = {
 };
 const RS = '₹';
 
+function calcAmounts(qty, price, gstRate, priceType) {
+  const lineAmt = Number(qty) * Number(price);
+  const rate = Number(gstRate) || 0;
+  if (priceType === 'With Tax') {
+    const gstAmount = rate > 0 ? lineAmt * rate / (100 + rate) : 0;
+    return { gstAmount, total: lineAmt };
+  }
+  const gstAmount = lineAmt * rate / 100;
+  return { gstAmount, total: lineAmt + gstAmount };
+}
+
+function backCalcFromTotal(total, qty, gstRate, priceType) {
+  const t = Number(total) || 0;
+  const q = Number(qty) || 1;
+  const rate = Number(gstRate) || 0;
+  if (priceType === 'With Tax') {
+    const price = t / q;
+    const gstAmount = rate > 0 ? t * rate / (100 + rate) : 0;
+    return { price, gstAmount };
+  }
+  const price = rate > 0 ? t / (q * (1 + rate / 100)) : t / q;
+  const gstAmount = t - q * price;
+  return { price, gstAmount };
+}
+
 const INDIAN_STATES = [
   'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar',
   'Chandigarh','Chhattisgarh','Delhi','Goa','Gujarat','Haryana','Himachal Pradesh',
@@ -134,7 +159,9 @@ export default function Purchases() {
     }
   }, [activeTabId, invoice, items, purchaseTabs, purchases]);
 
-  const grandTotal = items.reduce((s, i) => s + Number(i.total || 0), 0);
+  const grandTotal    = items.reduce((s, i) => s + Number(i.total    || 0), 0);
+  const totalQty      = items.reduce((s, i) => s + Number(i.qty      || 0), 0);
+  const totalGstAmt   = items.reduce((s, i) => s + Number(i.gstAmount|| 0), 0);
   const suppliers = parties.filter(p => p.type === 'supplier' || p.type === 'both');
 
   const addPurchaseTab = () => {
@@ -168,7 +195,8 @@ export default function Purchases() {
     setActiveTabId(freshTab.id);
   };
 
-  const [scanSearch, setScanSearch] = useState('');
+  const [scanSearch, setScanSearch]   = useState('');
+  const [scanShowAll, setScanShowAll] = useState(false);
   const scanRef = useRef(null);
 
   const filteredScan = scanSearch.trim()
@@ -178,23 +206,31 @@ export default function Purchases() {
       )
     : [];
 
+  const scanDropList = scanShowAll && !scanSearch.trim() ? products : filteredScan;
+  const scanDropOpen = scanSearch.trim() || scanShowAll;
+
   const addProductRow = (prod) => {
-    const newRow = {
-      ...ITEM_ROW,
-      name:     prod.shortName,
-      unit:     prod.uom || 'PCS',
-      price:    Number(prod.purchasePrice || 0),
-      mrp:      Number(prod.mrp || 0),
-      gstRate:  Number(prod.gstRate || 0),
-      gstAmount: Number(prod.purchasePrice || 0) * (Number(prod.gstRate || 0) / 100),
-      total:    Number(prod.purchasePrice || 0) + Number(prod.purchasePrice || 0) * (Number(prod.gstRate || 0) / 100),
-    };
+    const priceType = form.priceType;
     setItems(prev => {
+      const existIdx = prev.findIndex(r => r.name === prod.shortName);
+      if (existIdx >= 0) {
+        return prev.map((r, i) => {
+          if (i !== existIdx) return r;
+          const newQty = Number(r.qty) + 1;
+          const { gstAmount, total } = calcAmounts(newQty, r.price, r.gstRate, priceType);
+          return { ...r, qty: newQty, gstAmount, total };
+        });
+      }
+      const price   = Number(prod.purchasePrice || 0);
+      const gstRate = Number(prod.gstRate || 0);
+      const { gstAmount, total } = calcAmounts(1, price, gstRate, priceType);
+      const newRow = { ...ITEM_ROW, name: prod.shortName, unit: prod.uom || 'PCS', price, mrp: Number(prod.mrp || 0), gstRate, gstAmount, total };
       const emptyIdx = prev.findIndex(r => !r.name);
       if (emptyIdx >= 0) return prev.map((r, i) => i === emptyIdx ? newRow : r);
       return [...prev, newRow];
     });
     setScanSearch('');
+    setScanShowAll(false);
     setTimeout(() => scanRef.current?.focus(), 0);
   };
 
@@ -204,10 +240,8 @@ export default function Purchases() {
     setItems(prev => prev.map((row, i) => {
       if (i !== idx) return row;
       const updated = { ...row, [field]: value };
-      const taxable = Number(updated.qty) * Number(updated.price);
-      updated.gstAmount = taxable * (Number(updated.gstRate) || 0) / 100;
-      updated.total = taxable + updated.gstAmount;
-      return updated;
+      const { gstAmount, total } = calcAmounts(updated.qty, updated.price, updated.gstRate, form.priceType);
+      return { ...updated, gstAmount, total };
     }));
   };
 
@@ -290,11 +324,11 @@ export default function Purchases() {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6">
-          {/* ── Two-column header ── */}
-          <div className="flex gap-10 mb-6">
+          {/* ── Four-column header ── */}
+          <div className="grid grid-cols-4 gap-4 mb-6">
 
-            {/* Left — supplier details */}
-            <div className="flex-1 space-y-2">
+            {/* Column 1 — Supplier Name, Supplier Invoice No */}
+            <div className="space-y-3">
               <FloatInput
                 label="Supplier Name"
                 value={form.partyName}
@@ -303,62 +337,71 @@ export default function Purchases() {
                   const match = suppliers.find(s => s.name === e.target.value);
                   setForm(f => ({ ...f, partyName: e.target.value, partyId: match ? String(match.id) : '' }));
                 }}
-                wrapperClass="w-64"
               />
               <datalist id="supplier-datalist">
                 {suppliers.map(s => <option key={s.id} value={s.name} />)}
               </datalist>
-
               <FloatInput
                 label="Supplier Invoice No"
                 value={form.supplierInvoiceNo}
                 onChange={e => setForm(f => ({ ...f, supplierInvoiceNo: e.target.value }))}
-                wrapperClass="w-64"
               />
+            </div>
+
+            {/* Column 2 — Supplier Invoice Date, E-Way Bill No */}
+            <div className="space-y-3">
               <FloatInput
                 label="Supplier Invoice Date"
                 type="date"
                 value={form.supplierInvoiceDate}
                 onChange={e => setForm(f => ({ ...f, supplierInvoiceDate: e.target.value }))}
-                wrapperClass="w-64"
               />
               <FloatInput
-                label="E-way Bill No"
+                label="E-Way Bill No"
                 value={form.ewayBillNo}
                 onChange={e => setForm(f => ({ ...f, ewayBillNo: e.target.value }))}
-                wrapperClass="w-64"
               />
             </div>
 
-            {/* Right — GRN meta */}
-            <div className="w-72 shrink-0 space-y-2 pt-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-500">GRN No</span>
-                <span className="text-sm font-bold text-amber-600 font-mono">{invoice}</span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-xs text-slate-500 shrink-0">GRN Date</span>
-                <input type="date" value={form.grnDate}
-                  onChange={e => setForm(f => ({ ...f, grnDate: e.target.value }))}
-                  className="w-44 text-sm text-slate-800 border border-slate-300 rounded-lg px-3 py-1.5
-                    focus:outline-none focus:border-amber-500 bg-white" />
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-xs text-slate-500 shrink-0">State of Supply</span>
-                <select value={form.stateOfSupply}
+            {/* Column 3 — State of Supply, Due Date */}
+            <div className="space-y-3">
+              <div className="relative">
+                <select
+                  value={form.stateOfSupply}
                   onChange={e => setForm(f => ({ ...f, stateOfSupply: e.target.value }))}
-                  className="w-44 text-sm text-slate-800 border border-slate-300 rounded-lg px-3 py-1.5
-                    focus:outline-none focus:border-amber-500 bg-white">
+                  className="peer w-full border border-slate-300 rounded-lg px-3 pt-4 pb-1 text-sm text-slate-800
+                    focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-100 bg-white appearance-none">
                   {INDIAN_STATES.map(s => <option key={s}>{s}</option>)}
                 </select>
+                <label className="absolute left-3 top-1 text-[10px] text-slate-400 pointer-events-none">State of Supply</label>
               </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-xs text-slate-500 shrink-0">Due Date</span>
-                <input type="date" value={form.dueDate}
-                  onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
-                  className="w-44 text-sm text-slate-800 border border-slate-300 rounded-lg px-3 py-1.5
-                    focus:outline-none focus:border-amber-500 bg-white" />
+              <FloatInput
+                label="Due Date"
+                type="date"
+                value={form.dueDate}
+                onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
+              />
+            </div>
+
+            {/* Column 4 — GRN No, GRN Date */}
+            <div className="space-y-3">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={invoice}
+                  readOnly
+                  placeholder=" "
+                  className="peer w-full border border-slate-300 rounded-lg px-3 pt-4 pb-1 text-sm font-bold
+                    text-amber-600 font-mono bg-slate-50 cursor-default focus:outline-none"
+                />
+                <label className="absolute left-3 top-1 text-[10px] text-slate-400 pointer-events-none">GRN No</label>
               </div>
+              <FloatInput
+                label="GRN Date"
+                type="date"
+                value={form.grnDate}
+                onChange={e => setForm(f => ({ ...f, grnDate: e.target.value }))}
+              />
             </div>
 
           </div>
@@ -371,36 +414,49 @@ export default function Purchases() {
               <input
                 ref={scanRef}
                 value={scanSearch}
-                onChange={e => setScanSearch(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && filteredScan.length) addProductRow(filteredScan[0]); }}
-                placeholder="Search or scan barcode to add item…"
+                onChange={e => { setScanSearch(e.target.value); setScanShowAll(false); }}
+                onKeyDown={e => {
+                  if (e.key === 'F1') { e.preventDefault(); setScanShowAll(true); }
+                  if (e.key === 'Enter') {
+                    if (scanDropList.length) addProductRow(scanDropList[0]);
+                  }
+                  if (e.key === 'Escape') { setScanSearch(''); setScanShowAll(false); }
+                }}
+                placeholder="Search or scan barcode to add item… (F1 for all)"
                 className="flex-1 text-sm focus:outline-none bg-transparent text-slate-800 placeholder:text-slate-400"
               />
-              {scanSearch && (
-                <button type="button" onClick={() => { setScanSearch(''); scanRef.current?.focus(); }}
+              {(scanSearch || scanShowAll) && (
+                <button type="button" onClick={() => { setScanSearch(''); setScanShowAll(false); scanRef.current?.focus(); }}
                   className="text-slate-400 hover:text-slate-600">
                   <X size={13} />
                 </button>
               )}
             </div>
-            {filteredScan.length > 0 && (
-              <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-52 overflow-y-auto">
-                {filteredScan.map(p => (
+            {scanDropOpen && scanDropList.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-72 overflow-y-auto">
+                {/* Column headers */}
+                <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-0 px-3 py-1.5 bg-slate-100 border-b border-slate-200 sticky top-0">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Item Name</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide text-center">Item Code</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide text-right">MRP</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide text-right">Purchase</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide text-right">Sales</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide text-right">Stock</span>
+                </div>
+                {scanDropList.map(p => (
                   <button
                     key={p.id}
                     type="button"
                     onMouseDown={() => addProductRow(p)}
-                    className="w-full flex items-center justify-between px-4 py-2 hover:bg-amber-50 transition text-left">
-                    <div>
-                      <span className="text-sm font-semibold text-slate-800">{p.shortName}</span>
-                      {p.itemCode && <span className="text-xs text-slate-400 ml-2">{p.itemCode}</span>}
-                    </div>
-                    <div className="text-right shrink-0 ml-4">
-                      <span className="text-xs font-bold text-amber-600">₹{Number(p.purchasePrice || 0).toFixed(2)}</span>
-                      <span className={`ml-2 text-xs font-semibold ${Number(p.stock) <= 5 ? 'text-rose-500' : 'text-emerald-600'}`}>
-                        Stock: {Number(p.stock || 0)}
-                      </span>
-                    </div>
+                    className="w-full grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-0 px-3 py-2 hover:bg-amber-50 transition text-left border-b border-slate-100 last:border-0">
+                    <span className="text-sm font-semibold text-slate-800 truncate pr-2">{p.shortName}</span>
+                    <span className="text-xs text-slate-500 text-center self-center">{p.itemCode || '—'}</span>
+                    <span className="text-xs text-slate-600 text-right self-center">{RS}{Number(p.mrp || 0).toFixed(2)}</span>
+                    <span className="text-xs font-semibold text-amber-600 text-right self-center">{RS}{Number(p.purchasePrice || 0).toFixed(2)}</span>
+                    <span className="text-xs text-emerald-600 text-right self-center">{RS}{Number(p.salesPrice || 0).toFixed(2)}</span>
+                    <span className={`text-xs font-semibold text-right self-center ${Number(p.stock) <= Number(p.reorderLevel || 10) ? 'text-rose-500' : 'text-emerald-600'}`}>
+                      {Number(p.stock || 0)}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -408,13 +464,21 @@ export default function Purchases() {
           </div>
 
           <div className="mb-4">
-            <ResizableTable 
+            <ResizableTable
+              defaultWidths={{ 1: 16 }}
               headers={['S.No', 'ITEM', 'COUNT', 'BATCH NO.', 'EXP. DATE', 'MFG. DATE', 'MRP', 'QTY', 'FREE QTY', 'UNIT',
                 <div key="price" className="flex flex-col gap-0.5">
                   <span className="text-xs font-semibold uppercase tracking-wide">Price/Unit</span>
                   <select
                     value={form.priceType}
-                    onChange={e => setForm(f => ({ ...f, priceType: e.target.value }))}
+                    onChange={e => {
+                      const pt = e.target.value;
+                      setForm(f => ({ ...f, priceType: pt }));
+                      setItems(prev => prev.map(r => {
+                        const { gstAmount, total } = calcAmounts(r.qty, r.price, r.gstRate, pt);
+                        return { ...r, gstAmount, total };
+                      }));
+                    }}
                     onClick={e => e.stopPropagation()}
                     className="text-[10px] font-normal bg-slate-700 border border-slate-500 rounded px-1 py-0.5 text-white focus:outline-none normal-case tracking-normal">
                     <option value="With Tax">With Tax</option>
@@ -430,23 +494,31 @@ export default function Purchases() {
                   <td className="border-r border-slate-200 p-0">
                     <input list={`items-${activeTab?.id}-${idx}`} value={row.name} onChange={e => {
                       const prod = products.find(p => p.shortName === e.target.value);
-                      updateRow(idx, 'name', e.target.value);
                       if (prod) {
-                        setItems(prev => prev.map((r, i) => {
-                          if (i !== idx) return r;
-                          const updated = {
-                            ...r,
-                            name: e.target.value,
-                            unit: prod.uom || r.unit || 'PCS',
-                            price: Number(prod.purchasePrice || 0),
-                            mrp: Number(prod.mrp || 0),
-                            gstRate: Number(prod.gstRate || 0),
-                          };
-                          const taxable = Number(updated.qty) * Number(updated.price);
-                          updated.gstAmount = taxable * (Number(updated.gstRate) || 0) / 100;
-                          updated.total = taxable + updated.gstAmount;
-                          return updated;
-                        }));
+                        const pt = form.priceType;
+                        setItems(prev => {
+                          const existIdx = prev.findIndex((r, i) => i !== idx && r.name === prod.shortName);
+                          if (existIdx >= 0) {
+                            return prev.map((r, i) => {
+                              if (i === existIdx) {
+                                const newQty = Number(r.qty) + Number(prev[idx].qty || 1);
+                                const { gstAmount, total } = calcAmounts(newQty, r.price, r.gstRate, pt);
+                                return { ...r, qty: newQty, gstAmount, total };
+                              }
+                              if (i === idx) return { ...ITEM_ROW };
+                              return r;
+                            });
+                          }
+                          return prev.map((r, i) => {
+                            if (i !== idx) return r;
+                            const price   = Number(prod.purchasePrice || 0);
+                            const gstRate = Number(prod.gstRate || 0);
+                            const { gstAmount, total } = calcAmounts(r.qty, price, gstRate, pt);
+                            return { ...r, name: e.target.value, unit: prod.uom || r.unit || 'PCS', price, mrp: Number(prod.mrp || 0), gstRate, gstAmount, total };
+                          });
+                        });
+                      } else {
+                        updateRow(idx, 'name', e.target.value);
                       }
                     }} placeholder="Item name…" className={cellInp} />
                     <datalist id={`items-${activeTab?.id}-${idx}`}>
@@ -466,7 +538,22 @@ export default function Purchases() {
                   </td>
                   <td className="border-r border-slate-200 p-0"><input type="number" step="0.01" value={row.gstRate ?? ''} onChange={e => updateRow(idx, 'gstRate', e.target.value)} className={`${cellInp} text-right`} /></td>
                   <td className="border-r border-slate-200 px-2 py-1 text-right text-xs text-slate-600">{Number(row.gstAmount || 0).toFixed(2)}</td>
-                  <td className="border-r border-slate-200 px-2 py-1 text-right text-xs font-semibold text-slate-800">{Number(row.total || 0).toFixed(2)}</td>
+                  <td className="border-r border-slate-200 p-0">
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={row.total || ''}
+                      onChange={e => {
+                        const raw = e.target.value;
+                        setItems(prev => prev.map((r, i) => {
+                          if (i !== idx) return r;
+                          if (raw === '') return { ...r, price: 0, gstAmount: 0, total: '' };
+                          const { price, gstAmount } = backCalcFromTotal(raw, r.qty, r.gstRate, form.priceType);
+                          return { ...r, price, gstAmount, total: raw };
+                        }));
+                      }}
+                      className={`${cellInp} text-right font-semibold`}
+                    />
+                  </td>
                   <td className="px-1 py-1 text-center">
                     <button type="button" onClick={() => removeRow(idx)} className="p-1 text-slate-300 hover:text-rose-500 transition">
                       <Trash2 size={13} />
@@ -474,6 +561,14 @@ export default function Purchases() {
                   </td>
                 </tr>
               ))}
+              <tr className="bg-slate-100 border-t-2 border-slate-300 font-semibold">
+                <td colSpan={7} className="px-3 py-2 text-xs text-slate-500 text-right border-r border-slate-200">Total</td>
+                <td className="border-r border-slate-200 px-2 py-2 text-right text-xs text-slate-800">{totalQty % 1 === 0 ? totalQty : totalQty.toFixed(3)}</td>
+                <td colSpan={4} className="border-r border-slate-200" />
+                <td className="border-r border-slate-200 px-2 py-2 text-right text-xs text-slate-800">{totalGstAmt.toFixed(2)}</td>
+                <td className="border-r border-slate-200 px-2 py-2 text-right text-xs text-amber-700">{grandTotal.toFixed(2)}</td>
+                <td />
+              </tr>
             </ResizableTable>
           </div>
 
@@ -483,15 +578,28 @@ export default function Purchases() {
             </button>
           </div>
 
-          <div className="flex items-center justify-between gap-4 mb-4">
+          <div className="flex items-start justify-between gap-4 mb-4">
             <div className="w-80">
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Payment Mode</label>
               <select value={form.paymentMode} onChange={e => setForm(f => ({ ...f, paymentMode: e.target.value }))} className={inp}>
                 {modes.map(m => <option key={m.id}>{m.name}</option>)}
               </select>
             </div>
-            <div className="flex items-end">
-              <span className="text-lg font-bold text-slate-800">Total: {RS}{grandTotal.toFixed(2)}</span>
+
+            {/* Summary box */}
+            <div className="w-72 shrink-0 border border-slate-200 rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
+                <span className="text-xs text-slate-500">Sub Total</span>
+                <span className="text-sm font-semibold text-slate-700">{RS}{(grandTotal - totalGstAmt).toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
+                <span className="text-xs text-slate-500">Tax Amount</span>
+                <span className="text-sm font-semibold text-slate-700">{RS}{totalGstAmt.toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between px-4 py-3 bg-amber-50">
+                <span className="text-sm font-bold text-slate-800">Grand Total</span>
+                <span className="text-lg font-bold text-amber-700">{RS}{grandTotal.toFixed(2)}</span>
+              </div>
             </div>
           </div>
 

@@ -33,7 +33,7 @@ router.get('/next-number', async (req, res) => {
     }
 
     const nextNum = maxNum + 1;
-    res.json({ invoice: `${prefix}-${String(nextNum).padStart(4, '0')}`, number: nextNum });
+    res.json({ invoice: String(nextNum), number: nextNum });
   } catch (err) {
     console.error('next-number error:', err);
     res.status(500).json({ error: err.message });

@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
-  ChevronDown, Plus, Trash2, X,
-  Printer, TrendingUp, Calculator, Settings,
+  ChevronDown, Plus, Trash2, X, Search,
+  Printer, Calculator, Settings,
 } from 'lucide-react';
 import { SalesAPI } from '../../api/sales.js';
 import { ItemsAPI } from '../../api/items.js';
@@ -296,15 +296,6 @@ function FloatTextarea({ label, value, onChange, rows = 3, wrapperClass = '' }) 
   );
 }
 
-/* ── Toggle ── */
-function Toggle({ on, onToggle }) {
-  return (
-    <button type="button" onClick={onToggle}
-      className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${on ? 'bg-blue-500' : 'bg-gray-300'}`}>
-      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ${on ? 'left-[22px]' : 'left-0.5'}`} />
-    </button>
-  );
-}
 
 const cellCls = 'w-full px-1.5 py-1 text-xs bg-transparent focus:outline-none focus:bg-blue-50 rounded';
 
@@ -319,10 +310,11 @@ export default function AddSale() {
   /* ── Queries ── */
   const { data: invoiceData } = useQuery({
     queryKey: ['next-invoice'], queryFn: SalesAPI.getNextNumber,
-    select: d => d.data, staleTime: 0,
+    staleTime: 0,
   });
-  const { data: allItems   = [] } = useQuery({ queryKey: ['items'],   queryFn: ItemsAPI.getAll,   select: d => d.data });
-  const { data: allParties = [] } = useQuery({ queryKey: ['parties'], queryFn: PartiesAPI.getAll, select: d => d.data });
+  const { data: allItems   = [] } = useQuery({ queryKey: ['items'],   queryFn: ItemsAPI.getAll });
+  const { data: allParties = [] } = useQuery({ queryKey: ['parties'], queryFn: PartiesAPI.getAll });
+  const { data: scanProducts = [] } = useQuery({ queryKey: ['items'], queryFn: ItemsAPI.getAll });
 
   /* ── Tabs ── */
   const [tabs,     setTabs]    = useState(() => [makeTabData()]);
@@ -376,6 +368,52 @@ export default function AddSale() {
     rows: t.rows.length <= 1 ? t.rows : t.rows.filter((_, i) => i !== idx),
   }));
 
+  const [scanSearch, setScanSearch]   = useState('');
+  const [scanShowAll, setScanShowAll] = useState(false);
+  const scanRef = useRef(null);
+
+  const filteredScan = scanSearch.trim()
+    ? scanProducts.filter(p =>
+        (p.shortName || '').toLowerCase().includes(scanSearch.toLowerCase()) ||
+        (p.itemCode  || '').toLowerCase().includes(scanSearch.toLowerCase())
+      )
+    : [];
+  const scanDropList = scanShowAll && !scanSearch.trim() ? scanProducts : filteredScan;
+  const scanDropOpen = !!(scanSearch.trim() || scanShowAll);
+
+  const addScannedItem = (product) => {
+    setTab(t => {
+      const existIdx = t.rows.findIndex(r => r.productId === product.id);
+      if (existIdx >= 0) {
+        return {
+          rows: t.rows.map((r, i) => i !== existIdx ? r : {
+            ...r, qty: String(Number(r.qty || 0) + 1),
+          }),
+        };
+      }
+      const filled = {
+        ...emptyRow(),
+        productId:  product.id,
+        name:       product.shortName,
+        batchNo:    product.batch        || '',
+        expiryDate: formatExpDate(product.expiryDate),
+        mrp:        product.mrp        != null ? String(+product.mrp)        : '',
+        unit:       product.uom        || 'NO.',
+        rate:       product.salesPrice != null ? String(+product.salesPrice) : '',
+        gstRate:    product.gstRate    != null ? String(+product.gstRate)    : '',
+        qty:        '1',
+      };
+      const emptyIdx = t.rows.findIndex(r => !r.name);
+      const rows = emptyIdx >= 0
+        ? t.rows.map((r, i) => i === emptyIdx ? filled : r)
+        : [...t.rows, filled];
+      return { rows };
+    });
+    setScanSearch('');
+    setScanShowAll(false);
+    setTimeout(() => scanRef.current?.focus(), 0);
+  };
+
   /* ── Computed totals ── */
   const computed = useMemo(() =>
     tab.rows.map(r => ({ ...r, ...calcRow(r, tab.priceMode) })),
@@ -397,6 +435,11 @@ export default function AddSale() {
   }, [computed, tab.adjustment, tab.roundOffOn]);
 
   const changeGiven = Math.max(0, Number(tab.totalReceived || 0) - totals.grandTotal);
+
+  const selectedParty = tab.partyId ? allParties.find(p => String(p.id) === String(tab.partyId)) : null;
+  const prevPoints    = Number(selectedParty?.loyaltyPoints ?? 0);
+  const eligiblePoints = Math.floor(totals.grandTotal / 10);
+  const totalPoints   = prevPoints + eligiblePoints;
 
   /* ── Save ── */
   const createMut = useMutation({
@@ -469,10 +512,9 @@ export default function AddSale() {
     } finally { setIsSaving(false); }
   };
 
-  const TH = ({ children, rowSpan, colSpan, className = '' }) => (
-    <th rowSpan={rowSpan} colSpan={colSpan}
-      className={`px-2 py-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wide
-        border-b border-r border-gray-200 bg-gray-50 whitespace-nowrap ${className}`}>
+  const TH = ({ children, className = '' }) => (
+    <th className={`px-3 py-3 text-left font-semibold text-xs uppercase tracking-wide text-white
+        bg-slate-800 border-r border-slate-600 whitespace-nowrap ${className}`}>
       {children}
     </th>
   );
@@ -484,7 +526,7 @@ export default function AddSale() {
       <div className="shrink-0 flex items-end bg-gray-200 border-b border-gray-300 px-3 pt-1.5 gap-1">
         {tabs.map((t, i) => (
           <div key={t.id} onClick={() => setActiveId(t.id)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-t border-l border-r border-t cursor-pointer text-sm -mb-px z-10 transition select-none
+            className={`flex items-center gap-2 px-6 py-2 min-w-[120px] justify-center rounded-t border-l border-r border-t cursor-pointer text-sm -mb-px z-10 transition select-none
               ${t.id === activeId
                 ? 'bg-white border-gray-300 text-gray-700 font-medium'
                 : 'bg-gray-100 border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
@@ -508,10 +550,17 @@ export default function AddSale() {
       {/* ── Sale header bar ── */}
       <div className="shrink-0 flex items-center gap-4 px-5 py-2.5 bg-white border-b border-gray-200">
         <span className="text-sm font-bold text-gray-800">Sale</span>
-        <div className="flex items-center gap-2">
-          <span className={`text-xs font-medium ${!tab.isCash ? 'text-blue-600' : 'text-gray-400'}`}>Credit</span>
-          <Toggle on={tab.isCash} onToggle={() => setTab(t => ({ isCash: !t.isCash, partyError: false }))} />
-          <span className={`text-xs font-medium ${tab.isCash ? 'text-blue-600' : 'text-gray-400'}`}>Cash</span>
+        <div className="flex items-center bg-slate-200 rounded-lg p-1">
+          <button type="button"
+            onClick={() => setTab({ isCash: true, partyError: false })}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${tab.isCash ? 'bg-green-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            Cash Sale
+          </button>
+          <button type="button"
+            onClick={() => setTab({ isCash: false, partyError: false })}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${!tab.isCash ? 'bg-green-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            Credit Sale
+          </button>
         </div>
         <div className="ml-auto">
           <select className="text-xs border border-gray-300 rounded px-2.5 py-1.5 bg-white focus:outline-none text-gray-700">
@@ -520,105 +569,154 @@ export default function AddSale() {
         </div>
       </div>
 
-      {/* ── Scrollable body ── */}
-      <div className="flex-1 overflow-y-auto">
-
         {/* ── Customer + Invoice meta ── */}
-        <div className="bg-white border-b border-gray-200 px-5 py-4">
-          <div className="flex gap-10 justify-between">
+        <div className="shrink-0 bg-white border-b border-gray-200 px-5 py-4">
+          <div className="grid grid-cols-4 gap-4">
 
-            {/* Left — customer */}
-            <div className="w-[28rem] shrink-0 space-y-2.5">
-              <div className="flex gap-2">
-                <PartyCombo query={tab.partyQuery}
-                  onQueryChange={q => setTab({ partyQuery: q, partyError: false })}
-                  onSelect={p => {
-                    if (!p) setTab({ partyId: '', partyQuery: '', phone: '', billingAddr: '', partyError: false });
-                    else    setTab({ partyId: String(p.id), partyQuery: p.name, phone: p.phone || '', billingAddr: p.address || '', partyError: false });
-                  }}
-                  parties={allParties}
-                  isCredit={!tab.isCash}
-                  hasError={tab.partyError} />
-                <FloatInput label="Phone No." type="tel" value={tab.phone}
-                  onChange={e => setTab({ phone: e.target.value })}
-                  wrapperClass="w-36 shrink-0" />
-              </div>
-              <div className="flex gap-2">
-                <FloatTextarea label="Billing Address" value={tab.billingAddr}
-                  onChange={e => setTab({ billingAddr: e.target.value })}
-                  rows={3} wrapperClass="flex-1" />
-                <FloatTextarea label="Shipping Address" value={tab.shippingAddr}
-                  onChange={e => setTab({ shippingAddr: e.target.value })}
-                  rows={3} wrapperClass="w-36 shrink-0" />
-              </div>
+            {/* Col 1: Party Name + Phone No */}
+            <div className="space-y-2.5">
+              <PartyCombo query={tab.partyQuery}
+                onQueryChange={q => setTab({ partyQuery: q, partyError: false })}
+                onSelect={p => {
+                  if (!p) setTab({ partyId: '', partyQuery: '', phone: '', billingAddr: '', partyError: false });
+                  else    setTab({ partyId: String(p.id), partyQuery: p.name, phone: p.phone || '', billingAddr: p.address || '', partyError: false });
+                }}
+                parties={allParties}
+                isCredit={!tab.isCash}
+                hasError={tab.partyError} />
+              <FloatInput label="Phone No." type="tel" value={tab.phone}
+                onChange={e => setTab({ phone: e.target.value })} />
             </div>
 
-            {/* Right — invoice meta */}
-            <div className="w-64 shrink-0 space-y-2.5 pt-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500">Invoice Number</span>
-                <span className="text-sm font-bold text-blue-700 font-mono">
-                  {invoiceNo}
-                </span>
+            {/* Col 2: Billing Address */}
+            <div>
+              <FloatTextarea label="Billing Address" value={tab.billingAddr}
+                onChange={e => setTab({ billingAddr: e.target.value })}
+                rows={4} />
+            </div>
+
+            {/* Col 3: Time + State of Supply */}
+            <div className="space-y-2.5">
+              <div className="relative">
+                <input type="text" value={tab.invoiceTime} readOnly placeholder=" "
+                  className="peer w-full border border-gray-300 rounded px-3 pt-5 pb-1.5 text-sm text-gray-700
+                    bg-gray-50 focus:outline-none cursor-default" />
+                <label className="absolute left-3 top-1.5 text-[10px] text-gray-400 pointer-events-none">Time</label>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500">Invoice Date</span>
-                <input type="date" value={tab.invoiceDate} onChange={e => setTab({ invoiceDate: e.target.value })}
-                  className="text-sm text-gray-800 border border-gray-300 rounded px-2 py-0.5
-                    focus:outline-none focus:border-blue-400 bg-white" />
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500">Time</span>
-                <span className="text-sm text-gray-600">{tab.invoiceTime}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500">State of supply</span>
+              <div className="relative">
                 <select value={tab.stateSupply} onChange={e => setTab({ stateSupply: e.target.value })}
-                  className="text-sm text-gray-800 border border-gray-300 rounded px-2 py-0.5
-                    focus:outline-none focus:border-blue-400 bg-white max-w-[160px]">
+                  className="peer w-full border border-gray-300 rounded px-3 pt-5 pb-1.5 text-sm text-gray-800
+                    focus:outline-none focus:border-blue-400 bg-white appearance-none">
                   {INDIAN_STATES.map(s => <option key={s}>{s}</option>)}
                 </select>
+                <label className="absolute left-3 top-1.5 text-[10px] text-gray-400 pointer-events-none">State of Supply</label>
               </div>
             </div>
+
+            {/* Col 4: Invoice No + Date */}
+            <div className="space-y-2.5">
+              <div className="relative">
+                <input type="text" value={invoiceNo} readOnly placeholder=" "
+                  className="peer w-full border border-gray-300 rounded px-3 pt-5 pb-1.5 text-sm font-bold text-blue-700
+                    font-mono bg-gray-50 focus:outline-none cursor-default" />
+                <label className="absolute left-3 top-1.5 text-[10px] text-gray-400 pointer-events-none">Invoice No.</label>
+              </div>
+              <div className="relative">
+                <input type="date" value={tab.invoiceDate} onChange={e => setTab({ invoiceDate: e.target.value })}
+                  className="peer w-full border border-gray-300 rounded px-3 pt-5 pb-1.5 text-sm text-gray-800
+                    focus:outline-none focus:border-blue-400 bg-white" />
+                <label className="absolute left-3 top-1.5 text-[10px] text-gray-400 pointer-events-none">Invoice Date</label>
+              </div>
+            </div>
+
           </div>
         </div>
 
+        {/* ── Scan / Search bar ── */}
+        <div className="shrink-0 bg-white px-3 pt-2 pb-1 relative">
+          <div className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 py-2 focus-within:border-blue-400 bg-white">
+            <Search size={14} className="text-gray-400 shrink-0" />
+            <input
+              ref={scanRef}
+              value={scanSearch}
+              onChange={e => { setScanSearch(e.target.value); setScanShowAll(false); }}
+              onKeyDown={e => {
+                if (e.key === 'F1') { e.preventDefault(); setScanShowAll(true); }
+                if (e.key === 'Enter' && scanDropList.length) addScannedItem(scanDropList[0]);
+                if (e.key === 'Escape') { setScanSearch(''); setScanShowAll(false); }
+              }}
+              placeholder="Search or Scan barcode to add item…. (F1 for All)"
+              className="flex-1 text-sm focus:outline-none bg-transparent text-gray-800 placeholder:text-gray-400"
+            />
+            {(scanSearch || scanShowAll) && (
+              <button type="button" onClick={() => { setScanSearch(''); setScanShowAll(false); scanRef.current?.focus(); }}
+                className="text-gray-400 hover:text-gray-600">
+                <X size={13} />
+              </button>
+            )}
+          </div>
+          {scanDropOpen && scanDropList.length > 0 && (
+            <div className="absolute left-3 right-3 top-full mt-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-72 overflow-y-auto">
+              <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-0 px-3 py-1.5 bg-slate-100 border-b border-gray-200 sticky top-0">
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Item Name</span>
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide text-center">Item Code</span>
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide text-right">MRP</span>
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide text-right">Purchase</span>
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide text-right">Sales</span>
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide text-right">Stock</span>
+              </div>
+              {scanDropList.map(p => (
+                <button key={p.id} type="button" onMouseDown={() => addScannedItem(p)}
+                  className="w-full grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-0 px-3 py-2 hover:bg-blue-50 transition text-left border-b border-gray-100 last:border-0">
+                  <span className="text-sm font-semibold text-gray-800 truncate pr-2">{p.shortName}</span>
+                  <span className="text-xs text-gray-500 text-center self-center">{p.itemCode || '—'}</span>
+                  <span className="text-xs text-gray-600 text-right self-center">₹{Number(p.mrp || 0).toFixed(2)}</span>
+                  <span className="text-xs font-semibold text-amber-600 text-right self-center">₹{Number(p.purchasePrice || 0).toFixed(2)}</span>
+                  <span className="text-xs font-semibold text-emerald-600 text-right self-center">₹{Number(p.salesPrice || 0).toFixed(2)}</span>
+                  <span className={`text-xs font-semibold text-right self-center ${Number(p.stock) <= Number(p.reorderLevel || 10) ? 'text-rose-500' : 'text-emerald-600'}`}>
+                    {Number(p.stock || 0)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* ── Items table ── */}
-        <div className="bg-white border-b border-gray-200 overflow-x-auto">
+        <div className="flex-1 overflow-auto bg-white border-b border-gray-200">
           <table className="w-full border-collapse text-xs">
-            <thead>
+            <thead className="bg-slate-800 text-white sticky top-0">
               <tr>
-                <TH rowSpan={2} className="w-8 text-center">#</TH>
-                <TH rowSpan={2} className="min-w-[160px]">Item</TH>
-                <TH rowSpan={2} className="min-w-[120px]">Description</TH>
-                <TH rowSpan={2} className="w-14 text-right">Count</TH>
-                <TH rowSpan={2} className="w-20">Batch No.</TH>
-                <TH rowSpan={2} className="w-[100px]">Exp. Date</TH>
-                <TH rowSpan={2} className="w-[100px]">Mfg. Date</TH>
-                <TH rowSpan={2} className="w-16 text-right">MRP</TH>
-                <TH rowSpan={2} className="w-14">Size</TH>
-                <TH rowSpan={2} className="w-16 text-right">QTY</TH>
-                <TH rowSpan={2} className="w-16 text-right">Free QTY</TH>
-                <TH rowSpan={2} className="w-16">Unit</TH>
-                <TH rowSpan={2} className="w-24 text-right">
-                  <div>Price/Unit</div>
-                  <select value={tab.priceMode} onChange={e => setTab({ priceMode: e.target.value })}
-                    className="text-[10px] font-normal text-blue-600 bg-transparent border-0 focus:outline-none cursor-pointer mt-0.5 appearance-none">
-                    <option value="withtax">With Tax ▾</option>
-                    <option value="withouttax">Without Tax ▾</option>
-                  </select>
+                <TH className="w-7 text-center">S.No</TH>
+                <TH className="min-w-[120px]">Item</TH>
+                <TH className="w-10 text-right">Cnt</TH>
+                <TH className="w-16">Batch</TH>
+                <TH className="w-16">Exp.</TH>
+                <TH className="w-16">Mfg.</TH>
+                <TH className="w-14 text-right">MRP</TH>
+                <TH className="w-10">Size</TH>
+                <TH className="w-12 text-right">QTY</TH>
+                <TH className="w-12 text-right">Free</TH>
+                <TH className="w-12">Unit</TH>
+                <TH className="w-24">
+                  <div className="flex flex-col gap-0.5">
+                    <span>Price/Unit</span>
+                    <select value={tab.priceMode} onChange={e => setTab({ priceMode: e.target.value })}
+                      onClick={e => e.stopPropagation()}
+                      className="text-[10px] font-normal bg-slate-700 border border-slate-500 rounded px-1 py-0.5 text-white focus:outline-none normal-case tracking-normal">
+                      <option value="withtax">With Tax</option>
+                      <option value="withouttax">Without Tax</option>
+                    </select>
+                  </div>
                 </TH>
-                <th colSpan={2} className="px-2 py-1 text-center text-[10px] font-semibold text-gray-500 uppercase border-b border-r border-gray-200 bg-gray-50">Tax</th>
-                <TH rowSpan={2} className="w-24 text-right">Amount</TH>
-                <th rowSpan={2} className="w-8 border-b border-gray-200 bg-gray-50 text-center">
-                  <button type="button" onClick={addRow} className="text-blue-500 hover:text-blue-700 p-0.5">
+                <TH className="w-12 text-right">GST%</TH>
+                <TH className="w-16 text-right">GST Amt</TH>
+                <TH className="w-20 text-right">Total Amount</TH>
+                <th className="px-2 bg-slate-800 w-7 text-center">
+                  <button type="button" onClick={addRow} className="text-white hover:text-amber-300 p-0.5">
                     <Plus size={14} />
                   </button>
                 </th>
-              </tr>
-              <tr>
-                <th className="px-2 py-1 text-center text-[10px] font-semibold text-gray-400 border-b border-r border-gray-200 bg-gray-50 w-16">%</th>
-                <th className="px-2 py-1 text-right text-[10px] font-semibold text-gray-400 border-b border-r border-gray-200 bg-gray-50 w-20">Amount</th>
               </tr>
             </thead>
 
@@ -629,11 +727,6 @@ export default function AddSale() {
                   <td className="border-r border-gray-100 p-0">
                     <ItemSearchCell row={row} idx={idx} allItems={allItems}
                       onSelect={selectItem} onNameChange={(i, v) => updateRow(i, 'name', v)} />
-                  </td>
-                  <td className="border-r border-gray-100 p-0">
-                    <input type="text" value={row.description}
-                      onChange={e => updateRow(idx, 'description', e.target.value)}
-                      className={cellCls} placeholder="Description" />
                   </td>
                   <td className="border-r border-gray-100 p-0">
                     <input type="number" value={row.itemCount}
@@ -707,26 +800,19 @@ export default function AddSale() {
             </tbody>
 
             <tfoot>
-              <tr className="border-t-2 border-gray-300 bg-gray-50">
-                <td colSpan={3} className="px-3 py-2">
-                  <button type="button" onClick={addRow}
-                    className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 transition">
-                    <Plus size={12} /> ADD ROW
-                  </button>
+              <tr className="border-t-2 border-slate-300 bg-slate-100 font-semibold">
+                <td colSpan={8} className="px-3 py-2 text-right text-xs text-slate-500 border-r border-slate-200">Total</td>
+                <td className="px-2 py-2 text-right text-xs text-slate-800 border-r border-slate-200">
+                  {totals.qty % 1 === 0 ? totals.qty : totals.qty.toFixed(3)}
                 </td>
-                <td className="px-2 py-2 text-right text-xs font-bold text-gray-600 border-l border-gray-200">TOTAL</td>
-                <td colSpan={5} />
-                <td className="px-2 py-2 text-right text-xs font-bold text-gray-700">
-                  {totals.qty > 0 ? totals.qty.toFixed(2) : '0'}
+                <td className="px-2 py-2 text-right text-xs text-slate-800 border-r border-slate-200">
+                  {totals.freeQty % 1 === 0 ? totals.freeQty : totals.freeQty.toFixed(3)}
                 </td>
-                <td className="px-2 py-2 text-right text-xs font-bold text-gray-700">
-                  {totals.freeQty > 0 ? totals.freeQty.toFixed(2) : '0'}
-                </td>
-                <td colSpan={3} />
-                <td className="px-2 py-2 text-right text-xs font-bold text-gray-700">
+                <td colSpan={3} className="border-r border-slate-200" />
+                <td className="px-2 py-2 text-right text-xs text-slate-800 border-r border-slate-200">
                   {totals.taxAmt.toFixed(2)}
                 </td>
-                <td className="px-2 py-2 text-right text-xs font-bold text-gray-800">
+                <td className="px-2 py-2 text-right text-xs text-amber-700 border-r border-slate-200">
                   {totals.amount.toFixed(2)}
                 </td>
                 <td />
@@ -736,131 +822,110 @@ export default function AddSale() {
         </div>
 
         {/* ── Bottom section ── */}
-        <div className="bg-white border-b border-gray-200 px-5 py-4">
-          <div className="flex gap-8">
+        <div className="shrink-0 bg-white border-b border-gray-200 px-5 py-4">
+          <div className={`grid gap-4 items-stretch ${selectedParty ? 'grid-cols-5' : 'grid-cols-4'}`}>
 
-            {/* Transport */}
-            <div className="w-44 shrink-0 space-y-2">
+            {/* Col 1: Vehicle No & Dispatch Location */}
+            <div className="bg-amber-50 rounded-xl border border-amber-100 p-3 space-y-2.5">
+              <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-widest">Transport</p>
               <FloatInput label="Vehicle Number" value={tab.vehicleNo}
                 onChange={e => setTab({ vehicleNo: e.target.value })} />
               <FloatInput label="Dispatch Location" value={tab.dispatchLoc}
                 onChange={e => setTab({ dispatchLoc: e.target.value })} />
+            </div>
+
+            {/* Col 2: Delivery Date & Delivery Location */}
+            <div className="bg-sky-50 rounded-xl border border-sky-100 p-3 space-y-2.5">
+              <p className="text-[10px] font-semibold text-sky-600 uppercase tracking-widest">Delivery</p>
               <div className="relative">
                 <input type="date" value={tab.deliveryDate}
                   onChange={e => setTab({ deliveryDate: e.target.value })}
+                  style={!tab.deliveryDate ? { color: 'transparent' } : undefined}
                   className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-800
                     focus:outline-none focus:border-blue-400 bg-white" />
                 {!tab.deliveryDate && (
-                  <span className="absolute left-3 top-2.5 text-sm text-gray-400 pointer-events-none">
-                    Delivery Date
-                  </span>
+                  <span className="absolute left-3 top-2.5 text-sm text-gray-400 pointer-events-none">Delivery Date</span>
                 )}
               </div>
               <FloatInput label="Delivery Location" value={tab.deliveryLoc}
                 onChange={e => setTab({ deliveryLoc: e.target.value })} />
             </div>
 
-            {/* Description */}
-            <div className="w-52 shrink-0">
-              <FloatTextarea label="Description" value={tab.description}
-                onChange={e => setTab({ description: e.target.value })}
-                rows={5} wrapperClass="w-full" />
-            </div>
-
-            <div className="flex-1" />
-
-            {/* Summary + Payment */}
-            <div className="w-80 shrink-0 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Subtotal</span>
-                <span className="text-sm text-gray-700">{fmt2(totals.subtotal)}</span>
+            {/* Col 3: Loyalty Points (only when party selected) */}
+            {selectedParty && (
+              <div className="bg-violet-50 rounded-xl border border-violet-200 p-3 space-y-2">
+                <p className="text-[10px] font-semibold text-violet-600 uppercase tracking-widest">Loyalty Points</p>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-slate-600">Previous Points</span>
+                  <span className="text-sm font-semibold text-violet-700">{prevPoints}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-slate-600">Eligible Points</span>
+                  <span className="text-sm font-semibold text-violet-700">{eligiblePoints}</span>
+                </div>
+                <div className="border-t border-violet-200 pt-1.5 flex justify-between items-center">
+                  <span className="text-xs font-semibold text-slate-700">Total Points</span>
+                  <span className="text-base font-bold text-violet-700">{totalPoints}</span>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Tax</span>
-                <span className="text-sm text-gray-700">{fmt2(totals.taxAmt)}</span>
+            )}
+
+            {/* Col 4: Payment */}
+            <div className="bg-blue-50 rounded-xl border border-blue-100 p-3 space-y-2">
+              <p className="text-[10px] font-semibold text-blue-600 uppercase tracking-widest">Payment</p>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-slate-600 shrink-0">Payment Mode</span>
+                <select value={tab.paymentMode} onChange={e => setTab({ paymentMode: e.target.value })}
+                  className="flex-1 min-w-0 border border-blue-200 rounded px-2 py-1 text-xs bg-white
+                    focus:outline-none focus:border-blue-400">
+                  {PAYMENT_MODES.map(m => <option key={m}>{m}</option>)}
+                </select>
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm text-gray-600 shrink-0">Adjustment</span>
-                <input type="number" value={tab.adjustment} onChange={e => setTab({ adjustment: e.target.value })}
-                  placeholder="0"
-                  className="w-32 border border-gray-300 rounded px-2 py-1 text-sm text-right
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-slate-600 shrink-0">Received Amount</span>
+                <input type="number" value={tab.totalReceived}
+                  onChange={e => setTab({ totalReceived: e.target.value })}
+                  placeholder="0.00" min="0"
+                  className="w-24 border border-blue-200 rounded px-2 py-1 text-xs text-right
                     focus:outline-none focus:border-blue-400 bg-white" />
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <input type="checkbox" id="roundoff" checked={tab.roundOffOn}
-                    onChange={e => setTab({ roundOffOn: e.target.checked })}
-                    className="w-4 h-4 text-blue-600 rounded border-gray-300" />
-                  <label htmlFor="roundoff" className="text-sm text-gray-600 cursor-pointer">Round Off</label>
-                  <span className="text-sm text-gray-500 w-14 text-right">
-                    {tab.roundOffOn ? totals.roundOff.toFixed(2) : '0.00'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-gray-700">Total</span>
-                  <span className="text-sm font-bold text-gray-800 w-28 text-right">
-                    {totals.grandTotal.toFixed(2)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="border-t border-gray-200 pt-2 space-y-2">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-gray-600 shrink-0">Payment Mode</span>
-                  <select value={tab.paymentMode} onChange={e => setTab({ paymentMode: e.target.value })}
-                    className="w-36 border border-gray-300 rounded px-2 py-1 text-sm
-                      focus:outline-none focus:border-blue-400 bg-white">
-                    {PAYMENT_MODES.map(m => <option key={m}>{m}</option>)}
-                  </select>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-gray-600 shrink-0">Received</span>
-                  <input type="number" value={tab.totalReceived} onChange={e => setTab({ totalReceived: e.target.value })}
-                    placeholder="0.00" min="0"
-                    className="w-32 border border-gray-300 rounded px-2 py-1 text-sm text-right
-                      focus:outline-none focus:border-blue-400 bg-white" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Change Given</span>
-                  <span className={`text-sm font-semibold w-32 text-right ${changeGiven > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>
-                    {changeGiven.toFixed(2)}
-                  </span>
-                </div>
+              <div className="border-t border-blue-200 pt-1.5 flex justify-between items-center">
+                <span className="text-xs text-slate-600">Change Given</span>
+                <span className={`text-sm font-bold ${changeGiven > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                  ₹{changeGiven.toFixed(2)}
+                </span>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* ── Terms & Conditions ── */}
-        <div className="bg-white px-5 py-4">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Terms &amp; Conditions</h3>
-          <div className="border border-gray-300 rounded w-72 px-3 py-2 mb-2">
-            <span className="text-[10px] text-gray-500 block mb-0.5">Terms &amp; Conditions</span>
-            <div className="flex items-center">
-              <select value={tab.termsTemplate}
-                onChange={e => {
-                  const tmpl = e.target.value;
-                  setTab({ termsTemplate: tmpl, termsText: TERMS_TEMPLATES[tmpl] ?? '' });
-                }}
-                className="flex-1 text-sm text-gray-800 bg-transparent border-0 focus:outline-none cursor-pointer">
-                {Object.keys(TERMS_TEMPLATES).map(t => <option key={t}>{t}</option>)}
-              </select>
-              <ChevronDown size={13} className="text-gray-400 shrink-0" />
+            {/* Col 5: Totals */}
+            <div className="bg-emerald-50 rounded-xl border border-emerald-100 p-3 space-y-1.5">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-slate-500">Sub Total</span>
+                <span className="text-sm text-slate-700">₹{fmt2(totals.subtotal)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-slate-500">Tax Amount</span>
+                <span className="text-sm text-slate-700">₹{fmt2(totals.taxAmt)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-slate-500 shrink-0">Adjustment</span>
+                <input type="number" value={tab.adjustment}
+                  onChange={e => setTab({ adjustment: e.target.value })}
+                  placeholder="0"
+                  className="w-20 border border-emerald-200 rounded px-1.5 py-0.5 text-xs text-right
+                    focus:outline-none focus:border-emerald-400 bg-white" />
+              </div>
+              <div className="border-t border-emerald-200 pt-2 flex justify-between items-center">
+                <span className="text-sm font-bold text-slate-700">Grand Total</span>
+                <span className="text-lg font-bold text-emerald-700">₹{totals.grandTotal.toFixed(2)}</span>
+              </div>
             </div>
-          </div>
-          <textarea value={tab.termsText} onChange={e => setTab({ termsText: e.target.value })}
-            placeholder="Enter terms & conditions…" rows={4}
-            className="w-72 border border-gray-300 rounded px-3 py-2 text-sm resize-none
-              focus:outline-none focus:border-blue-400 placeholder:text-gray-400 bg-white" />
-        </div>
 
-      </div>
+          </div>
+        </div>
 
       {/* ── Footer ── */}
-      <div className="shrink-0 flex items-center justify-between px-4 py-2.5 bg-white border-t border-gray-200">
-        <button className="p-2 text-gray-400 hover:text-gray-600 transition">
-          <TrendingUp size={16} />
-        </button>
+      <div className="shrink-0 sticky bottom-0 z-20 flex items-center justify-end px-4 pt-2.5 pb-0 bg-white border-t border-gray-200">
         <div className="flex items-center gap-2">
           <div className="flex border border-gray-300 rounded overflow-hidden">
             <button onClick={handleSave} disabled={isSaving || createMut.isPending}

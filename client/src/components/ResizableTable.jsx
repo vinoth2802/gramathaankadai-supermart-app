@@ -1,9 +1,9 @@
 import { useState, useRef } from 'react';
 
-export default function ResizableTable({ headers, children, className = '' }) {
+export default function ResizableTable({ headers, children, className = '', defaultWidths = {} }) {
   const [columnWidths, setColumnWidths] = useState(() => {
     const initialWidth = 100 / headers.length;
-    return headers.reduce((acc, _, i) => ({ ...acc, [i]: initialWidth }), {});
+    return headers.reduce((acc, _, i) => ({ ...acc, [i]: defaultWidths[i] ?? initialWidth }), {});
   });
 
   const [isResizing, setIsResizing] = useState(null);
