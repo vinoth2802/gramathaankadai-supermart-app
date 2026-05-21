@@ -8,8 +8,9 @@ import purchasesRouter  from './routes/purchases.js';
 import paymentsRouter   from './routes/payments.js';
 import accountsRouter   from './routes/accounts.js';
 import settingsRouter   from './routes/settings.js';
-import categoriesRouter from './routes/categories.js';
-import unitsRouter      from './routes/units.js';
+import categoriesRouter        from './routes/categories.js';
+import unitsRouter             from './routes/units.js';
+import capitalInvestmentsRouter from './routes/capitalInvestments.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -34,7 +35,8 @@ app.use('/api/payments',  paymentsRouter);
 app.use('/api/accounts',  accountsRouter);
 app.use('/api/settings',    settingsRouter);
 app.use('/api/categories',  categoriesRouter);
-app.use('/api/units',       unitsRouter);
+app.use('/api/units',               unitsRouter);
+app.use('/api/capital-investments', capitalInvestmentsRouter);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 

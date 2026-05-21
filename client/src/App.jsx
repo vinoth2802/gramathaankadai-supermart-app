@@ -10,8 +10,7 @@ import Items        from './pages/items/index.jsx';
 import Parties        from './pages/parties/index.jsx';
 import LoyaltyPoints  from './pages/parties/Loyaltypoints.jsx';
 
-import SalesInvoice from './pages/sales/Invoice.jsx';
-import AddSale      from './pages/sales/AddSale.jsx';
+import SalesIndex   from './pages/sales/index.jsx';
 import SalesHistory from './pages/sales/History.jsx';
 import Quotation    from './pages/sales/Quotation.jsx';
 import PaymentIn    from './pages/sales/PaymentIn.jsx';
@@ -22,11 +21,12 @@ import PurchaseHistory from './pages/purchases/History.jsx';
 import PaymentOut   from './pages/purchases/PaymentOut.jsx';
 import PurchaseReturn from './pages/purchases/Return.jsx';
 
-import BankAccounts from './pages/accounts/BankAccounts.jsx';
-import CashInHand   from './pages/accounts/CashInHand.jsx';
-import ChequesPage  from './pages/accounts/Cheques.jsx';
-import LoanAccounts from './pages/accounts/LoanAccounts.jsx';
-import FixedAssets  from './pages/accounts/FixedAssets.jsx';
+import BankAccounts       from './pages/accounts/BankAccounts.jsx';
+import CashInHand         from './pages/accounts/CashInHand.jsx';
+import ChequesPage        from './pages/accounts/Cheques.jsx';
+import LoanAccounts       from './pages/accounts/LoanAccounts.jsx';
+import FixedAssets        from './pages/accounts/FixedAssets.jsx';
+import CapitalInvestment  from './pages/accounts/CapitalInvestment.jsx';
 
 import ReportsLayout from './pages/reports/Layout.jsx';
 import ReportStub    from './pages/reports/Stub.jsx';
@@ -68,12 +68,11 @@ export default function App() {
           </Route>
 
           <Route path="sales">
-            <Route index element={<Navigate to="/sales/history" replace />} />
+            <Route index element={<SalesIndex />} />
             <Route path="history"    element={<SalesHistory />} />
-            <Route path="invoice"    element={<SalesInvoice />} />
-            <Route path="add"        element={<AddSale />} />
             <Route path="quotation"  element={<Quotation />} />
-            <Route path="payment-in" element={<PaymentIn />} />
+            <Route path="payment-in"      element={<PaymentIn />} />
+            <Route path="paymentinmodal"  element={<PaymentIn openModal />} />
             <Route path="return"     element={<SaleReturn />} />
           </Route>
 
@@ -81,17 +80,19 @@ export default function App() {
             <Route index element={<Navigate to="/purchases/purchase" replace />} />
             <Route path="purchase"    element={<Purchases />} />
             <Route path="history"     element={<PurchaseHistory />} />
-            <Route path="payment-out" element={<PaymentOut />} />
+            <Route path="payment-out"     element={<PaymentOut />} />
+            <Route path="paymentoutmodal" element={<PaymentOut openModal />} />
             <Route path="return"      element={<PurchaseReturn />} />
           </Route>
 
           <Route path="accounts">
             <Route index element={<Navigate to="/accounts/bank" replace />} />
-            <Route path="bank"         element={<BankAccounts />} />
-            <Route path="cash"         element={<CashInHand />} />
-            <Route path="cheques"      element={<ChequesPage />} />
-            <Route path="loans"        element={<LoanAccounts />} />
-            <Route path="fixed-assets" element={<FixedAssets />} />
+            <Route path="bank"               element={<BankAccounts />} />
+            <Route path="cash"               element={<CashInHand />} />
+            <Route path="cheques"            element={<ChequesPage />} />
+            <Route path="loans"              element={<LoanAccounts />} />
+            <Route path="fixed-assets"       element={<FixedAssets />} />
+            <Route path="capital-investment" element={<CapitalInvestment />} />
           </Route>
 
           <Route path="reports" element={<ReportsLayout />}>

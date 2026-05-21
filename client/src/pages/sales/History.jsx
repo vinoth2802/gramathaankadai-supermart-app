@@ -1,126 +1,413 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight, Search, Printer } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import {
+  ChevronDown, Settings, Search,
+  Printer, MoreVertical, Share2, BarChart2, FileSpreadsheet, Calendar, Check,
+  ArrowUp, ArrowDown, ArrowUpDown,
+} from 'lucide-react';
 import { SalesAPI } from '../../api/sales.js';
-import { fmt } from '../../utils/formatters.js';
 
-const RS = '₹';
-const saleCustomer = (sale) => sale.customerName ?? sale.customer_name ?? 'Cash Sale';
-const saleGrandTotal = (sale) => sale.grandTotal ?? sale.grand_total ?? 0;
-const salePaymentMode = (sale) => sale.paymentMode ?? sale.payment_mode ?? 'Cash';
+/* ── Helpers ── */
+const pad = (n) => String(n).padStart(2, '0');
 
-function printInvoice(sale) {
-  const items = (sale.items || []).map(i =>
-    `<tr><td style="padding:6px 8px">${i.name}</td><td style="padding:6px 8px;text-align:center">${i.qty}</td><td style="padding:6px 8px;text-align:right">${RS}${Number(i.rate).toFixed(2)}</td><td style="padding:6px 8px;text-align:right">${RS}${Number(i.amount).toFixed(2)}</td></tr>`
-  ).join('');
-  const w = window.open('', '_blank');
-  w.document.write(`<!DOCTYPE html><html><head><title>${sale.invoice}</title>
-  <style>body{font-family:Arial,sans-serif;max-width:400px;margin:20px auto;font-size:13px}
-  h2{text-align:center;margin:0}p{margin:2px 0}table{width:100%;border-collapse:collapse}
-  th{background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:6px 8px;text-align:left}
-  td{border-bottom:1px solid #f1f5f9}.total{font-weight:bold;font-size:14px}.hr{border-top:2px dashed #e2e8f0;margin:10px 0}</style>
-  </head><body>
-  <h2>Gramathaankadai SuperMart</h2><p style="text-align:center">Main Road, Tamil Nadu | 9876543210</p>
-  <div class="hr"></div>
-  <p><b>Invoice:</b> ${sale.invoice}</p><p><b>Date:</b> ${fmt.datetime(sale.date)}</p>
-  <p><b>Customer:</b> ${saleCustomer(sale)}</p><p><b>Payment:</b> ${salePaymentMode(sale)}</p>
-  <div class="hr"></div>
-  <table><thead><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
-  <tbody>${items}</tbody></table>
-  <div class="hr"></div>
-  <p>Subtotal: ${RS}${Number(sale.subtotal).toFixed(2)}</p>
-  <p>GST: ${RS}${Number(sale.gst).toFixed(2)}</p>
-  <p class="total">Grand Total: ${RS}${Number(saleGrandTotal(sale)).toFixed(2)}</p>
-  <div class="hr"></div><p style="text-align:center">Thank you for shopping!</p>
-  </body></html>`);
-  w.document.close(); w.print();
+function fmtDt(iso) {
+  const d = new Date(iso);
+  let h = d.getHours();
+  const m = pad(d.getMinutes());
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}, ${h}:${m} ${ampm}`;
 }
 
-export default function SalesHistory() {
-  const { data: sales = [], isLoading } = useQuery({ queryKey: ['sales'], queryFn: SalesAPI.getAll });
-  const [expanded, setExpanded] = useState(null);
-  const [search, setSearch] = useState('');
+function fmtDate(d) {
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
 
-  const filtered = sales.filter(s =>
-    (s.invoice || '').toLowerCase().includes(search.toLowerCase()) ||
-    saleCustomer(s).toLowerCase().includes(search.toLowerCase())
-  );
+const fmtAmt = (n) => `₹ ${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+function getRange(label) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  switch (label) {
+    case 'This Month':   return { from: new Date(y, m, 1),     to: new Date(y, m + 1, 0)   };
+    case 'Last Month':   return { from: new Date(y, m - 1, 1), to: new Date(y, m, 0)       };
+    case 'This Quarter': { const q = Math.floor(m / 3); return { from: new Date(y, q * 3, 1), to: new Date(y, q * 3 + 3, 0) }; }
+    case 'This Year':    return { from: new Date(y, 0, 1),     to: new Date(y, 11, 31)     };
+    default:             return { from: null, to: null };
+  }
+}
+
+/* ── Normalize API sale → row ── */
+function normalizeRow(s) {
+  const grandTotal    = Number(s.grandTotal    ?? 0);
+  const totalReceived = Number(s.totalReceived ?? 0);
+  const balance       = Math.max(0, grandTotal - totalReceived);
+  const dueDate       = s.dueDate ? fmtDate(new Date(s.dueDate)) : '';
+
+  return {
+    id:          s.id,
+    invoiceNo:   s.invoice,
+    date:        s.date,
+    party:       (s.party?.name ?? s.customerName ?? 'CASH SALE').toUpperCase(),
+    transaction: 'Sale',
+    paymentType: s.paymentMode ?? 'Cash',
+    amount:      grandTotal,
+    balance,
+    dueDate,
+    status:      s.paymentStatus ?? 'Paid',
+  };
+}
+
+/* ── Date filter dropdown + range pill ── */
+const DATE_OPTIONS = ['This Month', 'Last Month', 'This Quarter', 'This Year'];
+
+function DateFilter({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const fn = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', fn);
+    return () => document.removeEventListener('mousedown', fn);
+  }, []);
+
+  const { from, to } = getRange(value);
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Sales History</h1>
-          <p className="text-slate-500 text-sm mt-0.5">{sales.length} invoices total</p>
-        </div>
-      </div>
-
-      <div className="relative mb-5 max-w-sm">
-        <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search invoice or customer..."
-          className="w-full pl-9 pr-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100" />
-      </div>
-
-      <div className="space-y-2">
-        {isLoading ? (
-          <div className="text-center py-10 text-slate-400">Loading...</div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-10 text-slate-400">No sales found</div>
-        ) : filtered.map(sale => {
-          const isOpen = expanded === sale.id;
-          return (
-            <div key={sale.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <button
-                onClick={() => setExpanded(isOpen ? null : sale.id)}
-                className="w-full px-5 py-4 flex items-center gap-4 hover:bg-slate-50 transition text-left"
-              >
-                {isOpen ? <ChevronDown size={16} className="text-slate-400 shrink-0" /> : <ChevronRight size={16} className="text-slate-400 shrink-0" />}
-                <div className="flex-1 grid grid-cols-4 gap-4 text-sm">
-                  <span className="font-mono font-bold text-amber-600">{sale.invoice}</span>
-                  <span className="text-slate-500">{fmt.datetime(sale.date)}</span>
-                  <span className="font-medium text-slate-700">{saleCustomer(sale)}</span>
-                  <span className="font-bold text-emerald-600 text-right">{RS}{Number(saleGrandTotal(sale)).toFixed(2)}</span>
-                </div>
-                <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-medium shrink-0">{salePaymentMode(sale)}</span>
+    <div ref={ref} className="flex items-center gap-2">
+      <div className="relative">
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="flex items-center gap-1.5 border border-gray-300 rounded-full px-3 py-1.5 text-sm bg-white hover:bg-gray-50 transition whitespace-nowrap"
+        >
+          {value}
+          <ChevronDown size={13} className={`text-gray-400 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
+        </button>
+        {open && (
+          <div className="absolute top-full left-0 mt-1.5 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[160px] z-50 overflow-hidden">
+            {DATE_OPTIONS.map((opt) => (
+              <button key={opt} onClick={() => { onChange(opt); setOpen(false); }}
+                className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-left hover:bg-gray-50 transition">
+                <span className={value === opt ? 'text-blue-600 font-medium' : 'text-gray-700'}>{opt}</span>
+                {value === opt && <Check size={13} className="text-blue-500 shrink-0" />}
               </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {from && to && (
+        <div className="flex items-center gap-1.5 border border-gray-300 rounded-full px-3 py-1.5 bg-white whitespace-nowrap">
+          <Calendar size={13} className="text-gray-400" />
+          <span className="text-xs text-gray-700">{fmtDate(from)} To {fmtDate(to)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
-              {isOpen && (
-                <div className="border-t border-slate-100 px-5 py-4">
-                  <table className="w-full text-sm mb-4">
-                    <thead>
-                      <tr className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                        <th className="text-left pb-2">Item</th>
-                        <th className="text-center pb-2">Qty</th>
-                        <th className="text-right pb-2">Rate</th>
-                        <th className="text-right pb-2">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {(sale.items || []).map((item, i) => (
-                        <tr key={i}>
-                          <td className="py-1.5 text-slate-800">{item.name}</td>
-                          <td className="py-1.5 text-center text-slate-600">{item.qty}</td>
-                          <td className="py-1.5 text-right text-slate-600">{RS}{Number(item.rate).toFixed(2)}</td>
-                          <td className="py-1.5 text-right font-semibold text-slate-800">{RS}{Number(item.amount).toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <div className="flex justify-between items-end">
-                    <div className="text-sm space-y-0.5 text-slate-600">
-                      <div>Subtotal: <span className="font-medium">{RS}{Number(sale.subtotal).toFixed(2)}</span></div>
-                      <div>GST: <span className="font-medium">{RS}{Number(sale.gst).toFixed(2)}</span></div>
-                      <div className="text-base font-bold text-slate-800">Grand Total: {RS}{Number(saleGrandTotal(sale)).toFixed(2)}</div>
-                    </div>
-                    <button onClick={() => printInvoice(sale)} className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-                      <Printer size={14} /> Print
-                    </button>
-                  </div>
-                </div>
-              )}
+/* ── Filter pill ── */
+function FilterPill({ children }) {
+  return (
+    <button className="flex items-center gap-1.5 border border-gray-300 rounded-full px-3 py-1.5 text-sm bg-white hover:bg-gray-50 transition whitespace-nowrap">
+      {children}
+      <ChevronDown size={12} className="text-gray-400 shrink-0" />
+    </button>
+  );
+}
+
+/* ── Status badge ── */
+function StatusBadge({ status }) {
+  const cls = { Paid: 'text-emerald-600', Unpaid: 'text-rose-600', Partial: 'text-amber-600' };
+  return <span className={`text-xs font-semibold ${cls[status] || 'text-slate-500'}`}>{status}</span>;
+}
+
+/* ── Column header ── */
+function Th({ label, sortKey, sortCol, sortDir, onSort, className = '' }) {
+  const active = sortKey && sortCol === sortKey;
+  const Icon = active ? (sortDir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return (
+    <th
+      onClick={() => sortKey && onSort?.(sortKey)}
+      className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 bg-slate-50 border-b border-slate-100 whitespace-nowrap ${sortKey ? 'cursor-pointer select-none hover:bg-slate-100' : ''} ${className}`}
+    >
+      <div className="flex items-center gap-1.5">
+        {label}
+        <Icon size={11} className={active ? 'text-blue-500 shrink-0' : 'text-slate-300 shrink-0'} />
+      </div>
+    </th>
+  );
+}
+
+/* ── 3-dot row menu ── */
+function RowMenu({ onDelete }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos]   = useState({ top: 0, right: 0 });
+  const btnRef = useRef(null);
+
+  const toggle = (e) => {
+    e.stopPropagation();
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+    }
+    setOpen(o => !o);
+  };
+
+  const act = (fn) => { setOpen(false); fn?.(); };
+
+  const items = [
+    { label: 'View/Edit',  fn: null,     danger: false },
+    { label: 'Delete',     fn: onDelete, danger: true  },
+    { label: 'Duplicate',  fn: null,     danger: false },
+    { label: 'Open PDF',   fn: null,     danger: false },
+  ];
+
+  return (
+    <div className="inline-block">
+      <button ref={btnRef} onClick={toggle}
+        className="w-7 h-7 flex items-center justify-center text-slate-400 hover:bg-slate-100 rounded-lg transition">
+        <MoreVertical size={14} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="fixed bg-white border border-slate-200 rounded-xl shadow-xl min-w-[160px] z-50 overflow-hidden"
+            style={{ top: pos.top, right: pos.right }}>
+            {items.map(({ label, fn, danger }) => (
+              <button key={label} onClick={() => act(fn)}
+                className={`w-full px-4 py-2.5 text-left text-sm hover:bg-slate-50 transition
+                  ${danger ? 'text-rose-600' : 'text-slate-700'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   Main Page
+══════════════════════════════════════════ */
+export default function SalesHistory() {
+  const [dateLabel, setDateLabel] = useState('This Month');
+  const [selected,  setSelected]  = useState(null);
+  const [search,    setSearch]    = useState('');
+  const [sortCol,   setSortCol]   = useState('date');
+  const [sortDir,   setSortDir]   = useState('desc');
+
+  const handleSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  };
+
+  const qc = useQueryClient();
+  const { from, to } = getRange(dateLabel);
+
+  const { data: rawSales = [], isLoading } = useQuery({
+    queryKey: ['sales', dateLabel],
+    queryFn:  () => SalesAPI.getByDateRange(
+      from.toISOString().slice(0, 10),
+      to.toISOString().slice(0, 10),
+    ),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id) => SalesAPI.delete(id),
+    onSuccess:  () => {
+      qc.invalidateQueries(['sales']);
+      setSelected(null);
+      toast.success('Invoice deleted');
+    },
+    onError: () => toast.error('Failed to delete invoice'),
+  });
+
+  const handleDelete = (id) => {
+    if (!window.confirm('Delete this invoice?')) return;
+    deleteMut.mutate(id);
+  };
+
+  const rows = rawSales
+    .map(normalizeRow)
+    .filter(r =>
+      r.party.toLowerCase().includes(search.toLowerCase()) ||
+      r.invoiceNo.toLowerCase().includes(search.toLowerCase()),
+    );
+
+  const sortedRows = [...rows].sort((a, b) => {
+    let av = a[sortCol];
+    let bv = b[sortCol];
+    if (sortCol === 'date') { av = new Date(av).getTime(); bv = new Date(bv).getTime(); }
+    else if (sortCol === 'amount' || sortCol === 'balance') { av = Number(av); bv = Number(bv); }
+    else { av = String(av ?? '').toLowerCase(); bv = String(bv ?? '').toLowerCase(); }
+    if (av < bv) return sortDir === 'asc' ? -1 : 1;
+    if (av > bv) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const totalAmount   = rows.reduce((s, r) => s + r.amount,  0);
+  const totalReceived = rows.reduce((s, r) => s + (r.amount - r.balance), 0);
+  const totalBalance  = rows.reduce((s, r) => s + r.balance, 0);
+
+  return (
+    <div className="h-full flex flex-col bg-slate-50 overflow-auto">
+      <div className="px-6 py-5 space-y-4">
+
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold text-slate-800">Sales History</h1>
+          <div className="flex items-center gap-2">
+            <button className="p-2 text-slate-500 hover:text-slate-700 hover:bg-white border border-slate-200 rounded-xl transition">
+              <Settings size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* ── Filter bar ── */}
+        <div className="flex items-center gap-2 flex-wrap bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+          <span className="text-sm text-gray-500 font-medium mr-1 shrink-0">Filter by:</span>
+          <DateFilter value={dateLabel} onChange={setDateLabel} />
+          <FilterPill>All Firms</FilterPill>
+          <FilterPill>All Users</FilterPill>
+          <FilterPill>All Godown</FilterPill>
+        </div>
+
+        {/* ── Summary cards ── */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white border border-slate-200 rounded-xl px-5 py-4 shadow-sm">
+            <p className="text-xs text-slate-500 mb-2">Total Sales Amount</p>
+            <p className="text-2xl font-bold text-slate-800">{fmtAmt(totalAmount)}</p>
+            <p className="text-xs text-slate-500 mt-1.5 flex items-center gap-1.5">
+              <span>Received: {fmtAmt(totalReceived)}</span>
+              <span className="text-slate-300">|</span>
+              <span>Balance: {fmtAmt(totalBalance)}</span>
+            </p>
+          </div>
+          <div className="bg-amber-50 border border-amber-100 rounded-xl px-5 py-4 shadow-sm">
+            <p className="text-xs text-slate-500 mb-2">Total Loyalty Points Rewarded</p>
+            <p className="text-2xl font-bold text-slate-800">0</p>
+            <p className="text-xs text-slate-500 mt-1.5">Total Discount Redeemed: ₹ 0</p>
+          </div>
+        </div>
+
+        {/* ── Transactions table ── */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+            <h2 className="text-sm font-bold text-slate-700">Transactions</h2>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search…"
+                  className="pl-8 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg w-44
+                    focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
+                />
+              </div>
+              <button className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition">
+                <BarChart2 size={15} />
+              </button>
+              <button className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+                <FileSpreadsheet size={13} /> Excel
+              </button>
+              <button className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition">
+                <Printer size={15} />
+              </button>
             </div>
-          );
-        })}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[960px]">
+              <thead>
+                <tr>
+                  <Th label="Date"         sortKey="date"        sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <Th label="Invoice No"   sortKey="invoiceNo"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <Th label="Party Name"   sortKey="party"       sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <Th label="Transaction"  sortKey="transaction" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <Th label="Payment Type" sortKey="paymentType" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <Th label="Amount"       sortKey="amount"      sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" />
+                  <Th label="Balance"      sortKey="balance"     sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" />
+                  <Th label="Due Date"     sortKey="dueDate"     sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <Th label="Status"       sortKey="status"      sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 bg-slate-50 border-b border-slate-100 w-28">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={10} className="text-center py-14 text-slate-400 text-sm">Loading…</td>
+                  </tr>
+                ) : rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="text-center py-14 text-slate-400 text-sm">
+                      No invoices found. Click "+ Add Sale" to create one.
+                    </td>
+                  </tr>
+                ) : sortedRows.map((row) => {
+                  const isSel = selected === row.id;
+                  const bold  = isSel ? 'font-bold text-slate-900' : '';
+                  return (
+                    <tr
+                      key={row.id}
+                      onClick={() => setSelected(isSel ? null : row.id)}
+                      className={`cursor-pointer transition ${isSel ? 'bg-emerald-50' : 'hover:bg-slate-50/80'}`}
+                    >
+                      <td className={`px-4 py-3 text-xs whitespace-nowrap ${isSel ? bold : 'text-slate-600'}`}>
+                        {fmtDt(row.date)}
+                      </td>
+                      <td className={`px-4 py-3 font-mono text-xs ${isSel ? bold : 'font-semibold text-slate-700'}`}>
+                        {row.invoiceNo}
+                      </td>
+                      <td className={`px-4 py-3 text-xs uppercase tracking-wide ${isSel ? bold : 'font-semibold text-slate-800'}`}>
+                        {row.party}
+                      </td>
+                      <td className={`px-4 py-3 text-xs ${isSel ? bold : 'text-slate-600'}`}>
+                        {row.transaction}
+                      </td>
+                      <td className={`px-4 py-3 text-xs max-w-[140px] truncate ${isSel ? bold : 'text-slate-600'}`}
+                        title={row.paymentType}>
+                        {row.paymentType}
+                      </td>
+                      <td className={`px-4 py-3 text-right text-xs ${isSel ? bold : 'font-semibold text-slate-800'}`}>
+                        {fmtAmt(row.amount)}
+                      </td>
+                      <td className={`px-4 py-3 text-right text-xs ${isSel ? bold : 'text-slate-600'}`}>
+                        {fmtAmt(row.balance)}
+                      </td>
+                      <td className={`px-4 py-3 text-xs ${isSel ? bold : 'text-slate-400'}`}>
+                        {row.dueDate || '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={row.status} />
+                      </td>
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-0.5">
+                          <button title="Print"
+                            className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition">
+                            <Printer size={13} />
+                          </button>
+                          <button title="Share"
+                            className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition">
+                            <Share2 size={13} />
+                          </button>
+                          <RowMenu onDelete={() => handleDelete(row.id)} />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
     </div>
   );

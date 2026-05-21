@@ -115,29 +115,21 @@ router.delete('/:id', async (req, res) => {
     });
     if (!purchase) return res.status(404).json({ error: 'Purchase not found' });
 
-    // For each line item, find the matching product by shortName and decrement stock
-    const stockDecrements = (
-      await Promise.all(
-        purchase.items
-          .filter(i => Number(i.qty) > 0)
-          .map(async (i) => {
-            const product = await prisma.item.findFirst({
-              where: { shortName: { equals: i.name, mode: 'insensitive' } },
-              select: { id: true },
-            });
-            if (!product) return null;
-            return prisma.item.update({
-              where: { id: product.id },
-              data:  { stock: { decrement: Number(i.qty) } },
-            });
-          })
-      )
-    ).filter(Boolean);
-
-    await prisma.$transaction([
-      ...stockDecrements,
-      prisma.purchase.delete({ where: { id: purchaseId } }),
-    ]);
+    await prisma.$transaction(async (tx) => {
+      for (const item of purchase.items.filter(i => Number(i.qty) > 0)) {
+        const product = await tx.item.findFirst({
+          where: { shortName: { equals: item.name, mode: 'insensitive' } },
+          select: { id: true },
+        });
+        if (product) {
+          await tx.item.update({
+            where: { id: product.id },
+            data:  { stock: { decrement: Number(item.qty) } },
+          });
+        }
+      }
+      await tx.purchase.delete({ where: { id: purchaseId } });
+    });
 
     res.status(204).end();
   } catch (err) {

@@ -190,8 +190,8 @@ const fmtDt  = (iso) => {
   return `${d.toLocaleDateString('en-IN')}, ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;
 };
 
-export default function PaymentOut() {
-  const [modal,       setModal]       = useState(false);
+export default function PaymentOut({ openModal = false }) {
+  const [modal,       setModal]       = useState(openModal);
   const [editPayment, setEditPayment] = useState(null);
   const [historyRow,  setHistoryRow]  = useState(null);
   const [search,      setSearch]      = useState('');
@@ -291,9 +291,7 @@ export default function PaymentOut() {
 
         {/* Header */}
         <div className="flex items-center justify-between">
-          <button className="flex items-center gap-1.5 text-xl font-bold text-slate-800 hover:text-rose-600 transition">
-            Payment-Out <ChevronDown size={18} />
-          </button>
+          <h1 className="text-xl font-bold text-slate-800">Payment-Out</h1>
           <div className="flex items-center gap-2">
             <button
               onClick={() => { setEditPayment(null); setModal(true); }}
@@ -309,7 +307,7 @@ export default function PaymentOut() {
         {/* Filter bar */}
         <div className="flex items-center gap-2 flex-wrap bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
           <span className="text-sm text-gray-500 font-medium mr-1 shrink-0">Filter by:</span>
-          <DateFilterDropdown onChange={setDateFilter} />
+          <DateFilterDropdown allLabel="All Payment-Out" onChange={setDateFilter} />
           <FilterPill>All Firms</FilterPill>
           <FilterPill>All Users</FilterPill>
         </div>

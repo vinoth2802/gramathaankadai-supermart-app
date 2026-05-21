@@ -202,8 +202,8 @@ const fmtDt  = (iso) => {
 /* ══════════════════════════════════════════
    Main Page
 ══════════════════════════════════════════ */
-export default function PaymentIn() {
-  const [modal,       setModal]       = useState(false);
+export default function PaymentIn({ openModal = false }) {
+  const [modal,       setModal]       = useState(openModal);
   const [editPayment, setEditPayment] = useState(null);
   const [historyRow,  setHistoryRow]  = useState(null);
   const [search,      setSearch]      = useState('');
@@ -311,9 +311,7 @@ export default function PaymentIn() {
 
         {/* ── Header ── */}
         <div className="flex items-center justify-between">
-          <button className="flex items-center gap-1.5 text-xl font-bold text-slate-800 hover:text-blue-600 transition">
-            Payment-In <ChevronDown size={18} />
-          </button>
+          <h1 className="text-xl font-bold text-slate-800">Payment-In</h1>
           <div className="flex items-center gap-2">
             <button
               onClick={() => { setEditPayment(null); setModal(true); }}

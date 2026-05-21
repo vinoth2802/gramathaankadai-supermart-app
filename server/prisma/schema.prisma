@@ -314,3 +314,24 @@ model flyway_schema_history {
 
   @@index([success], map: "flyway_schema_history_s_idx")
 }
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model CapitalInvestment {
+  id               Int       @id @default(autoincrement())
+  investorName     String    @map("investor_name") @db.VarChar(255)
+  type             String    @db.VarChar(20)
+  contactNumber    String?   @map("contact_number") @db.VarChar(20)
+  email            String?   @db.VarChar(255)
+  address          String?
+  investmentAmount Decimal   @default(0) @map("investment_amount") @db.Decimal(15, 2)
+  equityPercent    Decimal?  @default(0) @map("equity_percent") @db.Decimal(5, 2)
+  investmentDate   DateTime  @map("investment_date") @db.Date
+  paymentMode      String?   @map("payment_mode") @db.VarChar(50)
+  referenceNo      String?   @map("reference_no") @db.VarChar(100)
+  notes            String?
+  status           String?   @default("Active") @db.VarChar(20)
+  createdAt        DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt        DateTime? @default(now()) @map("updated_at") @db.Timestamp(6)
+
+  @@map("capital_investments")
+}

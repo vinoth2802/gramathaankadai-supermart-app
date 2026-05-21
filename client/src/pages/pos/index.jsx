@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ShoppingCart, User, Search, X, Check, Trash2, Plus, Printer } from 'lucide-react';
 import { toast } from 'sonner';
@@ -31,6 +32,7 @@ const makeSaleTab = (invoice) => ({
 
 export default function POS() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data: products = [] } = useQuery({ queryKey: ['items'], queryFn: ItemsAPI.getAll });
   const { data: parties = [] }  = useQuery({ queryKey: ['parties'], queryFn: PartiesAPI.getAll });
   const { data: modes = [] }    = useQuery({ queryKey: ['paymentModes'], queryFn: PaymentsAPI.getModes });
@@ -152,9 +154,7 @@ export default function POS() {
     });
 
     if (saleTabs.length === 1) {
-      const freshTab = makeSaleTab(genInvoice(sales));
-      setSaleTabs([freshTab]);
-      setActiveTabId(freshTab.id);
+      navigate('/dashboard');
       return;
     }
 

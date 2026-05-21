@@ -6,7 +6,7 @@ import {
   ShoppingBag, BarChart2, Settings, LogOut, Store, ChevronDown,
   FileText, MessageSquareQuote, HandCoins, RotateCcw,
   Truck, ArrowUpToLine, Undo2,
-  Landmark, Building2, Wallet, FileCheck, TrendingDown, HardDrive,
+  Landmark, Building2, Wallet, FileCheck, TrendingDown, HardDrive, TrendingUp,
   Wrench, Upload, Download, QrCode,
   SlidersHorizontal, ArrowLeftRight, Printer, Percent, UserCog, Box, Ruler, Star, Gift,
 } from 'lucide-react';
@@ -27,8 +27,8 @@ const nav = [
     icon: Receipt,
     label: 'Sales',
     children: [
+      { to: '/sales',            icon: Receipt,            label: 'Sales',         end: true },
       { to: '/sales/history',    icon: Receipt,            label: 'Sales History' },
-      { to: '/sales/invoice',    icon: FileText,           label: 'Sales Invoice' },
       { to: '/sales/quotation',  icon: MessageSquareQuote, label: 'Quotation' },
       { to: '/sales/payment-in', icon: HandCoins,          label: 'Payment In' },
       { to: '/sales/return',     icon: RotateCcw,          label: 'Sale Return' },
@@ -52,7 +52,8 @@ const nav = [
       { to: '/accounts/cash',         icon: Wallet,      label: 'Cash in Hand' },
       { to: '/accounts/cheques',      icon: FileCheck,   label: 'Cheques' },
       { to: '/accounts/loans',        icon: TrendingDown, label: 'Loan Accounts' },
-      { to: '/accounts/fixed-assets', icon: HardDrive,   label: 'Fixed Assets' },
+      { to: '/accounts/fixed-assets',       icon: HardDrive,   label: 'Fixed Assets' },
+      { to: '/accounts/capital-investment', icon: TrendingUp,  label: 'Capital Investment' },
     ],
   },
   { to: '/reports',  icon: BarChart2, label: 'Reports' },

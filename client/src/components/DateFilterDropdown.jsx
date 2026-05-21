@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Calendar, Check } from 'lucide-react';
 
-const OPTIONS = [
-  'All Payment-In Invoices',
+const BASE_OPTIONS = [
   'This Month',
   'Last Month',
   'This Quarter',
@@ -53,7 +52,8 @@ function getAutoRange(label) {
      defaultValue – string option label (default: 'This Month')
      onChange     – fn({ label, from, to }) called on every change
 ══════════════════════════════════════════ */
-export default function DateFilterDropdown({ defaultValue = 'This Month', onChange }) {
+export default function DateFilterDropdown({ defaultValue = 'This Month', allLabel = 'All Payment-In Invoices', onChange }) {
+  const OPTIONS = [allLabel, ...BASE_OPTIONS];
   const [selected,    setSelected]    = useState(defaultValue);
   const [open,        setOpen]        = useState(false);
   const [customFrom,  setCustomFrom]  = useState('');
@@ -80,7 +80,7 @@ export default function DateFilterDropdown({ defaultValue = 'This Month', onChan
   const autoRange = isCustom ? null : getAutoRange(selected);
   const from      = isCustom ? fromInputVal(customFrom) : autoRange?.from;
   const to        = isCustom ? fromInputVal(customTo)   : autoRange?.to;
-  const showRange = selected !== 'All Payment-In Invoices';
+  const showRange = selected !== allLabel;
 
   const handleSelect = (opt) => {
     setSelected(opt);
