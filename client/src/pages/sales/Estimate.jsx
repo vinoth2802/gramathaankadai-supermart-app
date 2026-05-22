@@ -12,12 +12,12 @@ import http from '../../api/client.js';
 
 /* ── API ── */
 const EstimatesAPI = {
-  getAll:        (params) => http.get('/estimates', { params }).then(r => r.data),
-  getNextNumber: ()       => http.get('/estimates/next-number').then(r => r.data),
-  create:        (data)   => http.post('/estimates', data).then(r => r.data),
-  update:        (id, data) => http.patch(`/estimates/${id}`, data).then(r => r.data),
-  delete:        (id)     => http.delete(`/estimates/${id}`).then(r => r.data),
-  convert:       (id, type) => http.post(`/estimates/${id}/convert`, { type }).then(r => r.data),
+  getAll:        (params)    => http.get('/estimates', { params }),
+  getNextNumber: ()          => http.get('/estimates/next-number'),
+  create:        (data)      => http.post('/estimates', data),
+  update:        (id, data)  => http.patch(`/estimates/${id}`, data),
+  delete:        (id)        => http.delete(`/estimates/${id}`),
+  convert:       (id, type)  => http.post(`/estimates/${id}/convert`, { type }),
 };
 
 /* ── Constants ── */
@@ -372,10 +372,17 @@ function ConvertDropdown({ onConvert, onCancel }) {
    EstimateList
 ══════════════════════════════════════════ */
 function EstimateList({ onAdd, onEdit, queryClient }) {
-  const [period, setPeriod]       = useState('This Month');
+  const [period, setPeriod]         = useState('This Month');
   const [periodOpen, setPeriodOpen] = useState(false);
-  const [searchQ, setSearchQ]     = useState('');
+  const [searchQ, setSearchQ]       = useState('');
+  const [sortCol, setSortCol]       = useState('date');
+  const [sortDir, setSortDir]       = useState('desc');
   const periodRef = useRef(null);
+
+  const handleSort = col => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  };
 
   useEffect(() => {
     const fn = e => { if (periodRef.current && !periodRef.current.contains(e.target)) setPeriodOpen(false); };
@@ -391,7 +398,6 @@ function EstimateList({ onAdd, onEdit, queryClient }) {
     queryKey: ['estimates', fromStr, toStr],
     queryFn:  () => EstimatesAPI.getAll(fromStr ? { from: fromStr, to: toStr } : {}),
     staleTime: 30_000,
-    retry: false,
   });
 
   const lastRange = useMemo(() => getLastRange(period), [period]);
@@ -403,7 +409,6 @@ function EstimateList({ onAdd, onEdit, queryClient }) {
     queryFn:  () => EstimatesAPI.getAll({ from: lastFromStr, to: lastToStr }),
     enabled:  !!lastFromStr,
     staleTime: 30_000,
-    retry: false,
   });
 
   const total     = estimates.reduce((s, e) => s + Number(e.grandTotal ?? 0), 0);
@@ -414,12 +419,30 @@ function EstimateList({ onAdd, onEdit, queryClient }) {
 
   const filtered = useMemo(() => {
     const q = searchQ.toLowerCase();
-    if (!q) return estimates;
-    return estimates.filter(e =>
-      (e.customerName || '').toLowerCase().includes(q) ||
-      String(e.estimateNo ?? '').includes(q)
-    );
-  }, [estimates, searchQ]);
+    let rows = q
+      ? estimates.filter(e =>
+          (e.customerName || '').toLowerCase().includes(q) ||
+          String(e.estimateNo ?? '').includes(q)
+        )
+      : [...estimates];
+
+    rows.sort((a, b) => {
+      let av, bv;
+      switch (sortCol) {
+        case 'date':   av = new Date(a.createdAt || a.estimateDate || 0).getTime(); bv = new Date(b.createdAt || b.estimateDate || 0).getTime(); break;
+        case 'ref':    av = Number(a.estimateNo ?? 0); bv = Number(b.estimateNo ?? 0); break;
+        case 'party':  av = (a.customerName || '').toLowerCase(); bv = (b.customerName || '').toLowerCase(); break;
+        case 'amount': av = Number(a.grandTotal ?? 0); bv = Number(b.grandTotal ?? 0); break;
+        case 'balance':av = Number(a.balance ?? a.grandTotal ?? 0); bv = Number(b.balance ?? b.grandTotal ?? 0); break;
+        case 'status': av = (a.status || '').toLowerCase(); bv = (b.status || '').toLowerCase(); break;
+        default:       return 0;
+      }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ?  1 : -1;
+      return 0;
+    });
+    return rows;
+  }, [estimates, searchQ, sortCol, sortDir]);
 
   const convertMut = useMutation({
     mutationFn: ({ id, type }) => EstimatesAPI.convert(id, type),
@@ -516,12 +539,25 @@ function EstimateList({ onAdd, onEdit, queryClient }) {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-gray-200">
               <tr>
-                {['Date', 'Reference No', 'Party Name', 'Amount', 'Balance', 'Status', 'Actions'].map(h => (
-                  <th key={h} className={`px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap ${['Amount','Balance'].includes(h) ? 'text-right' : 'text-left'}`}>
-                    <div className={`flex items-center gap-1 ${['Amount','Balance'].includes(h) ? 'justify-end' : ''}`}>
-                      {h}
-                      {h !== 'Actions' && <Filter size={10} className="text-gray-400 shrink-0" />}
-                    </div>
+                {[
+                  { label: 'Date',         col: 'date',    right: false },
+                  { label: 'Reference No', col: 'ref',     right: false },
+                  { label: 'Party Name',   col: 'party',   right: false },
+                  { label: 'Amount',       col: 'amount',  right: true  },
+                  { label: 'Balance',      col: 'balance', right: true  },
+                  { label: 'Status',       col: 'status',  right: false },
+                  { label: 'Actions',      col: null,      right: false },
+                ].map(({ label, col, right }) => (
+                  <th key={label} className={`px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap ${right ? 'text-right' : 'text-left'}`}>
+                    {col ? (
+                      <button type="button" onClick={() => handleSort(col)}
+                        className={`flex items-center gap-1 hover:text-gray-900 transition ${right ? 'ml-auto' : ''}`}>
+                        {label}
+                        <span className="text-gray-400 text-[10px] leading-none">
+                          {sortCol === col ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
+                        </span>
+                      </button>
+                    ) : label}
                   </th>
                 ))}
               </tr>
@@ -604,7 +640,7 @@ function EstimateForm({ editData, onClose, queryClient }) {
     queryKey: ['estimates-next-number'],
     queryFn:  EstimatesAPI.getNextNumber,
     staleTime: 0,
-    retry: false,
+    retry: 2,
   });
   const estimateNo = editData?.estimateNo ?? nextNoData?.estimateNo ?? '…';
 
@@ -696,15 +732,27 @@ function EstimateForm({ editData, onClose, queryClient }) {
     return { count, qty, freeQty, taxAmt, subtotal: amount - taxAmt, amount, adj, roundOff, grandTotal };
   }, [computed, form.adjustment, form.roundOffOn]);
 
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ['estimates'] });
+    queryClient.invalidateQueries({ queryKey: ['estimates-next-number'] });
+  };
+
   const createMut = useMutation({
     mutationFn: EstimatesAPI.create,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['estimates'] }); toast.success('Estimate saved'); onClose(); },
+    onSuccess: () => { invalidateAll(); toast.success('Estimate saved'); onClose(); },
+    onError: e => toast.error(e?.response?.data?.error || 'Failed to save'),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, data }) => EstimatesAPI.update(id, data),
+    onSuccess: () => { invalidateAll(); toast.success('Estimate updated'); onClose(); },
     onError: e => toast.error(e?.response?.data?.error || 'Failed to save'),
   });
 
   const handleSave = async (convertToSale = false) => {
     const filled = computed.filter(r => r.name);
     if (!filled.length) { toast.error('Add at least one item'); return; }
+    if (estimateNo === '…') { toast.error('Please wait — loading estimate number'); return; }
     setIsSaving(true);
     try {
       const payload = {
@@ -744,7 +792,11 @@ function EstimateForm({ editData, onClose, queryClient }) {
           amount:     r.amount,
         })),
       };
-      await createMut.mutateAsync(payload);
+      if (editData?.id) {
+        await updateMut.mutateAsync({ id: editData.id, data: payload });
+      } else {
+        await createMut.mutateAsync(payload);
+      }
     } finally { setIsSaving(false); }
   };
 
@@ -1085,11 +1137,11 @@ function EstimateForm({ editData, onClose, queryClient }) {
             className="px-4 py-2 text-sm text-gray-600 border border-gray-300 hover:bg-gray-50 rounded transition">
             Cancel
           </button>
-          <button onClick={() => handleSave(false)} disabled={isSaving || createMut.isPending}
+          <button onClick={() => handleSave(false)} disabled={isSaving || createMut.isPending || updateMut.isPending}
             className="px-4 py-2 text-sm text-white bg-violet-500 hover:bg-violet-600 rounded transition disabled:opacity-60">
             {isSaving ? 'Saving…' : 'Save'}
           </button>
-          <button onClick={() => handleSave(true)} disabled={isSaving || createMut.isPending}
+          <button onClick={() => handleSave(true)} disabled={isSaving || createMut.isPending || updateMut.isPending}
             className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded transition disabled:opacity-60">
             Convert to Sale
           </button>
