@@ -377,6 +377,59 @@ model EstimateItem {
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model AppUser {
+  id           Int       @id @default(autoincrement())
+  name         String    @db.VarChar(100)
+  email        String    @unique @db.VarChar(150)
+  phone        String?   @db.VarChar(20)
+  passwordHash String    @map("password_hash")
+  roleId       Int       @map("role_id")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLogin    DateTime? @map("last_login")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  role         AppRole   @relation(fields: [roleId], references: [id])
+
+  @@map("app_users")
+}
+
+model AppRole {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(50)
+  description String?
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  users           AppUser[]
+  rolePermissions AppRolePermission[]
+
+  @@map("app_roles")
+}
+
+model AppPermission {
+  id          Int    @id @default(autoincrement())
+  module      String @db.VarChar(50)
+  action      String @db.VarChar(50)
+  description String?
+
+  rolePermissions AppRolePermission[]
+
+  @@unique([module, action])
+  @@map("app_permissions")
+}
+
+model AppRolePermission {
+  roleId       Int @map("role_id")
+  permissionId Int @map("permission_id")
+
+  role       AppRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission AppPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("app_role_permissions")
+}
+
 model CapitalInvestment {
   id               Int       @id @default(autoincrement())
   investorName     String    @map("investor_name") @db.VarChar(255)

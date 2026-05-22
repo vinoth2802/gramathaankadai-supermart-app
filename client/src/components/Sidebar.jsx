@@ -8,19 +8,20 @@ import {
   Truck, ArrowUpToLine, Undo2,
   Landmark, Building2, Wallet, FileCheck, TrendingDown, HardDrive, TrendingUp,
   Wrench, Upload, Download, QrCode,
-  SlidersHorizontal, ArrowLeftRight, Printer, Percent, UserCog, Box, Ruler, Star, Gift,
+  SlidersHorizontal, ArrowLeftRight, Printer, Percent, UserCog, Box, Ruler, Star, Gift, Trash2,
+  Database,
 } from 'lucide-react';
 
 const nav = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/pos',       icon: ShoppingCart,    label: 'Point of Sale' },
-  { to: '/items',     icon: Package,         label: 'Items' },
   {
-    icon: Users,
-    label: 'Parties',
+    icon: Database,
+    label: 'Master',
     children: [
-      { to: '/parties',         icon: Users, label: 'Parties',        end: true },
-      { to: '/parties/loyalty', icon: Gift,  label: 'Loyalty Points' },
+      { to: '/items',           icon: Package, label: 'Items' },
+      { to: '/parties',         icon: Users,   label: 'Parties',       end: true },
+      { to: '/parties/loyalty', icon: Gift,    label: 'Loyalty Points' },
     ],
   },
   {
@@ -80,6 +81,8 @@ const nav = [
       { to: '/settings/item',          icon: Box,               label: 'Item' },
       { to: '/settings/unit',          icon: Ruler,             label: 'Unit' },
       { to: '/settings/loyalty',       icon: Star,              label: 'Loyalty Points' },
+      { to: '/settings/user-management', icon: UserCog,           label: 'User Management' },
+      { to: '/settings/reset',           icon: Trash2,            label: 'Reset Data' },
     ],
   },
 ];

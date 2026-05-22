@@ -184,6 +184,68 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
+/* ── POST /check-codes ── */
+router.post('/check-codes', async (req, res) => {
+  try {
+    const { itemCodes } = req.body;
+    const codes = Array.isArray(itemCodes)
+      ? [...new Set(itemCodes.map(c => String(c ?? '').trim()).filter(Boolean))]
+      : [];
+    if (!codes.length) return res.json({ existing: [] });
+
+    const found = await prisma.product.findMany({
+      where:  { itemCode: { in: codes } },
+      select: { itemCode: true, shortName: true },
+    });
+    res.json({ existing: found.map(p => ({ code: p.itemCode, name: p.shortName })) });
+  } catch (err) {
+    console.error('check-codes error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ── POST /bulk-import ── */
+router.post('/bulk-import', async (req, res) => {
+  try {
+    const { items } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'items array is required and must not be empty' });
+    }
+
+    // Parse tax rate string like "5%", "12%", "IGST@5%", "IGST@0%" → number
+    const parseTaxRate = v => {
+      if (v == null || v === '') return 0;
+      const match = String(v).match(/(\d+(?:\.\d+)?)\s*%?$/);
+      return match ? parseFloat(match[1]) : 0;
+    };
+
+    const s = v => String(v ?? '').trim();   // safe string — works for numbers too
+
+    const data = items
+      .filter(it => s(it.itemName))          // skip rows with no name
+      .map(it => ({
+        shortName:       s(it.itemName),
+        itemCode:        s(it.itemCode)       || null,
+        hsnCode:         s(it.hsn)            || null,
+        mrp:             Number(it.mrp)       || 0,
+        salesPrice:      Number(it.salePrice) || 0,
+        purchasePrice:   Number(it.purchasePrice) || 0,
+        stock:           Number(it.openingStock)  || 0,
+        minStock:        Number(it.minStock)  || 0,
+        reorderLevel:    Number(it.reorderLevel)  || 0,
+        location:        s(it.location)       || null,
+        gstRate:         parseTaxRate(it.taxRate),
+        salesPriceTax:   s(it.taxInclusive).toUpperCase() === 'Y' ? 'with' : 'without',
+      }));
+
+    const result = await prisma.product.createMany({ data, skipDuplicates: true });
+    res.status(201).json({ success: true, imported: result.count });
+  } catch (err) {
+    console.error('Bulk import error:', err);
+    res.status(500).json({ error: err.message || 'Bulk import failed' });
+  }
+});
+
 router.delete('/:id', async (req, res) => {
   try {
     await prisma.product.delete({ where: { id: Number(req.params.id) } });

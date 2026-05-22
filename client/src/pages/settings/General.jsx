@@ -1,30 +1,52 @@
 ﻿import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { SettingsAPI } from '../../api/settings.js';
 
+const INDIAN_STATES = [
+  'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat',
+  'Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh',
+  'Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab',
+  'Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh',
+  'Uttarakhand','West Bengal',
+  'Andaman and Nicobar Islands','Chandigarh','Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi','Jammu and Kashmir','Ladakh','Lakshadweep','Puducherry',
+];
+
 const inp = 'w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 text-sm text-slate-800 bg-white';
 
 export default function Settings() {
-  const qc = useQueryClient();
+  const qc       = useQueryClient();
+  const navigate = useNavigate();
   const { data: settings, isLoading } = useQuery({ queryKey: ['settings'], queryFn: SettingsAPI.get });
-  const [form, setForm] = useState({ shopName: '', address: '', phone: '', gstin: '', invoicePrefix: 'INV', currency: 'INR' });
+  const [form, setForm] = useState({
+    shopName: '', firmName: '', address: '', pincode: '', state: '',
+    phone: '', gstin: '', invoicePrefix: 'INV', currency: 'INR',
+  });
 
   useEffect(() => {
     if (settings) setForm({
-      shopName: settings.shopName || '',
-      address: settings.address || '',
-      phone: settings.phone || '',
-      gstin: settings.gstin || '',
+      shopName:      settings.shopName      || '',
+      firmName:      settings.firmName      || '',
+      address:       settings.address       || '',
+      pincode:       settings.pincode       || '',
+      state:         settings.state         || '',
+      phone:         settings.phone         || '',
+      gstin:         settings.gstin         || '',
       invoicePrefix: settings.invoicePrefix || 'INV',
-      currency: settings.currency || 'INR',
+      currency:      settings.currency      || 'INR',
     });
   }, [settings]);
 
   const saveMut = useMutation({
     mutationFn: SettingsAPI.save,
-    onSuccess: () => { qc.invalidateQueries(['settings']); toast.success('Settings saved'); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings'] });
+      toast.success('Settings saved');
+      navigate('/dashboard');
+    },
     onError: () => toast.error('Failed to save settings'),
   });
 
@@ -47,6 +69,10 @@ export default function Settings() {
             <input value={form.shopName} onChange={f('shopName')} className={inp} />
           </div>
           <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Firm Name</label>
+            <input value={form.firmName} onChange={f('firmName')} placeholder="Company Name" className={inp} />
+          </div>
+          <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">GSTIN</label>
             <input value={form.gstin} onChange={f('gstin')} placeholder="33ABCDE1234F1Z5" className={inp} />
           </div>
@@ -57,6 +83,19 @@ export default function Settings() {
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Address</label>
             <textarea value={form.address} onChange={f('address')} rows={2} className={inp} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Pincode</label>
+              <input value={form.pincode} onChange={f('pincode')} placeholder="Enter Pin Code" maxLength={6} className={inp} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">State</label>
+              <select value={form.state} onChange={f('state')} className={inp}>
+                <option value="">Select State</option>
+                {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

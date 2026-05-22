@@ -31,11 +31,14 @@ import CapitalInvestment  from './pages/accounts/CapitalInvestment.jsx';
 import ReportsLayout from './pages/reports/Layout.jsx';
 import ReportStub    from './pages/reports/Stub.jsx';
 
-import ImportItems    from './pages/utilities/ImportItems.jsx';
+import ImportItems        from './pages/items/ImportItems.jsx';
 import ExportItems    from './pages/utilities/ExportItems.jsx';
 import ImportParties  from './pages/utilities/ImportParties.jsx';
 import ExportParties  from './pages/utilities/ExportParties.jsx';
 import Barcode        from './pages/utilities/Barcode.jsx';
+
+import UserManagement from './pages/usermanagement/index.jsx';
+import ResetPage      from './pages/settings/Reset.jsx';
 
 import SettingsGeneral      from './pages/settings/General.jsx';
 import SettingsTransactions from './pages/settings/Transactions.jsx';
@@ -157,8 +160,8 @@ export default function App() {
 
           <Route path="utilities">
             <Route index element={<Navigate to="/utilities/import-items" replace />} />
-            <Route path="import-items"   element={<ImportItems />} />
-            <Route path="export-items"   element={<ExportItems />} />
+            <Route path="import-items" element={<ImportItems />} />
+            <Route path="export-items"         element={<ExportItems />} />
             <Route path="import-parties" element={<ImportParties />} />
             <Route path="export-parties" element={<ExportParties />} />
             <Route path="barcode"        element={<Barcode />} />
@@ -173,7 +176,9 @@ export default function App() {
             <Route path="party"        element={<SettingsParty />} />
             <Route path="item"         element={<SettingsItem />} />
             <Route path="unit"         element={<SettingsUnit />} />
-            <Route path="loyalty"      element={<SettingsLoyalty />} />
+            <Route path="loyalty"          element={<SettingsLoyalty />} />
+            <Route path="user-management" element={<UserManagement />} />
+            <Route path="reset"           element={<ResetPage />} />
           </Route>
         </Route>
       </Routes>
