@@ -12,7 +12,7 @@ import LoyaltyPoints  from './pages/parties/Loyaltypoints.jsx';
 
 import SalesIndex   from './pages/sales/index.jsx';
 import SalesHistory from './pages/sales/History.jsx';
-import Quotation    from './pages/sales/Quotation.jsx';
+import Quotation    from './pages/sales/Estimate.jsx';
 import PaymentIn    from './pages/sales/PaymentIn.jsx';
 import SaleReturn   from './pages/sales/Return.jsx';
 

@@ -11,6 +11,7 @@ import settingsRouter   from './routes/settings.js';
 import categoriesRouter        from './routes/categories.js';
 import unitsRouter             from './routes/units.js';
 import capitalInvestmentsRouter from './routes/capitalInvestments.js';
+import estimatesRouter          from './routes/estimates.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -37,6 +38,7 @@ app.use('/api/settings',    settingsRouter);
 app.use('/api/categories',  categoriesRouter);
 app.use('/api/units',               unitsRouter);
 app.use('/api/capital-investments', capitalInvestmentsRouter);
+app.use('/api/estimates',           estimatesRouter);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 

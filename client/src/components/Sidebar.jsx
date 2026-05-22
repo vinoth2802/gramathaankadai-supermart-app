@@ -29,7 +29,7 @@ const nav = [
     children: [
       { to: '/sales',            icon: Receipt,            label: 'Sales',         end: true },
       { to: '/sales/history',    icon: Receipt,            label: 'Sales History' },
-      { to: '/sales/quotation',  icon: MessageSquareQuote, label: 'Quotation' },
+      { to: '/sales/quotation',  icon: MessageSquareQuote, label: 'Estimate' },
       { to: '/sales/payment-in', icon: HandCoins,          label: 'Payment In' },
       { to: '/sales/return',     icon: RotateCcw,          label: 'Sale Return' },
     ],

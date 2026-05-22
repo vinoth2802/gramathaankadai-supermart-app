@@ -71,6 +71,7 @@ model Party {
   paymentOutHistory PaymentOutHistory[]
   purchases         Purchase[]
   sales             Sale[]
+  estimates         Estimate[]
 
   @@map("parties")
 }
@@ -323,6 +324,56 @@ model flyway_schema_history {
   success        Boolean
 
   @@index([success], map: "flyway_schema_history_s_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model Estimate {
+  id             Int            @id @default(autoincrement())
+  estimateNo     Int            @map("estimate_no")
+  estimateDate   DateTime       @default(now()) @map("estimate_date") @db.Date
+  validTill      DateTime?      @map("valid_till") @db.Date
+  partyId        Int?           @map("party_id")
+  customerName   String         @default("Walk-in Customer") @map("customer_name")
+  phone          String?
+  billingAddress String?        @map("billing_address")
+  stateOfSupply  String         @default("Tamil Nadu") @map("state_of_supply")
+  subtotal       Decimal        @default(0) @db.Decimal(12, 2)
+  gst            Decimal        @default(0) @db.Decimal(12, 2)
+  grandTotal     Decimal        @default(0) @map("grand_total") @db.Decimal(12, 2)
+  adjustment     Decimal        @default(0) @db.Decimal(12, 2)
+  status         String         @default("Open")
+  notes          String?
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @default(now()) @updatedAt @map("updated_at")
+  items          EstimateItem[]
+  party          Party?         @relation(fields: [partyId], references: [id])
+
+  @@map("estimates")
+}
+
+model EstimateItem {
+  id          Int      @id @default(autoincrement())
+  estimateId  Int      @map("estimate_id")
+  productId   Int?     @map("product_id")
+  name        String
+  description String?
+  itemCount   Decimal  @default(0) @map("item_count") @db.Decimal(12, 3)
+  batchNo     String?  @map("batch_no")
+  expiryDate  String?  @map("exp_date") @db.VarChar(20)
+  mfgDate     String?  @map("mfg_date") @db.VarChar(20)
+  mrp         Decimal  @default(0) @db.Decimal(12, 2)
+  size        String?
+  qty         Decimal  @default(0) @db.Decimal(12, 3)
+  freeQty     Decimal  @default(0) @map("free_qty") @db.Decimal(12, 3)
+  unit        String?
+  rate        Decimal  @default(0) @db.Decimal(12, 2)
+  gstRate     Decimal  @default(0) @map("gst_rate") @db.Decimal(5, 2)
+  gstAmount   Decimal  @default(0) @map("gst_amount") @db.Decimal(12, 2)
+  amount      Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+  estimate    Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+
+  @@map("estimate_items")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.

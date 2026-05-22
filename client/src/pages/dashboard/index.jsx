@@ -37,7 +37,7 @@ export default function Dashboard() {
     .reduce((sum, p) => sum + Number(p.grand_total || 0), 0);
   const totalSales    = sales.reduce((sum, s) => sum + Number(s.grand_total || 0), 0);
   const totalPurchase = purchases.reduce((sum, p) => sum + Number(p.grand_total || 0), 0);
-  const totalStock    = items.reduce((sum, i) => sum + Number(i.stock || 0), 0);
+  const totalStockValue = items.reduce((sum, i) => sum + Number(i.stock || 0) * Number(i.purchasePrice || i.salesPrice || 0), 0);
   const lowStock      = items.filter(i => Number(i.stock || 0) <= Number(i.reorderLevel || 10)).length;
   const expiryStock   = items.filter(i => {
     if (!i.expiryDate) return false;
@@ -118,7 +118,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <StatCard label="Low Stock"    value={lowStock}    icon={Package} color="text-amber-600" sub="items below reorder" />
           <StatCard label="Expiry Stock" value={expiryStock} icon={Clock}   color="text-red-600"   sub="items expiring soon" />
-          <StatCard label="Total Stock"  value={totalStock}  icon={Boxes}   color="text-cyan-600"  sub="items in inventory" />
+          <StatCard label="Total Stock Value" value={fmt.currency(totalStockValue)} icon={Boxes} color="text-cyan-600" sub={`${items.length} items in inventory`} />
         </div>
       </div>
 
