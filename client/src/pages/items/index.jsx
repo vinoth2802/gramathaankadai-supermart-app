@@ -129,10 +129,10 @@ export default function Items() {
           <button
             key={tab}
             onClick={() => setPageTab(tab)}
-            className={`px-5 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+            className={`px-10 py-2.5 text-sm font-semibold transition-colors rounded-t-lg ${
               pageTab === tab
-                ? 'border-green-600 text-green-700'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
+                ? 'bg-green-800 text-white'
+                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'
             }`}>
             {tab}
           </button>

@@ -1,9 +1,5 @@
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer
-} from 'recharts';
 import { TrendingUp, ShoppingBag, Package, Users, ArrowUpRight, Store, Boxes, Clock, Monitor, Receipt, ArrowDownLeft } from 'lucide-react';
 import { SalesAPI } from '../../api/sales.js';
 import { PurchasesAPI } from '../../api/purchases.js';
@@ -27,29 +23,6 @@ function StatCard({ label, value, icon: Icon, color, sub }) {
   );
 }
 
-function last6Months() {
-  const months = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date();
-    d.setMonth(d.getMonth() - i, 1);
-    months.push({ label: d.toLocaleString('en-IN', { month: 'short', year: '2-digit' }), year: d.getFullYear(), month: d.getMonth() });
-  }
-  return months;
-}
-
-function buildChartData(sales, purchases) {
-  return last6Months().map(({ label, year, month }) => {
-    const s = (sales || []).filter(x => {
-      const d = new Date(x.date);
-      return d.getFullYear() === year && d.getMonth() === month;
-    }).reduce((sum, x) => sum + Number(x.grand_total || 0), 0);
-    const p = (purchases || []).filter(x => {
-      const d = new Date(x.date);
-      return d.getFullYear() === year && d.getMonth() === month;
-    }).reduce((sum, x) => sum + Number(x.grand_total || 0), 0);
-    return { month: label, Sales: Math.round(s), Purchases: Math.round(p) };
-  });
-}
 
 export default function Dashboard() {
   const { data: sales = [] }     = useQuery({ queryKey: ['sales'],     queryFn: SalesAPI.getAll });
@@ -77,7 +50,6 @@ export default function Dashboard() {
   const receivable = parties.reduce((sum, p) => sum + Number(p.balance || 0), 0);
   const payable    = parties.reduce((sum, p) => sum + Number(p.payable || 0), 0);
 
-  const chartData = buildChartData(sales, purchases);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const navigate = useNavigate();
 
@@ -147,37 +119,6 @@ export default function Dashboard() {
           <StatCard label="Low Stock"    value={lowStock}    icon={Package} color="text-amber-600" sub="items below reorder" />
           <StatCard label="Expiry Stock" value={expiryStock} icon={Clock}   color="text-red-600"   sub="items expiring soon" />
           <StatCard label="Total Stock"  value={totalStock}  icon={Boxes}   color="text-cyan-600"  sub="items in inventory" />
-        </div>
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-          <h3 className="font-semibold text-slate-700 text-sm mb-4">Sales Trend (6 months)</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
-              <Tooltip formatter={v => fmt.currency(v)} />
-              <Line type="monotone" dataKey="Sales" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 4 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-          <h3 className="font-semibold text-slate-700 text-sm mb-4">Sales vs Purchase (6 months)</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
-              <Tooltip formatter={v => fmt.currency(v)} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="Sales"     fill="#f59e0b" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Purchases" fill="#6366f1" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
         </div>
       </div>
 

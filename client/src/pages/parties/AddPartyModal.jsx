@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Settings, X, ChevronDown, Info } from 'lucide-react';
+import { Settings, X, ChevronDown } from 'lucide-react';
 
 const TABS = ['GST & Address', 'Credit & Balance', 'Additional Fields'];
 
@@ -124,13 +124,16 @@ function FloatDate({ label, value, onChange, className = '' }) {
 export default function AddPartyModal({ editData, onClose, onSave, onSaveAndNew, isSaving }) {
   const [form, setForm] = useState({ ...EMPTY, ...(editData ?? {}) });
   const [tab, setTab] = useState(0);
+  const [partyType, setPartyType]   = useState(editData?.partyType   || 'B2C');
+  const [balanceType, setBalanceType] = useState(editData?.balanceType || 'To Receive');
 
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const f = (k) => (e) => setF(k, e.target.value);
 
   const handleSave = (andNew = false) => {
     if (!form.name.trim()) return;
-    andNew ? onSaveAndNew?.(form) : onSave(form);
+    const payload = { ...form, partyType, balanceType };
+    andNew ? onSaveAndNew?.(payload) : onSave(payload);
   };
 
   return (
@@ -142,7 +145,16 @@ export default function AddPartyModal({ editData, onClose, onSave, onSaveAndNew,
           <h2 className="text-base font-bold text-slate-800">
             {editData ? 'Edit Party' : 'Add Party'}
           </h2>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-3">
+            {/* B2C / B2B pill */}
+            <div className="flex items-center bg-slate-100 rounded-full p-1">
+              {['B2C', 'B2B'].map(t => (
+                <button key={t} onClick={() => setPartyType(t)}
+                  className={`px-4 py-1 rounded-full text-xs font-semibold transition whitespace-nowrap ${partyType === t ? 'bg-green-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                  {t}
+                </button>
+              ))}
+            </div>
             <button className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition">
               <Settings size={16} />
             </button>
@@ -155,21 +167,21 @@ export default function AddPartyModal({ editData, onClose, onSave, onSaveAndNew,
         {/* ── Scrollable body ── */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 min-h-0">
 
-          {/* Top row: 3 inputs */}
-          <div className="grid grid-cols-3 gap-3">
-            <FloatInput label="Party Name *" value={form.name} onChange={f('name')} />
-            <FloatInput label="GSTIN" value={form.gstin} onChange={f('gstin')} />
-            <FloatInput label="Mobile Number" value={form.phone} onChange={f('phone')} type="tel" />
+          {/* Top row: 2-column layout */}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+            {/* Left column */}
+            <div className="space-y-3">
+              <FloatInput label="Party Name *" value={form.name} onChange={f('name')} />
+              <FloatInput label="Mobile Number" value={form.phone} onChange={f('phone')} type="tel" />
+            </div>
+            {/* Right column */}
+            <div className="space-y-3">
+              <FloatSelect label="Party Group" value={form.partyGroup} onChange={f('partyGroup')} options={PARTY_GROUPS} />
+              {partyType === 'B2B' && (
+                <FloatInput label="GSTIN" value={form.gstin} onChange={f('gstin')} />
+              )}
+            </div>
           </div>
-
-          {/* Party Group */}
-          <FloatSelect
-            label="Party Group"
-            value={form.partyGroup}
-            onChange={f('partyGroup')}
-            options={PARTY_GROUPS}
-            className="w-[260px]"
-          />
 
           {/* Tabs */}
           <div className="border-b border-slate-200">
@@ -178,10 +190,10 @@ export default function AddPartyModal({ editData, onClose, onSave, onSaveAndNew,
                 <button
                   key={t}
                   onClick={() => setTab(i)}
-                  className={`px-5 py-2.5 text-sm font-medium transition border-b-2 -mb-px ${
+                  className={`px-8 py-2.5 text-sm font-semibold transition rounded-t-lg ${
                     tab === i
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                      ? 'bg-green-800 text-white'
+                      : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   {t}
@@ -192,9 +204,9 @@ export default function AddPartyModal({ editData, onClose, onSave, onSaveAndNew,
 
           {/* ── Tab 0: GST & Address ── */}
           {tab === 0 && (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-4 items-stretch">
               {/* Left column */}
-              <div className="space-y-3">
+              <div className="flex flex-col gap-3">
                 <FloatSelect
                   label="GST Type"
                   value={form.gstType}
@@ -207,33 +219,30 @@ export default function AddPartyModal({ editData, onClose, onSave, onSaveAndNew,
                   onChange={f('state')}
                   options={INDIAN_STATES}
                 />
-                <FloatInput label="Email ID" value={form.email} onChange={f('email')} type="email" />
               </div>
 
               {/* Middle column */}
-              <div className="space-y-1.5">
+              <div className="flex flex-col gap-1.5">
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide">
                   Billing Address
                 </label>
                 <textarea
                   value={form.billingAddress}
                   onChange={f('billingAddress')}
-                  rows={6}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-800 resize-none
+                  className="flex-1 w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-800 resize-none
                     focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
                 />
               </div>
 
               {/* Right column */}
-              <div className="space-y-1.5">
+              <div className="flex flex-col gap-1.5">
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide">
                   Shipping Address
                 </label>
                 <textarea
                   value={form.shippingAddress}
                   onChange={f('shippingAddress')}
-                  rows={6}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-800 resize-none
+                  className="flex-1 w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-800 resize-none
                     focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
                 />
               </div>
@@ -244,13 +253,28 @@ export default function AddPartyModal({ editData, onClose, onSave, onSaveAndNew,
           {tab === 1 && (
             <div className="grid grid-cols-2 gap-x-4 gap-y-3">
               {/* Row 1 */}
-              <FloatInput
-                label="Opening Balance"
-                value={form.openingBalance}
-                onChange={f('openingBalance')}
-                type="number"
-                min="0"
-              />
+              {/* Opening Balance with inline To Pay / To Receive toggle */}
+              <div className="relative border border-slate-300 rounded-lg bg-white focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition">
+                <label className="absolute left-3 top-2 text-xs text-slate-500 pointer-events-none">Opening Balance</label>
+                <div className="flex items-center pt-5 pb-2 px-3 gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.openingBalance}
+                    onChange={f('openingBalance')}
+                    placeholder="0.00"
+                    className="flex-1 text-sm text-slate-800 focus:outline-none bg-transparent"
+                  />
+                  <div className="flex items-center bg-slate-100 rounded-full p-0.5 shrink-0">
+                    {['To Pay', 'To Receive'].map(t => (
+                      <button key={t} type="button" onClick={() => setBalanceType(t)}
+                        className={`px-2.5 py-0.5 rounded-full text-xs font-semibold transition whitespace-nowrap ${balanceType === t ? 'bg-green-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
               <FloatDate
                 label="As Of Date"
                 value={form.asOfDate}
@@ -279,22 +303,10 @@ export default function AddPartyModal({ editData, onClose, onSave, onSaveAndNew,
               <div className="grid grid-cols-2 gap-3">
                 <FloatInput label="Contact Person" value={form.contactPerson} onChange={f('contactPerson')} />
                 <FloatInput label="Website" value={form.website} onChange={f('website')} type="url" />
-                <FloatInput label="Custom Field 1" value={form.customField1} onChange={f('customField1')} />
-                <FloatInput label="Custom Field 2" value={form.customField2} onChange={f('customField2')} />
+                <FloatInput label="Email" value={form.customField1} onChange={f('customField1')} type="email" />
+                <FloatInput label="Custom Field" value={form.customField2} onChange={f('customField2')} />
               </div>
 
-              {/* Info box */}
-              <div className="flex items-start gap-2.5 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <Info size={15} className="text-blue-500 shrink-0 mt-0.5" />
-                <p className="text-xs text-blue-700">
-                  You can add more custom fields from{' '}
-                  <span className="font-semibold">Settings → Custom Fields</span>
-                </p>
-              </div>
-
-              <button className="text-sm text-blue-600 hover:text-blue-700 font-medium transition">
-                + Add Custom Field
-              </button>
             </div>
           )}
         </div>

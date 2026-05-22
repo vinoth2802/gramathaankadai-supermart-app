@@ -2,7 +2,7 @@ import { useState, useRef, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Search, MoreVertical, Pencil, Settings,
-  ChevronDown, Filter, MessageSquare, MessageCircle, Bell,
+  Filter, MessageSquare, MessageCircle, Bell,
   Printer, FileSpreadsheet,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -96,10 +96,13 @@ export default function Parties() {
   const [txnSearch, setTxnSearch]     = useState('');
   const [sortCol, setSortCol]         = useState(null);
   const [sortDir, setSortDir]         = useState('asc');
+  const [listSortCol, setListSortCol] = useState('name');
+  const [listSortDir, setListSortDir] = useState('asc');
   const [modal, setModal]             = useState(false);
   const [editParty, setEditParty]     = useState(null);
   const [modalKey, setModalKey]       = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null });
+  const [selectedTxnKey, setSelectedTxnKey] = useState(null);
 
   const closeModal = () => { setModal(false); setEditParty(null); };
 
@@ -129,10 +132,19 @@ export default function Parties() {
     onError: () => toast.error('Failed to delete party'),
   });
 
-  const filtered = useMemo(() =>
-    allParties.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || (p.phone || '').includes(search)),
-    [allParties, search],
-  );
+  const handleListSort = (col) => {
+    if (listSortCol === col) setListSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setListSortCol(col); setListSortDir('asc'); }
+  };
+
+  const filtered = useMemo(() => {
+    const list = allParties.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || (p.phone || '').includes(search));
+    return [...list].sort((a, b) => {
+      const av = listSortCol === 'balance' ? Number(a.balance || 0) : (a.name || '').toLowerCase();
+      const bv = listSortCol === 'balance' ? Number(b.balance || 0) : (b.name || '').toLowerCase();
+      return listSortDir === 'asc' ? (av > bv ? 1 : av < bv ? -1 : 0) : (av < bv ? 1 : av > bv ? -1 : 0);
+    });
+  }, [allParties, search, listSortCol, listSortDir]);
 
   const selectedParty = useMemo(() =>
     filtered.find(p => String(p.id) === String(selectedId)) || null,
@@ -210,9 +222,7 @@ export default function Parties() {
         {/* Header */}
         <div className="px-3 pt-3 pb-2 border-b border-slate-200 space-y-2">
           <div className="flex items-center justify-between">
-            <button className="flex items-center gap-1 text-sm font-bold text-slate-800 hover:text-blue-600 transition">
-              Parties <ChevronDown size={14} />
-            </button>
+            <span className="text-sm font-bold text-slate-800">Parties</span>
             <div className="flex items-center gap-0.5">
               <button
                 onClick={() => { setEditParty(null); setModal(true); }}
@@ -238,12 +248,14 @@ export default function Parties() {
 
         {/* Column headers */}
         <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 border-b border-slate-200">
-          <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
-            Party Name <Filter size={9} className="text-slate-400" />
-          </span>
-          <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
-            Amount <Filter size={9} className="text-slate-400" />
-          </span>
+          <button onClick={() => handleListSort('name')} className="text-xs font-semibold text-slate-500 flex items-center gap-1 hover:text-slate-700 transition select-none">
+            Party Name
+            <span className="text-[10px] text-slate-400">{listSortCol === 'name' ? (listSortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
+          </button>
+          <button onClick={() => handleListSort('balance')} className="text-xs font-semibold text-slate-500 flex items-center gap-1 hover:text-slate-700 transition select-none">
+            Amount
+            <span className="text-[10px] text-slate-400">{listSortCol === 'balance' ? (listSortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
+          </button>
         </div>
 
         {/* Party rows */}
@@ -259,7 +271,7 @@ export default function Parties() {
               <div
                 key={p.id}
                 onClick={() => setSelectedId(p.id)}
-                className={`flex items-center justify-between px-3 py-2.5 cursor-pointer border-b border-slate-100 transition ${isSelected ? 'bg-blue-50 border-l-2 border-l-blue-500' : 'hover:bg-slate-50'}`}
+                className={`flex items-center justify-between px-3 py-2.5 cursor-pointer border-b border-slate-100 transition ${isSelected ? 'bg-green-100 border-l-2 border-l-green-700' : 'hover:bg-slate-50'}`}
               >
                 <span className="text-xs font-bold text-slate-800 uppercase truncate pr-2">{p.name}</span>
                 <span className={`text-xs font-semibold shrink-0 ${bal === 0 ? 'text-teal-600' : 'text-red-500'}`}>
@@ -299,6 +311,11 @@ export default function Parties() {
                     <div>
                       <p className="text-xs text-slate-400 font-medium mb-0.5">GST No</p>
                       <p className="text-sm font-semibold text-slate-700">{selectedParty.gstin || '—'}</p>
+                    </div>
+                    <div className="w-px h-8 bg-slate-200" />
+                    <div>
+                      <p className="text-xs text-slate-400 font-medium mb-0.5">Billing Address</p>
+                      <p className="text-sm font-semibold text-slate-700">{selectedParty.billingAddress || '—'}</p>
                     </div>
                   </div>
                 </div>
@@ -370,8 +387,11 @@ export default function Parties() {
                           No transactions found for this party
                         </td>
                       </tr>
-                    ) : partyTransactions.map((txn, idx) => (
-                      <tr key={`${txn.type}-${txn.id}-${idx}`} className="hover:bg-slate-50 transition">
+                    ) : partyTransactions.map((txn, idx) => {
+                      const txnKey = `${txn.type}-${txn.id}-${idx}`;
+                      return (
+                      <tr key={txnKey} onClick={() => setSelectedTxnKey(txnKey)}
+                        className={`cursor-pointer transition ${selectedTxnKey === txnKey ? 'bg-green-100' : 'hover:bg-slate-50'}`}>
                         <td className="px-3 py-2.5 border-r border-slate-100">
                           <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${txn.type === 'Sale' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                             {txn.type}
@@ -401,7 +421,7 @@ export default function Parties() {
                           <TxnMenu txn={txn} />
                         </td>
                       </tr>
-                    ))}
+                    ); })}
                   </tbody>
                 </table>
               </div>
