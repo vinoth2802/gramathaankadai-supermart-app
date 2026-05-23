@@ -54,14 +54,14 @@ export default function Items() {
 
   const saveMut = useMutation({
     mutationFn: (data) => editItem ? ItemsAPI.update(editItem.id, data) : ItemsAPI.create(data),
-    onSuccess: () => { qc.invalidateQueries(['items']); closeModal(); toast.success(editItem ? 'Item updated' : 'Item added'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['items'] }); closeModal(); toast.success(editItem ? 'Item updated' : 'Item added'); },
     onError: (err) => toast.error(err?.message || 'Failed to save item'),
   });
 
   const deleteMut = useMutation({
     mutationFn: ItemsAPI.delete,
     onSuccess: (_data, deletedId) => {
-      qc.invalidateQueries(['items']);
+      qc.invalidateQueries({ queryKey: ['items'] });
       if (String(selectedItemId) === String(deletedId)) setSelectedItemId(null);
       setDeleteConfirm({ open: false, id: null });
       toast.success('Item deleted');
@@ -325,7 +325,7 @@ export default function Items() {
           onSaveAndNew={(data) => {
             const api = editItem ? ItemsAPI.update(editItem.id, data) : ItemsAPI.create(data);
             api.then(() => {
-              qc.invalidateQueries(['items']);
+              qc.invalidateQueries({ queryKey: ['items'] });
               setEditItem(null);
               setModalKey(k => k + 1);
               toast.success('Item saved');

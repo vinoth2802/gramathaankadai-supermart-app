@@ -265,8 +265,8 @@ export default function Purchases() {
       paymentMode: purchaseType === 'credit' ? `Credit (${form.paymentMode})` : form.paymentMode,
     });
 
-    qc.invalidateQueries(['purchases']);
-    qc.invalidateQueries(['items']);
+    qc.invalidateQueries({ queryKey: ['purchases'] });
+    qc.invalidateQueries({ queryKey: ['items'] });
     toast.success(`Purchase recorded — Bill: ${invoice}`);
     closeCompletedTab(savedPurchase);
   };

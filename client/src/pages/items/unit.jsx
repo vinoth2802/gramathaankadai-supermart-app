@@ -34,7 +34,7 @@ export default function UnitTab() {
   const createUnitMut = useMutation({
     mutationFn: UnitsAPI.create,
     onSuccess: (unit) => {
-      qc.invalidateQueries(['units']);
+      qc.invalidateQueries({ queryKey: ['units'] });
       setSelectedUnitId(unit.id);
       setRightPanel('conversions');
       resetUnitForm();
@@ -46,7 +46,7 @@ export default function UnitTab() {
   const updateUnitMut = useMutation({
     mutationFn: ({ id, data }) => UnitsAPI.update(id, data),
     onSuccess: () => {
-      qc.invalidateQueries(['units']);
+      qc.invalidateQueries({ queryKey: ['units'] });
       setRightPanel('conversions');
       resetUnitForm();
       toast.success('Unit updated');
@@ -57,7 +57,7 @@ export default function UnitTab() {
   const deleteUnitMut = useMutation({
     mutationFn: UnitsAPI.delete,
     onSuccess: (_, deletedId) => {
-      qc.invalidateQueries(['units']);
+      qc.invalidateQueries({ queryKey: ['units'] });
       if (String(selectedUnitId) === String(deletedId)) {
         setSelectedUnitId(null);
         setRightPanel('conversions');
@@ -70,7 +70,7 @@ export default function UnitTab() {
   const createConvMut = useMutation({
     mutationFn: UnitsAPI.createConversion,
     onSuccess: () => {
-      qc.invalidateQueries(['unit-conversions', selectedUnitId]);
+      qc.invalidateQueries({ queryKey: ['unit-conversions', selectedUnitId] });
       toast.success('Conversion added');
     },
     onError: (err) => toast.error(err?.response?.data?.error || 'Failed to add conversion'),
@@ -79,7 +79,7 @@ export default function UnitTab() {
   const deleteConvMut = useMutation({
     mutationFn: UnitsAPI.deleteConversion,
     onSuccess: () => {
-      qc.invalidateQueries(['unit-conversions', selectedUnitId]);
+      qc.invalidateQueries({ queryKey: ['unit-conversions', selectedUnitId] });
       toast.success('Conversion deleted');
     },
     onError: () => toast.error('Failed to delete conversion'),

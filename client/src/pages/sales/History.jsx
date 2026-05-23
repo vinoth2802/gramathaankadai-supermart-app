@@ -226,7 +226,7 @@ export default function SalesHistory() {
   const deleteMut = useMutation({
     mutationFn: (id) => SalesAPI.delete(id),
     onSuccess:  () => {
-      qc.invalidateQueries(['sales']);
+      qc.invalidateQueries({ queryKey: ['sales'] });
       setSelected(null);
       toast.success('Invoice deleted');
     },

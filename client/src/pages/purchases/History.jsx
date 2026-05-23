@@ -226,7 +226,7 @@ export default function PurchaseHistory() {
   const deleteMut = useMutation({
     mutationFn: (id) => PurchasesAPI.delete(id),
     onSuccess:  () => {
-      qc.invalidateQueries(['purchases']);
+      qc.invalidateQueries({ queryKey: ['purchases'] });
       setSelected(null);
       toast.success('Purchase deleted');
     },

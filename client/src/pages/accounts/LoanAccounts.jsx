@@ -176,7 +176,7 @@ export default function LoanAccounts() {
   const createMut = useMutation({
     mutationFn: LoanAccountsAPI.create,
     onSuccess: ({ data: acc }) => {
-      qc.invalidateQueries(['loanAccounts']);
+      qc.invalidateQueries({ queryKey: ['loanAccounts'] });
       setSelectedId(acc.id);
       setShowAdd(false);
       setAddForm(BLANK_ADD);
@@ -188,8 +188,8 @@ export default function LoanAccounts() {
   const payMut = useMutation({
     mutationFn: (data) => LoanAccountsAPI.payment(selectedId, data),
     onSuccess: () => {
-      qc.invalidateQueries(['loanTxns', selectedId]);
-      qc.invalidateQueries(['loanAccounts']);
+      qc.invalidateQueries({ queryKey: ['loanTxns', selectedId] });
+      qc.invalidateQueries({ queryKey: ['loanAccounts'] });
       setShowPay(false);
       setPayForm(BLANK_PAY);
       toast.success('Payment recorded');
@@ -200,8 +200,8 @@ export default function LoanAccounts() {
   const dwnMut = useMutation({
     mutationFn: (data) => LoanAccountsAPI.drawdown(selectedId, data),
     onSuccess: () => {
-      qc.invalidateQueries(['loanTxns', selectedId]);
-      qc.invalidateQueries(['loanAccounts']);
+      qc.invalidateQueries({ queryKey: ['loanTxns', selectedId] });
+      qc.invalidateQueries({ queryKey: ['loanAccounts'] });
       setShowDwn(false);
       setDwnForm(BLANK_DWN);
       toast.success('Additional loan recorded');
@@ -212,7 +212,7 @@ export default function LoanAccounts() {
   const chgMut = useMutation({
     mutationFn: (data) => LoanAccountsAPI.charge(selectedId, data),
     onSuccess: () => {
-      qc.invalidateQueries(['loanTxns', selectedId]);
+      qc.invalidateQueries({ queryKey: ['loanTxns', selectedId] });
       setShowChg(false);
       setChgForm(BLANK_CHG);
       toast.success('Charge recorded');
@@ -223,7 +223,7 @@ export default function LoanAccounts() {
   const deleteMut = useMutation({
     mutationFn: LoanAccountsAPI.remove,
     onSuccess: () => {
-      qc.invalidateQueries(['loanAccounts']);
+      qc.invalidateQueries({ queryKey: ['loanAccounts'] });
       if (selectedId === deleteConfirm.id) setSelectedId(null);
       setDeleteConfirm({ open: false, id: null });
       toast.success('Loan account deleted');

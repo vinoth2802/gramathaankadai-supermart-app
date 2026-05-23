@@ -125,7 +125,7 @@ router.delete('/:id', async (req, res) => {
         if (product) {
           await tx.item.update({
             where: { id: product.id },
-            data:  { stock: { decrement: Number(item.qty) } },
+            data:  { stock: { increment: Number(item.qty) } },
           });
         }
       }

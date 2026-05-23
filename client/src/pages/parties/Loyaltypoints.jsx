@@ -274,13 +274,13 @@ export default function LoyaltyPoints() {
   const qc = useQueryClient();
   const saveMut = useMutation({
     mutationFn: (data) => PartiesAPI.create({ ...data, type: (data.partyGroup || 'customer').toLowerCase() }),
-    onSuccess: () => { qc.invalidateQueries(['parties']); setModal(false); toast.success('Party added'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['parties'] }); setModal(false); toast.success('Party added'); },
     onError:   () => toast.error('Failed to save party'),
   });
 
   const handleSaveAndNew = (data) => {
     saveMut.mutate(data, {
-      onSuccess: () => { qc.invalidateQueries(['parties']); setModalKey(k => k + 1); toast.success('Party added'); },
+      onSuccess: () => { qc.invalidateQueries({ queryKey: ['parties'] }); setModalKey(k => k + 1); toast.success('Party added'); },
     });
   };
 

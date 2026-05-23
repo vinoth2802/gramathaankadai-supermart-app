@@ -56,7 +56,7 @@ function RequireAuth({ children }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Toaster position="top-right" richColors closeButton expand />
           <HotToaster position="top-right" />
       <Routes>

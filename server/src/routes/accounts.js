@@ -5,20 +5,27 @@ const router = Router();
 
 // ── UOM ───────────────────────────────────────────────────────
 router.get('/uom', async (_req, res) => {
-  const uoms = await prisma.uom.findMany({ orderBy: { id: 'asc' } });
-  res.json(uoms);
+  try {
+    const uoms = await prisma.uom.findMany({ orderBy: { id: 'asc' } });
+    res.json(uoms);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.post('/uom', async (req, res) => {
-  const uom = await prisma.uom.create({
-    data: { code: req.body.code.toUpperCase(), descr: req.body.descr || '' },
-  });
-  res.status(201).json(uom);
+  try {
+    if (!req.body.code?.trim()) return res.status(400).json({ error: 'Code is required' });
+    const uom = await prisma.uom.create({
+      data: { code: req.body.code.trim().toUpperCase(), descr: req.body.descr || '' },
+    });
+    res.status(201).json(uom);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.delete('/uom/:id', async (req, res) => {
-  await prisma.uom.delete({ where: { id: Number(req.params.id) } });
-  res.status(204).end();
+  try {
+    await prisma.uom.delete({ where: { id: Number(req.params.id) } });
+    res.status(204).end();
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ── Cash Overview (balance + combined transactions) ───────────

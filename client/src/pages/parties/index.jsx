@@ -111,20 +111,20 @@ export default function Parties() {
       const payload = { ...data, type: (data.partyGroup || 'customer').toLowerCase() };
       return editParty ? PartiesAPI.update(editParty.id, payload) : PartiesAPI.create(payload);
     },
-    onSuccess: () => { qc.invalidateQueries(['parties']); closeModal(); toast.success(editParty ? 'Party updated' : 'Party added'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['parties'] }); closeModal(); toast.success(editParty ? 'Party updated' : 'Party added'); },
     onError: () => toast.error('Failed to save party'),
   });
 
   const handleSaveAndNew = (data) => {
     const payload = { ...data, type: (data.partyGroup || 'customer').toLowerCase() };
     saveMut.mutate(payload, {
-      onSuccess: () => { qc.invalidateQueries(['parties']); setModalKey(k => k + 1); toast.success('Party added'); },
+      onSuccess: () => { qc.invalidateQueries({ queryKey: ['parties'] }); setModalKey(k => k + 1); toast.success('Party added'); },
     });
   };
   const deleteMut = useMutation({
     mutationFn: PartiesAPI.delete,
     onSuccess: (_d, id) => {
-      qc.invalidateQueries(['parties']);
+      qc.invalidateQueries({ queryKey: ['parties'] });
       if (String(selectedId) === String(id)) setSelectedId(null);
       setDeleteConfirm({ open: false, id: null });
       toast.success('Party deleted');

@@ -22,23 +22,23 @@ export default function CategoryTab({ allItems }) {
 
   const catCreateMut = useMutation({
     mutationFn: CategoriesAPI.create,
-    onSuccess: () => { qc.invalidateQueries(['categories']); setCatName(''); setCatForm(false); toast.success('Category created'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories'] }); setCatName(''); setCatForm(false); toast.success('Category created'); },
     onError: (err) => toast.error(err?.response?.data?.error || 'Failed to create category'),
   });
   const catUpdateMut = useMutation({
     mutationFn: ({ id, data }) => CategoriesAPI.update(id, data),
-    onSuccess: () => { qc.invalidateQueries(['categories']); setCatEditId(null); setCatName(''); toast.success('Category updated'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories'] }); setCatEditId(null); setCatName(''); toast.success('Category updated'); },
     onError: (err) => toast.error(err?.response?.data?.error || 'Failed to update category'),
   });
   const catDeleteMut = useMutation({
     mutationFn: CategoriesAPI.delete,
-    onSuccess: () => { qc.invalidateQueries(['categories']); setSelectedCatId(null); toast.success('Category deleted'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories'] }); setSelectedCatId(null); toast.success('Category deleted'); },
     onError: () => toast.error('Failed to delete category'),
   });
   const moveToCatMut = useMutation({
     mutationFn: ({ ids, category }) => Promise.all(ids.map(id => ItemsAPI.update(id, { category }))),
     onSuccess: (_, { ids, category }) => {
-      qc.invalidateQueries(['items']);
+      qc.invalidateQueries({ queryKey: ['items'] });
       setMoveCatOpen(false);
       setMoveCatSelected([]);
       setMoveCatSearch('');

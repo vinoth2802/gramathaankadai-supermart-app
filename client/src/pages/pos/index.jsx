@@ -90,7 +90,7 @@ export default function POS() {
 
   const createSale = useMutation({
     mutationFn: SalesAPI.create,
-    onSuccess: () => { qc.invalidateQueries(['sales']); qc.invalidateQueries(['items']); }
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sales'] }); qc.invalidateQueries({ queryKey: ['items'] }); }
   });
 
   const subtotal   = cart.reduce((s, i) => s + i.price * i.qty, 0);

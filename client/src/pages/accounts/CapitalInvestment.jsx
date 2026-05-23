@@ -116,7 +116,7 @@ export default function CapitalInvestment() {
   const createMut = useMutation({
     mutationFn: CapitalInvestmentsAPI.create,
     onSuccess: () => {
-      qc.invalidateQueries(['capitalInvestments']);
+      qc.invalidateQueries({ queryKey: ['capitalInvestments'] });
       setAddModal(false);
       setForm(BLANK);
       toast.success('Investment added');
@@ -127,7 +127,7 @@ export default function CapitalInvestment() {
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => CapitalInvestmentsAPI.update(id, data),
     onSuccess: () => {
-      qc.invalidateQueries(['capitalInvestments']);
+      qc.invalidateQueries({ queryKey: ['capitalInvestments'] });
       setEditData(null);
       toast.success('Investment updated');
     },
@@ -137,7 +137,7 @@ export default function CapitalInvestment() {
   const deleteMut = useMutation({
     mutationFn: CapitalInvestmentsAPI.remove,
     onSuccess: () => {
-      qc.invalidateQueries(['capitalInvestments']);
+      qc.invalidateQueries({ queryKey: ['capitalInvestments'] });
       if (detailId === deleteConfirm.id) setDetailId(null);
       toast.success('Investment deleted');
     },

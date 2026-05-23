@@ -52,8 +52,8 @@ export default function BankAccounts() {
   const createMut = useMutation({
     mutationFn: AccountsAPI.saveBankAccount,
     onSuccess: (bank) => {
-      qc.invalidateQueries(['bankAccounts']);
-      qc.invalidateQueries(['paymentModes']);
+      qc.invalidateQueries({ queryKey: ['bankAccounts'] });
+      qc.invalidateQueries({ queryKey: ['paymentModes'] });
       setSelectedId(bank.id);
       setAddModal(false);
       setForm(BLANK_FORM);
@@ -65,7 +65,7 @@ export default function BankAccounts() {
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => AccountsAPI.updateBankAccount(id, data),
     onSuccess: () => {
-      qc.invalidateQueries(['bankAccounts']);
+      qc.invalidateQueries({ queryKey: ['bankAccounts'] });
       setEditModal(false);
       toast.success('Bank updated');
     },
@@ -75,8 +75,8 @@ export default function BankAccounts() {
   const deleteMut = useMutation({
     mutationFn: AccountsAPI.deleteBankAccount,
     onSuccess: (_, id) => {
-      qc.invalidateQueries(['bankAccounts']);
-      qc.invalidateQueries(['paymentModes']);
+      qc.invalidateQueries({ queryKey: ['bankAccounts'] });
+      qc.invalidateQueries({ queryKey: ['paymentModes'] });
       if (selectedId === id) setSelectedId(null);
       setDeleteConfirm({ open: false, id: null });
       toast.success('Bank deleted');
@@ -87,8 +87,8 @@ export default function BankAccounts() {
   const transferMut = useMutation({
     mutationFn: AccountsAPI.bankTransfer,
     onSuccess: () => {
-      qc.invalidateQueries(['bankAccounts']);
-      qc.invalidateQueries(['bankTransactions', selectedId]);
+      qc.invalidateQueries({ queryKey: ['bankAccounts'] });
+      qc.invalidateQueries({ queryKey: ['bankTransactions', selectedId] });
       setTransferType(null);
       setTransferAmt('');
       setTransferTarget('');

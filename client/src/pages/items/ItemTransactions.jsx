@@ -223,9 +223,9 @@ export default function ItemTransactions({ item, sales = [], purchases = [] }) {
   const delMut = useMutation({
     mutationFn: (txn) => txn.type === 'Sale' ? SalesAPI.delete(txn.id) : PurchasesAPI.delete(txn.id),
     onSuccess: () => {
-      qc.invalidateQueries(['sales']);
-      qc.invalidateQueries(['purchases']);
-      qc.invalidateQueries(['items']);
+      qc.invalidateQueries({ queryKey: ['sales'] });
+      qc.invalidateQueries({ queryKey: ['purchases'] });
+      qc.invalidateQueries({ queryKey: ['items'] });
       setDeleteConfirm({ open: false, txn: null });
       toast.success('Transaction deleted');
     },
@@ -234,7 +234,7 @@ export default function ItemTransactions({ item, sales = [], purchases = [] }) {
 
   const cancelMut = useMutation({
     mutationFn: (txn) => txn.type === 'Sale' ? SalesAPI.update(txn.id, { status: 'cancelled' }) : PurchasesAPI.update(txn.id, { status: 'cancelled' }),
-    onSuccess: () => { qc.invalidateQueries(['sales']); qc.invalidateQueries(['purchases']); setCancelConfirm({ open: false, txn: null }); toast.success('Transaction cancelled'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sales'] }); qc.invalidateQueries({ queryKey: ['purchases'] }); setCancelConfirm({ open: false, txn: null }); toast.success('Transaction cancelled'); },
     onError: () => toast.error('Failed to cancel transaction'),
   });
 
@@ -392,7 +392,7 @@ export default function ItemTransactions({ item, sales = [], purchases = [] }) {
       {txnModal.open && (
         <TransactionDetailModal txn={txnModal.txn} mode={txnModal.mode}
           onClose={() => setTxnModal({ open: false, mode: 'view', txn: null })}
-          onSaved={() => { setTxnModal({ open: false, mode: 'view', txn: null }); qc.invalidateQueries(['sales']); qc.invalidateQueries(['purchases']); }}
+          onSaved={() => { setTxnModal({ open: false, mode: 'view', txn: null }); qc.invalidateQueries({ queryKey: ['sales'] }); qc.invalidateQueries({ queryKey: ['purchases'] }); }}
         />
       )}
 

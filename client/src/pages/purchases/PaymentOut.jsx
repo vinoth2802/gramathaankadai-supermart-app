@@ -211,19 +211,19 @@ export default function PaymentOut({ openModal = false }) {
 
   const createMut = useMutation({
     mutationFn: (data) => PaymentsAPI.savePaymentOut(data),
-    onSuccess:  () => { qc.invalidateQueries(['paymentOut']); setModal(false); toast.success('Payment saved'); },
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['paymentOut'] }); setModal(false); toast.success('Payment saved'); },
     onError:    (err) => toast.error(err?.response?.data?.error || 'Failed to save payment'),
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => PaymentsAPI.updatePaymentOut(id, data),
-    onSuccess:  () => { qc.invalidateQueries(['paymentOut']); setModal(false); setEditPayment(null); toast.success('Payment updated'); },
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['paymentOut'] }); setModal(false); setEditPayment(null); toast.success('Payment updated'); },
     onError:    (err) => toast.error(err?.response?.data?.error || 'Failed to update payment'),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id) => PaymentsAPI.deletePaymentOut(id),
-    onSuccess:  () => { qc.invalidateQueries(['paymentOut']); toast.success('Payment deleted'); },
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['paymentOut'] }); toast.success('Payment deleted'); },
     onError:    (err) => toast.error(err?.response?.data?.error || 'Failed to delete payment'),
   });
 

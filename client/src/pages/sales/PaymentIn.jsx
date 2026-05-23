@@ -223,19 +223,19 @@ export default function PaymentIn({ openModal = false }) {
 
   const createMut = useMutation({
     mutationFn: (data) => PaymentsAPI.savePaymentIn(data),
-    onSuccess:  () => { qc.invalidateQueries(['paymentIn']); setModal(false); toast.success('Payment saved'); },
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['paymentIn'] }); setModal(false); toast.success('Payment saved'); },
     onError:    () => toast.error('Failed to save payment'),
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => PaymentsAPI.updatePaymentIn(id, data),
-    onSuccess:  () => { qc.invalidateQueries(['paymentIn']); setModal(false); setEditPayment(null); toast.success('Payment updated'); },
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['paymentIn'] }); setModal(false); setEditPayment(null); toast.success('Payment updated'); },
     onError:    () => toast.error('Failed to update payment'),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id) => PaymentsAPI.deletePaymentIn(id),
-    onSuccess:  () => { qc.invalidateQueries(['paymentIn']); toast.success('Payment deleted'); },
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['paymentIn'] }); toast.success('Payment deleted'); },
     onError:    () => toast.error('Failed to delete payment'),
   });
 

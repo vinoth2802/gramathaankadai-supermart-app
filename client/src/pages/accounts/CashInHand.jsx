@@ -39,7 +39,7 @@ export default function CashInHand() {
   const delMut = useMutation({
     mutationFn: (id) => AccountsAPI.deleteCash(id),
     onSuccess: () => {
-      qc.invalidateQueries(['cashOverview']);
+      qc.invalidateQueries({ queryKey: ['cashOverview'] });
       setConfirmId(null);
       toast.success('Transaction deleted');
     },
@@ -49,7 +49,7 @@ export default function CashInHand() {
   const saveMut = useMutation({
     mutationFn: AccountsAPI.saveCash,
     onSuccess: () => {
-      qc.invalidateQueries(['cashOverview']);
+      qc.invalidateQueries({ queryKey: ['cashOverview'] });
       closeModal();
       toast.success('Cash adjusted');
     },
