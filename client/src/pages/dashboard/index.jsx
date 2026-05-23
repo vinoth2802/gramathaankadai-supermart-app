@@ -35,11 +35,11 @@ export default function Dashboard() {
 
   const today = fmt.today();
   const todaySales = sales.filter(s => (s.date || '').slice(0, 10) === today)
-    .reduce((sum, s) => sum + Number(s.grand_total || 0), 0);
+    .reduce((sum, s) => sum + Number(s.grandTotal || 0), 0);
   const todayPurchase = purchases.filter(p => (p.date || '').slice(0, 10) === today)
-    .reduce((sum, p) => sum + Number(p.grand_total || 0), 0);
-  const totalSales    = sales.reduce((sum, s) => sum + Number(s.grand_total || 0), 0);
-  const totalPurchase = purchases.reduce((sum, p) => sum + Number(p.grand_total || 0), 0);
+    .reduce((sum, p) => sum + Number(p.grandTotal || 0), 0);
+  const totalSales    = sales.reduce((sum, s) => sum + Number(s.grandTotal || 0), 0);
+  const totalPurchase = purchases.reduce((sum, p) => sum + Number(p.grandTotal || 0), 0);
   const totalStockValue = items.reduce((sum, i) => sum + Number(i.stock || 0) * Number(i.purchasePrice || i.salesPrice || 0), 0);
   const lowStock      = items.filter(i => Number(i.stock || 0) <= Number(i.reorderLevel || 10)).length;
   const expiryStock   = items.filter(i => {

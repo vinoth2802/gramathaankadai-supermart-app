@@ -35,7 +35,7 @@ export default function POS() {
   const navigate = useNavigate();
   const { data: products = [] } = useQuery({ queryKey: ['items'], queryFn: ItemsAPI.getAll });
   const { data: parties = [] }  = useQuery({ queryKey: ['parties'], queryFn: PartiesAPI.getAll });
-  const { data: modes = [] }    = useQuery({ queryKey: ['paymentModes'], queryFn: PaymentsAPI.getModes });
+  const { data: modes = [] }    = useQuery({ queryKey: ['paymentOptions'], queryFn: PaymentsAPI.getOptions });
   const { data: sales = [] }    = useQuery({ queryKey: ['sales'], queryFn: SalesAPI.getAll });
 
   const [search, setSearch]         = useState('');
@@ -460,7 +460,7 @@ export default function POS() {
               <span className="text-xs text-slate-500">Payment Type</span>
               <select value={paymentLines[0]?.mode || 'Cash'} onChange={e => updatePayLine(0, 'mode', e.target.value)}
                 className="w-32 border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white focus:outline-none focus:border-emerald-400">
-                {modes.map(m => <option key={m.id}>{m.name}</option>)}
+                {modes.map(m => <option key={m.name}>{m.name}</option>)}
               </select>
             </div>
           </div>

@@ -43,7 +43,7 @@ router.get('/next-number', async (req, res) => {
 router.get('/', async (req, res) => {
   const { from, to, invoiceSearch } = req.query;
   const where = {};
-  if (from && to) where.date = { gte: new Date(from), lte: new Date(`${to}T23:59:59.999Z`) };
+  if (from && to) where.date = { gte: new Date(from), lte: new Date(to) };
   if (invoiceSearch) where.invoice = { contains: invoiceSearch, mode: 'insensitive' };
   const sales = await prisma.sale.findMany({
     where: Object.keys(where).length ? where : undefined,

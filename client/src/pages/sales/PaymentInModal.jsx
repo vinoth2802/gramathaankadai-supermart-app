@@ -5,8 +5,9 @@ import {
   FileText, Camera, Search,
 } from 'lucide-react';
 import { PartiesAPI } from '../../api/parties.js';
+import { PaymentsAPI } from '../../api/payments.js';
 
-const PAYMENT_TYPES = ['Cash', 'Bank Transfer', 'Cheque', 'UPI', 'Card'];
+const PAYMENT_TYPES_FALLBACK = ['Cash', 'Bank Transfer', 'Cheque', 'UPI', 'Card'];
 
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -190,7 +191,9 @@ export default function PaymentInModal({ receiptNo, editData, onClose, onSave, i
     return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}  ${h}:${m} ${ampm}`;
   })();
 
-  const { data: parties = [] } = useQuery({ queryKey: ['parties'], queryFn: PartiesAPI.getAll });
+  const { data: parties = [] }    = useQuery({ queryKey: ['parties'],        queryFn: PartiesAPI.getAll });
+  const { data: payOptions = [] } = useQuery({ queryKey: ['paymentOptions'], queryFn: PaymentsAPI.getOptions });
+  const PAYMENT_TYPES = payOptions.length ? payOptions.map(o => o.name) : PAYMENT_TYPES_FALLBACK;
 
   const setF = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
 

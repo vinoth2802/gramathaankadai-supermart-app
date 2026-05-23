@@ -9,6 +9,7 @@ import {
 import { SalesAPI } from '../../api/sales.js';
 import { ItemsAPI } from '../../api/items.js';
 import { PartiesAPI } from '../../api/parties.js';
+import { PaymentsAPI } from '../../api/payments.js';
 import toast from 'react-hot-toast';
 
 /* ── Constants ── */
@@ -22,7 +23,7 @@ const INDIAN_STATES = [
 ];
 const UNITS         = ['NO.','PCS','KG','G','LTR','ML','BOX','PKT','BAG','DOZ','MTR','SET'];
 const TAX_RATES     = ['','0','5','12','18','28'];
-const PAYMENT_MODES = ['Cash','UPI','Card','Bank Transfer','Cheque','Credit'];
+const PAYMENT_MODES_FALLBACK = ['Cash','UPI','Card','Bank Transfer','Cheque','Credit'];
 const TERMS_TEMPLATES = {
   'Sale Invoice': 'Your satisfaction is our priority. Please visit us again!',
   'Delivery':     'Goods once sold will not be taken back. Subject to local jurisdiction.',
@@ -322,6 +323,8 @@ export default function SalePage() {
   const { data: allItems    = [] } = useQuery({ queryKey: ['items'],   queryFn: ItemsAPI.getAll });
   const { data: allParties  = [] } = useQuery({ queryKey: ['parties'], queryFn: PartiesAPI.getAll });
   const { data: scanProducts = [] } = useQuery({ queryKey: ['items'],  queryFn: ItemsAPI.getAll });
+  const { data: payOptions  = [] } = useQuery({ queryKey: ['paymentOptions'], queryFn: PaymentsAPI.getOptions });
+  const PAYMENT_MODES = payOptions.length ? payOptions.map(o => o.name) : PAYMENT_MODES_FALLBACK;
 
   /* ── Tabs ── */
   const [tabs,     setTabs]     = useState(() => [makeTabData()]);

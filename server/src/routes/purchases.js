@@ -8,7 +8,7 @@ const include = { items: true };
 router.get('/', async (req, res) => {
   const { from, to, invoiceSearch } = req.query;
   const where = {};
-  if (from && to) where.date = { gte: new Date(from), lte: new Date(`${to}T23:59:59.999Z`) };
+  if (from && to) where.date = { gte: new Date(from), lte: new Date(to) };
   if (invoiceSearch) where.invoice = { contains: invoiceSearch, mode: 'insensitive' };
   const purchases = await prisma.purchase.findMany({
     where: Object.keys(where).length ? where : undefined,

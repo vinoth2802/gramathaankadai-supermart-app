@@ -12,6 +12,32 @@ router.get('/modes', async (_req, res) => {
   res.json(modes);
 });
 
+// ── Payment Options (Cash always first, then bank accounts, then other active modes) ─
+router.get('/options', async (_req, res) => {
+  try {
+    const [allModes, banks] = await Promise.all([
+      prisma.paymentMode.findMany({ orderBy: { id: 'asc' } }),
+      prisma.bankAccount.findMany({ orderBy: { bankName: 'asc' } }),
+    ]);
+    const seen = new Set();
+    const result = [];
+    const push = (name) => {
+      const key = name.trim().toLowerCase();
+      if (!seen.has(key)) { seen.add(key); result.push({ name: name.trim() }); }
+    };
+    // Cash always first (regardless of isActive)
+    const cash = allModes.find(m => m.name.toLowerCase() === 'cash');
+    if (cash) push(cash.name);
+    // Bank accounts next
+    banks.forEach(b => push(b.bankName));
+    // Other active modes last
+    allModes.filter(m => m.name.toLowerCase() !== 'cash' && m.isActive).forEach(m => push(m.name));
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/modes', async (req, res) => {
   const mode = await prisma.paymentMode.create({
     data: { name: req.body.name, descr: req.body.descr || null },

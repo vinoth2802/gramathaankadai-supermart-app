@@ -211,12 +211,16 @@ export default function SalesHistory() {
   const qc = useQueryClient();
   const { from, to } = getRange(dateLabel);
 
+  const fromISO = from
+    ? new Date(from.getFullYear(), from.getMonth(), from.getDate(), 0, 0, 0, 0).toISOString()
+    : null;
+  const toISO = to
+    ? new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59, 999).toISOString()
+    : null;
+
   const { data: rawSales = [], isLoading } = useQuery({
     queryKey: ['sales', dateLabel],
-    queryFn:  () => SalesAPI.getByDateRange(
-      from.toISOString().slice(0, 10),
-      to.toISOString().slice(0, 10),
-    ),
+    queryFn:  () => SalesAPI.getByDateRange(fromISO, toISO),
   });
 
   const deleteMut = useMutation({

@@ -112,7 +112,8 @@ export default function Purchases() {
   const qc = useQueryClient();
   const { data: purchases = [] } = useQuery({ queryKey: ['purchases'], queryFn: PurchasesAPI.getAll });
   const { data: parties = [] } = useQuery({ queryKey: ['parties'], queryFn: PartiesAPI.getAll });
-  const { data: modes = [] } = useQuery({ queryKey: ['paymentModes'], queryFn: PaymentsAPI.getModes });
+  const { data: payOptions = [] } = useQuery({ queryKey: ['paymentOptions'], queryFn: PaymentsAPI.getOptions });
+  const modes = payOptions.length ? payOptions : [{ name: 'Cash' }];
   const { data: products = [] } = useQuery({ queryKey: ['items'], queryFn: ItemsAPI.getAll });
 
   const [purchaseTabs, setPurchaseTabs] = useState(() => [makePurchaseTab(genPurchaseBill())]);
@@ -582,7 +583,7 @@ export default function Purchases() {
             <div className="w-80">
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Payment Mode</label>
               <select value={form.paymentMode} onChange={e => setForm(f => ({ ...f, paymentMode: e.target.value }))} className={inp}>
-                {modes.map(m => <option key={m.id}>{m.name}</option>)}
+                {modes.map(m => <option key={m.name}>{m.name}</option>)}
               </select>
             </div>
 
