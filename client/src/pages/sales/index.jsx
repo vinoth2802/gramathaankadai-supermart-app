@@ -533,7 +533,7 @@ export default function SalePage() {
   );
 
   return (
-    <div className="flex flex-col h-full bg-gray-100 text-gray-800">
+    <div className="flex flex-col h-screen overflow-hidden bg-gray-100 text-gray-800">
 
       {/* ── Tab bar ── */}
       <div className="shrink-0 flex items-end bg-gray-200 border-b border-gray-300 px-3 pt-1.5 gap-1">

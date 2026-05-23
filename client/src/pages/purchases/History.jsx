@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -30,7 +31,9 @@ function getRange(label) {
   const now = new Date();
   const y = now.getFullYear();
   const m = now.getMonth();
+  const d = now.getDate();
   switch (label) {
+    case 'Today':        return { from: new Date(y, m, d),     to: new Date(y, m, d)       };
     case 'This Month':   return { from: new Date(y, m, 1),     to: new Date(y, m + 1, 0)   };
     case 'Last Month':   return { from: new Date(y, m - 1, 1), to: new Date(y, m, 0)       };
     case 'This Quarter': { const q = Math.floor(m / 3); return { from: new Date(y, q * 3, 1), to: new Date(y, q * 3 + 3, 0) }; }
@@ -61,7 +64,7 @@ function normalizeRow(p) {
 }
 
 /* ── Date filter dropdown + range pill ── */
-const DATE_OPTIONS = ['This Month', 'Last Month', 'This Quarter', 'This Year'];
+const DATE_OPTIONS = ['Today', 'This Month', 'Last Month', 'This Quarter', 'This Year'];
 
 function DateFilter({ value, onChange }) {
   const [open, setOpen] = useState(false);
@@ -193,7 +196,8 @@ function RowMenu({ onDelete }) {
    Main Page
 ══════════════════════════════════════════ */
 export default function PurchaseHistory() {
-  const [dateLabel, setDateLabel] = useState('This Month');
+  const location = useLocation();
+  const [dateLabel, setDateLabel] = useState(location.state?.initFilter ?? 'This Month');
   const [selected,  setSelected]  = useState(null);
   const [search,    setSearch]    = useState('');
   const [sortCol,   setSortCol]   = useState('date');

@@ -271,9 +271,9 @@ export default function Purchases() {
   };
 
   return (
-    <div className="p-8">
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-4 py-2.5 border-b border-slate-100 flex items-center gap-2 overflow-x-auto">
+    <div className="flex flex-col h-screen overflow-hidden bg-gray-100">
+      <div className="flex flex-col flex-1 overflow-hidden bg-white">
+        <div className="shrink-0 px-4 py-2.5 border-b border-slate-100 flex items-center gap-2 overflow-x-auto bg-white">
           {purchaseTabs.map((tab, idx) => {
             const isActive = tab.id === activeTabId;
             return (
@@ -323,7 +323,7 @@ export default function Purchases() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
           {/* ── Four-column header ── */}
           <div className="grid grid-cols-4 gap-4 mb-6">
 

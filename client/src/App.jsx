@@ -48,6 +48,7 @@ import SettingsParty        from './pages/settings/Party.jsx';
 import SettingsItem         from './pages/settings/Item.jsx';
 import SettingsUnit         from './pages/settings/Unit.jsx';
 import SettingsLoyalty      from './pages/settings/Loyalty.jsx';
+import PaymentTypes         from './pages/settings/PaymentTypes.jsx';
 
 function RequireAuth({ children }) {
   return localStorage.getItem('user') ? children : <Navigate to="/login" replace />;
@@ -60,10 +61,13 @@ export default function App() {
           <HotToaster position="top-right" />
       <Routes>
         <Route path="/login" element={<Login />} />
+        {/* Full-screen pages — no sidebar */}
+        <Route path="/pos"      element={<RequireAuth><POS /></RequireAuth>} />
+        <Route path="/sales"    element={<RequireAuth><SalesIndex /></RequireAuth>} />
+        <Route path="/purchase" element={<RequireAuth><Purchases /></RequireAuth>} />
         <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
-          <Route path="pos"       element={<POS />} />
           <Route path="items"     element={<Items />} />
           <Route path="parties">
             <Route index element={<Parties />} />
@@ -71,7 +75,6 @@ export default function App() {
           </Route>
 
           <Route path="sales">
-            <Route index element={<SalesIndex />} />
             <Route path="history"    element={<SalesHistory />} />
             <Route path="quotation"  element={<Quotation />} />
             <Route path="payment-in"      element={<PaymentIn />} />
@@ -80,8 +83,7 @@ export default function App() {
           </Route>
 
           <Route path="purchases">
-            <Route index element={<Navigate to="/purchases/purchase" replace />} />
-            <Route path="purchase"    element={<Purchases />} />
+            <Route index element={<Navigate to="/purchase" replace />} />
             <Route path="history"     element={<PurchaseHistory />} />
             <Route path="payment-out"     element={<PaymentOut />} />
             <Route path="paymentoutmodal" element={<PaymentOut openModal />} />
@@ -96,6 +98,7 @@ export default function App() {
             <Route path="loans"              element={<LoanAccounts />} />
             <Route path="fixed-assets"       element={<FixedAssets />} />
             <Route path="capital-investment" element={<CapitalInvestment />} />
+            <Route path="payment-types"      element={<PaymentTypes />} />
           </Route>
 
           <Route path="reports" element={<ReportsLayout />}>

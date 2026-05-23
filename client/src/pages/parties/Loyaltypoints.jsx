@@ -1,12 +1,190 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Settings, Search, Filter, BarChart2, ExternalLink,
-  Wallet, BadgePercent, Users,
+  Wallet, BadgePercent, Users, X, Info, ChevronRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PartiesAPI } from '../../api/parties.js';
 import AddPartyModal from './AddPartyModal.jsx';
+
+const API = 'http://localhost:3001';
+
+/* ── Toggle Switch ── */
+function Toggle({ value, onChange }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!value)}
+      className={`relative w-11 h-6 rounded-full transition-colors duration-300 focus:outline-none
+        ${value ? 'bg-blue-500' : 'bg-slate-300'}`}
+    >
+      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300
+        ${value ? 'translate-x-5' : 'translate-x-0'}`} />
+    </button>
+  );
+}
+
+/* ── Edit Loyalty Setup Modal ── */
+const DEFAULT_SETUP = {
+  loyaltyPointsPerRupee: 1,
+  loyaltyMinPoints:      100,
+  loyaltyPointsValue:    0.10,
+  loyaltyExpiryDays:     365,
+  loyaltyMaxDiscount:    10,
+  loyaltyAllowPartial:   true,
+  loyaltyShowOnInvoice:  true,
+};
+
+function EditSetupModal({ onClose }) {
+  const [form, setForm] = useState(DEFAULT_SETUP);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API}/api/settings/loyalty`)
+      .then(r => r.json())
+      .then(d => setForm(prev => ({ ...prev, ...d })))
+      .catch(() => {});
+  }, []);
+
+  const f = (k) => (e) => setForm(prev => ({ ...prev, [k]: e.target.value }));
+  const t = (k) => (v)  => setForm(prev => ({ ...prev, [k]: v }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`${API}/api/settings/loyalty`, {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(form),
+      });
+      if (!res.ok) throw new Error();
+      toast.success('Loyalty settings saved');
+      onClose();
+    } catch {
+      toast.error('Failed to save loyalty settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inp = 'w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100';
+  const row = 'flex items-center justify-between py-3 border-b border-slate-100 last:border-0';
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <h2 className="font-bold text-slate-800 text-base">Edit Loyalty Setup</h2>
+          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="px-6 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+          {/* Number fields */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Points per ₹ Spent</label>
+              <input type="number" min="0" step="0.01" value={form.loyaltyPointsPerRupee} onChange={f('loyaltyPointsPerRupee')} className={inp} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Min Points to Redeem</label>
+              <input type="number" min="0" value={form.loyaltyMinPoints} onChange={f('loyaltyMinPoints')} className={inp} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Points Value ₹</label>
+              <input type="number" min="0" step="0.01" value={form.loyaltyPointsValue} onChange={f('loyaltyPointsValue')} className={inp} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Points Expiry (Days)</label>
+              <input type="number" min="0" value={form.loyaltyExpiryDays} onChange={f('loyaltyExpiryDays')} className={inp} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Maximum Discount %</label>
+              <input type="number" min="0" max="100" step="0.1" value={form.loyaltyMaxDiscount} onChange={f('loyaltyMaxDiscount')} className={inp} />
+            </div>
+          </div>
+
+          {/* Toggle fields */}
+          <div className="bg-slate-50 rounded-xl px-4 divide-y divide-slate-100">
+            <div className={row}>
+              <span className="text-sm text-slate-700">Allow Partial Redemption</span>
+              <Toggle value={!!form.loyaltyAllowPartial} onChange={t('loyaltyAllowPartial')} />
+            </div>
+            <div className={row}>
+              <span className="text-sm text-slate-700">Show Points on Invoice</span>
+              <Toggle value={!!form.loyaltyShowOnInvoice} onChange={t('loyaltyShowOnInvoice')} />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-3 px-6 py-4 border-t border-slate-100">
+          <button onClick={onClose} className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 transition">
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={saving} className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-60 text-white py-2.5 rounded-xl text-sm font-bold transition">
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Settings Drawer ── */
+function SettingsDrawer({ open, onClose, loyaltyEnabled, onToggleLoyalty, onEditSetup }) {
+  return (
+    <>
+      {/* Overlay */}
+      {open && (
+        <div
+          className="fixed inset-0 bg-black/30 z-40 transition-opacity duration-300"
+          onClick={onClose}
+        />
+      )}
+
+      {/* Drawer */}
+      <div className={`fixed top-0 right-0 h-full w-80 bg-white shadow-2xl z-50 flex flex-col
+        transition-transform duration-300 ${open ? 'translate-x-0' : 'translate-x-full'}`}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <h2 className="font-bold text-slate-800 text-base">Loyalty Points Settings</h2>
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Rows */}
+        <div className="flex-1 px-4 py-3 divide-y divide-slate-100">
+
+          {/* Row 1 — Enable Loyalty Points */}
+          <div className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-slate-700">Enable Loyalty Points</span>
+              <Info size={13} className="text-slate-400" title="Turn loyalty points on or off for all customers" />
+            </div>
+            <Toggle value={loyaltyEnabled} onChange={onToggleLoyalty} />
+          </div>
+
+          {/* Row 2 — Edit Loyalty Setup */}
+          <button
+            onClick={onEditSetup}
+            className="w-full flex items-center justify-between py-4 text-left hover:bg-slate-50 rounded-xl px-1 transition"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-slate-700">Edit Loyalty Setup</span>
+              <Info size={13} className="text-slate-400" title="Configure points rate, redemption rules and more" />
+            </div>
+            <ChevronRight size={16} className="text-slate-400" />
+          </button>
+
+        </div>
+      </div>
+    </>
+  );
+}
 
 /* ── Column header ── */
 function Th({ label, filterable = false, className = '' }) {
@@ -63,9 +241,35 @@ function PlusPattern() {
 
 /* ── Main page ── */
 export default function LoyaltyPoints() {
-  const [search, setSearch] = useState('');
-  const [modal, setModal]   = useState(false);
-  const [modalKey, setModalKey] = useState(0);
+  const [search, setSearch]           = useState('');
+  const [modal, setModal]             = useState(false);
+  const [modalKey, setModalKey]       = useState(0);
+  const [settingsOpen, setSettingsOpen]   = useState(false);
+  const [loyaltyEnabled, setLoyaltyEnabled] = useState(true);
+  const [editSetupOpen, setEditSetupOpen]   = useState(false);
+
+  // Load current loyalty enabled state
+  useEffect(() => {
+    fetch(`${API}/api/settings/loyalty`)
+      .then(r => r.json())
+      .then(d => { if (typeof d.loyaltyEnabled === 'boolean') setLoyaltyEnabled(d.loyaltyEnabled); })
+      .catch(() => {});
+  }, []);
+
+  const handleToggleLoyalty = async (val) => {
+    setLoyaltyEnabled(val);
+    try {
+      await fetch(`${API}/api/settings/loyalty`, {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ loyaltyEnabled: val }),
+      });
+      toast.success(`Loyalty points ${val ? 'enabled' : 'disabled'}`);
+    } catch {
+      toast.error('Failed to update');
+      setLoyaltyEnabled(!val);
+    }
+  };
 
   const qc = useQueryClient();
   const saveMut = useMutation({
@@ -126,7 +330,9 @@ export default function LoyaltyPoints() {
               className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold px-3.5 py-2 rounded-xl transition">
               <Plus size={14} /> Add Party
             </button>
-            <button className="p-2 text-slate-500 hover:text-slate-700 hover:bg-white border border-slate-200 rounded-xl transition">
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="p-2 text-slate-500 hover:text-slate-700 hover:bg-white border border-slate-200 rounded-xl transition">
               <Settings size={16} />
             </button>
           </div>
@@ -272,6 +478,18 @@ export default function LoyaltyPoints() {
           onSave={(data) => saveMut.mutate(data)}
           onSaveAndNew={handleSaveAndNew}
         />
+      )}
+
+      <SettingsDrawer
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        loyaltyEnabled={loyaltyEnabled}
+        onToggleLoyalty={handleToggleLoyalty}
+        onEditSetup={() => { setSettingsOpen(false); setEditSetupOpen(true); }}
+      />
+
+      {editSetupOpen && (
+        <EditSetupModal onClose={() => setEditSetupOpen(false)} />
       )}
     </div>
   );

@@ -7,10 +7,13 @@ import { ItemsAPI } from '../../api/items.js';
 import { PartiesAPI } from '../../api/parties.js';
 import { fmt } from '../../utils/formatters.js';
 
-function StatCard({ label, value, icon: Icon, color, sub }) {
+function StatCard({ label, value, icon: Icon, color, sub, onClick }) {
   const bgColorClass = color.replace('text-', 'bg-').replace('-600', '-50');
   return (
-    <div className={`bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-start justify-between transition-all duration-300 hover:shadow-lg hover:scale-105 hover:-translate-y-1 cursor-pointer ${bgColorClass} hover:bg-green-50 hover:border-slate-300`}>
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-start justify-between transition-all duration-300 hover:shadow-lg hover:scale-105 hover:-translate-y-1 cursor-pointer ${bgColorClass} hover:border-slate-300`}
+    >
       <div>
         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{label}</p>
         <p className={`text-2xl font-bold ${color}`}>{value}</p>
@@ -96,9 +99,9 @@ export default function Dashboard() {
       <div className="mb-7">
         <h2 className="text-lg font-semibold text-slate-800 mb-4">Sales</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <StatCard label="Today's Sales" value={fmt.currency(todaySales)}  icon={TrendingUp}   color="text-emerald-600" />
-          <StatCard label="Total Sales"   value={fmt.currency(totalSales)}  icon={TrendingUp}   color="text-blue-600" />
-          <StatCard label="Receivable"    value={fmt.currency(receivable)}  icon={ArrowUpRight} color="text-rose-600" sub="from customers" />
+          <StatCard label="Today's Sales" value={fmt.currency(todaySales)}  icon={TrendingUp}   color="text-emerald-600" onClick={() => navigate('/sales/history', { state: { initFilter: 'Today' } })} />
+          <StatCard label="Total Sales"   value={fmt.currency(totalSales)}  icon={TrendingUp}   color="text-blue-600"    onClick={() => navigate('/sales/history', { state: { initFilter: 'This Year' } })} />
+          <StatCard label="Receivable"    value={fmt.currency(receivable)}  icon={ArrowUpRight} color="text-rose-600"    sub="from customers" onClick={() => navigate('/parties')} />
         </div>
       </div>
 
@@ -106,9 +109,9 @@ export default function Dashboard() {
       <div className="mb-7">
         <h2 className="text-lg font-semibold text-slate-800 mb-4">Purchase</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <StatCard label="Today Purchase" value={fmt.currency(todayPurchase)} icon={ShoppingBag} color="text-orange-600" />
-          <StatCard label="Total Purchase" value={fmt.currency(totalPurchase)} icon={ShoppingBag} color="text-purple-600" />
-          <StatCard label="Payable"        value={fmt.currency(payable)}       icon={Users}       color="text-indigo-600" sub="to suppliers" />
+          <StatCard label="Today Purchase" value={fmt.currency(todayPurchase)} icon={ShoppingBag} color="text-orange-600" onClick={() => navigate('/purchases/history', { state: { initFilter: 'Today' } })} />
+          <StatCard label="Total Purchase" value={fmt.currency(totalPurchase)} icon={ShoppingBag} color="text-purple-600" onClick={() => navigate('/purchases/history', { state: { initFilter: 'This Year' } })} />
+          <StatCard label="Payable"        value={fmt.currency(payable)}       icon={Users}       color="text-indigo-600" sub="to suppliers" onClick={() => navigate('/parties')} />
         </div>
       </div>
 
@@ -116,9 +119,9 @@ export default function Dashboard() {
       <div className="mb-7">
         <h2 className="text-lg font-semibold text-slate-800 mb-4">Stock</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <StatCard label="Low Stock"    value={lowStock}    icon={Package} color="text-amber-600" sub="items below reorder" />
-          <StatCard label="Expiry Stock" value={expiryStock} icon={Clock}   color="text-red-600"   sub="items expiring soon" />
-          <StatCard label="Total Stock Value" value={fmt.currency(totalStockValue)} icon={Boxes} color="text-cyan-600" sub={`${items.length} items in inventory`} />
+          <StatCard label="Low Stock"         value={lowStock}    icon={Package} color="text-amber-600" sub="items below reorder"    onClick={() => navigate('/items', { state: { initFilter: 'low' } })} />
+          <StatCard label="Expiry Stock"      value={expiryStock} icon={Clock}   color="text-red-600"   sub="items expiring soon"    onClick={() => navigate('/items', { state: { initFilter: 'expiry' } })} />
+          <StatCard label="Total Stock Value" value={fmt.currency(totalStockValue)} icon={Boxes} color="text-cyan-600" sub={`${items.length} items in inventory`} onClick={() => navigate('/items')} />
         </div>
       </div>
 

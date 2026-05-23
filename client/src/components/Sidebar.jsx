@@ -9,7 +9,7 @@ import {
   Landmark, Building2, Wallet, FileCheck, TrendingDown, HardDrive, TrendingUp,
   Wrench, Upload, Download, QrCode,
   SlidersHorizontal, ArrowLeftRight, Printer, Percent, UserCog, Box, Ruler, Star, Gift, Trash2,
-  Database,
+  Database, CreditCard,
 } from 'lucide-react';
 
 const nav = [
@@ -39,7 +39,7 @@ const nav = [
     icon: ShoppingBag,
     label: 'Purchase',
     children: [
-      { to: '/purchases/purchase',    icon: Truck,         label: 'Purchase' },
+      { to: '/purchase',               icon: Truck,         label: 'Purchase' },
       { to: '/purchases/history',     icon: ShoppingBag,   label: 'Purchase History' },
       { to: '/purchases/payment-out', icon: ArrowUpToLine, label: 'Payment Out' },
       { to: '/purchases/return',      icon: Undo2,         label: 'Purchase Return' },
@@ -55,6 +55,7 @@ const nav = [
       { to: '/accounts/loans',        icon: TrendingDown, label: 'Loan Accounts' },
       { to: '/accounts/fixed-assets',       icon: HardDrive,   label: 'Fixed Assets' },
       { to: '/accounts/capital-investment', icon: TrendingUp,  label: 'Capital Investment' },
+      { to: '/accounts/payment-types',      icon: CreditCard,  label: 'Payment Types' },
     ],
   },
   { to: '/reports',  icon: BarChart2, label: 'Reports' },
@@ -80,7 +81,7 @@ const nav = [
       { to: '/settings/party',         icon: UserCog,           label: 'Party' },
       { to: '/settings/item',          icon: Box,               label: 'Item' },
       { to: '/settings/unit',          icon: Ruler,             label: 'Unit' },
-      { to: '/settings/loyalty',       icon: Star,              label: 'Loyalty Points' },
+      { to: '/settings/loyalty',        icon: Star,              label: 'Loyalty Points' },
       { to: '/settings/user-management', icon: UserCog,           label: 'User Management' },
       { to: '/settings/reset',           icon: Trash2,            label: 'Reset Data' },
     ],

@@ -211,7 +211,7 @@ export default function POS() {
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 0px)', gap: '0px' }}>
+    <div className="flex flex-col h-screen overflow-hidden bg-white">
       {/* Layout 1: Sale Tabs */}
       <div className="bg-white border-b border-slate-200 px-4 py-2.5 flex items-center gap-2 overflow-x-auto shrink-0">
         {saleTabs.map((tab, idx) => {
@@ -299,7 +299,7 @@ export default function POS() {
       </div>
 
       {/* Layout 3: Items Cart Table (Full Width) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0', flex: 1, overflow: 'hidden', padding: '16px' }}>
+      <div className="flex-1 overflow-hidden p-4">
         {/* Cart Items Table */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
           <div className="font-bold text-slate-800 px-5 py-3 border-b border-slate-200">

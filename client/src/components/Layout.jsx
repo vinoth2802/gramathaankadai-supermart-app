@@ -3,9 +3,9 @@ import Sidebar from './Sidebar.jsx';
 
 export default function Layout() {
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="h-screen overflow-hidden bg-slate-50">
       <Sidebar />
-      <main className="ml-64 min-h-screen">
+      <main className="ml-64 h-screen overflow-hidden">
         <Outlet />
       </main>
     </div>

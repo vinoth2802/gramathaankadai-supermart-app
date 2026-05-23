@@ -16,6 +16,10 @@ import usersRouter              from './routes/users.js';
 import rolesRouter              from './routes/roles.js';
 import authRouter               from './routes/auth.js';
 import resetRouter              from './routes/reset.js';
+import saleReturnsRouter        from './routes/saleReturns.js';
+import purchaseReturnsRouter    from './routes/purchaseReturns.js';
+import loanAccountsRouter       from './routes/loanAccounts.js';
+import paymentTypesRouter       from './routes/paymentTypes.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -47,6 +51,10 @@ app.use('/api/users',               usersRouter);
 app.use('/api/roles',               rolesRouter);
 app.use('/api/auth',                authRouter);
 app.use('/api/reset',               resetRouter);
+app.use('/api/sale-returns',        saleReturnsRouter);
+app.use('/api/purchase-returns',    purchaseReturnsRouter);
+app.use('/api/loan-accounts',       loanAccountsRouter);
+app.use('/api/payment-types',       paymentTypesRouter);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 

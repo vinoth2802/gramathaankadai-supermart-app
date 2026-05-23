@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, MoreVertical, Pencil, Trash2, ChevronRight, Ban, Search } from 'lucide-react';
 import { toast } from 'sonner';
@@ -15,6 +16,7 @@ import CategoryTab from './category.jsx';
 import UnitTab from './unit.jsx';
 
 export default function Items() {
+  const location = useLocation();
   const qc = useQueryClient();
   const { data: allItems = [], isLoading } = useQuery({ queryKey: ['items'], queryFn: ItemsAPI.getAll });
   const { data: uoms = [] } = useQuery({ queryKey: ['uoms'], queryFn: AccountsAPI.getUOMs });
@@ -36,7 +38,7 @@ export default function Items() {
   const [txnWarning, setTxnWarning] = useState(false);
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
-  const [activeFilter, setActiveFilter] = useState(null); // 'low' | 'expiry' | null
+  const [activeFilter, setActiveFilter] = useState(location.state?.initFilter ?? null); // 'low' | 'expiry' | null
 
   const toggleSort = (col) => {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
