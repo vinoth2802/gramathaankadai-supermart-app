@@ -18,7 +18,7 @@ function deriveStatus(grandTotal, totalReceived, explicit) {
 }
 
 /* ── Next invoice number ── */
-router.get('/next-number', async (req, res) => {
+router.get('/next-number', async (_req, res) => {
   try {
     const [allSales, settings] = await Promise.all([
       prisma.sale.findMany({ select: { invoice: true } }),
@@ -33,7 +33,7 @@ router.get('/next-number', async (req, res) => {
     }
 
     const nextNum = maxNum + 1;
-    res.json({ invoice: String(nextNum), number: nextNum });
+    res.json({ invoice: `${prefix}${nextNum}`, number: nextNum });
   } catch (err) {
     console.error('next-number error:', err);
     res.status(500).json({ error: err.message });
@@ -206,7 +206,7 @@ router.delete('/:id', async (req, res) => {
     const stockRestores = sale.items
       .filter(i => i.productId && Number(i.qty) > 0)
       .map(i =>
-        prisma.item.update({
+        prisma.product.update({
           where: { id: i.productId },
           data:  { stock: { increment: Number(i.qty) } },
         })

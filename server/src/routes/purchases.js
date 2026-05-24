@@ -118,12 +118,12 @@ router.delete('/:id', async (req, res) => {
 
     await prisma.$transaction(async (tx) => {
       for (const item of purchase.items.filter(i => Number(i.qty) > 0)) {
-        const product = await tx.item.findFirst({
+        const product = await tx.product.findFirst({
           where: { shortName: { equals: item.name, mode: 'insensitive' } },
           select: { id: true },
         });
         if (product) {
-          await tx.item.update({
+          await tx.product.update({
             where: { id: product.id },
             data:  { stock: { increment: Number(item.qty) } },
           });

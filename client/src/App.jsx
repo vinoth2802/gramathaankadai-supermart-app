@@ -28,8 +28,13 @@ import LoanAccounts       from './pages/accounts/LoanAccounts.jsx';
 import FixedAssets        from './pages/accounts/FixedAssets.jsx';
 import CapitalInvestment  from './pages/accounts/CapitalInvestment.jsx';
 
-import ReportsLayout from './pages/reports/Layout.jsx';
-import ReportStub    from './pages/reports/Stub.jsx';
+import ReportsLayout    from './pages/reports/Layout.jsx';
+import ReportStub      from './pages/reports/Stub.jsx';
+import SaleReport      from './pages/reports/SaleReport.jsx';
+import PurchaseReport  from './pages/reports/PurchaseReport.jsx';
+import DayBook         from './pages/reports/DayBook.jsx';
+import AllTransactions from './pages/reports/AllTransactions.jsx';
+import BillWiseProfit  from './pages/reports/BillWiseProfit.jsx';
 
 import ImportItems        from './pages/items/ImportItems.jsx';
 import ExportItems    from './pages/utilities/ExportItems.jsx';
@@ -104,12 +109,12 @@ export default function App() {
           <Route path="reports" element={<ReportsLayout />}>
             <Route index element={<Navigate to="/reports/sale" replace />} />
             {/* Transaction Report */}
-            <Route path="sale"                      element={<ReportStub title="Sale" />} />
-            <Route path="purchase"                  element={<ReportStub title="Purchase" />} />
-            <Route path="day-book"                  element={<ReportStub title="Day Book" />} />
-            <Route path="all-transactions"          element={<ReportStub title="All Transactions" />} />
+            <Route path="sale"                      element={<SaleReport />} />
+            <Route path="purchase"                  element={<PurchaseReport />} />
+            <Route path="day-book"                  element={<DayBook />} />
+            <Route path="all-transactions"          element={<AllTransactions />} />
             <Route path="profit-loss"               element={<ReportStub title="Profit & Loss" />} />
-            <Route path="bill-wise-profit"          element={<ReportStub title="Bill Wise Profit" />} />
+            <Route path="bill-wise-profit"          element={<BillWiseProfit />} />
             <Route path="cash-flow"                 element={<ReportStub title="Cash Flow" />} />
             <Route path="trial-balance"             element={<ReportStub title="Trial Balance" />} />
             <Route path="balance-sheet"             element={<ReportStub title="Balance Sheet" />} />
