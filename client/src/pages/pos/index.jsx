@@ -9,14 +9,13 @@ import { PartiesAPI } from '../../api/parties.js';
 import { SalesAPI } from '../../api/sales.js';
 import { PaymentsAPI } from '../../api/payments.js';
 
-function genInvoice(sales = []) {
-  const invoiceNumbers = sales
-    .map(s => String(s.invoice || '').trim())
-    .filter(invoice => /^\d+$/.test(invoice))
-    .map(Number);
-
-  if (!invoiceNumbers.length) return '1';
-  return String(Math.max(...invoiceNumbers) + 1);
+function genNextInvoice(items = []) {
+  let maxNum = 0, prefix = '';
+  for (const item of items) {
+    const m = String(item.invoice || '').trim().match(/^([^0-9]*)(\d+)$/);
+    if (m && Number(m[2]) > maxNum) { maxNum = Number(m[2]); prefix = m[1]; }
+  }
+  return maxNum === 0 ? '1' : `${prefix}${maxNum + 1}`;
 }
 
 const RS = '₹';
@@ -33,16 +32,17 @@ const makeSaleTab = (invoice) => ({
 export default function POS() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { data: products = [] } = useQuery({ queryKey: ['items'], queryFn: ItemsAPI.getAll });
-  const { data: parties = [] }  = useQuery({ queryKey: ['parties'], queryFn: PartiesAPI.getAll });
-  const { data: modes = [] }    = useQuery({ queryKey: ['paymentOptions'], queryFn: PaymentsAPI.getOptions });
-  const { data: sales = [] }    = useQuery({ queryKey: ['sales'], queryFn: SalesAPI.getAll });
+  const { data: products = [] }  = useQuery({ queryKey: ['items'], queryFn: ItemsAPI.getAll });
+  const { data: parties = [] }   = useQuery({ queryKey: ['parties'], queryFn: PartiesAPI.getAll });
+  const { data: modes = [] }     = useQuery({ queryKey: ['paymentOptions'], queryFn: PaymentsAPI.getOptions });
+  const { data: sales = [] }     = useQuery({ queryKey: ['sales'], queryFn: SalesAPI.getAll });
+  const { data: nextInvData }    = useQuery({ queryKey: ['next-invoice'], queryFn: SalesAPI.getNextNumber, staleTime: 0 });
 
   const [search, setSearch]         = useState('');
   const [showAll, setShowAll]       = useState(false);
   const [partyModal, setPartyModal] = useState(false);
   const [partySearch, setPartySearch] = useState('');
-  const [saleTabs, setSaleTabs]     = useState(() => [makeSaleTab(genInvoice())]);
+  const [saleTabs, setSaleTabs]     = useState(() => [makeSaleTab('…')]);
   const [activeTabId, setActiveTabId] = useState(() => saleTabs[0].id);
   const [stockMap, setStockMap]     = useState({});
   const [clearConfirm, setClearConfirm] = useState(false);
@@ -53,7 +53,7 @@ export default function POS() {
   const paymentLines = activeTab?.paymentLines || makePaymentLines();
   const selectedParty = activeTab?.selectedParty || null;
   const saleType = activeTab?.saleType || 'cash';
-  const invoice = activeTab?.invoice || genInvoice(sales);
+  const invoice = activeTab?.invoice || nextInvData?.invoice || genNextInvoice(sales);
 
   const updateActiveTab = (updater) => {
     setSaleTabs(tabs => tabs.map(tab => {
@@ -81,16 +81,30 @@ export default function POS() {
   useEffect(() => {
     if (!cart.length) {
       const otherTabs = saleTabs.filter(t => t.id !== activeTabId);
-      const nextInvoice = genInvoice([...sales, ...otherTabs]);
-      const invoiceInSales = sales.some(s => String(s.invoice) === String(invoice));
-      const invoiceInOtherTab = otherTabs.some(t => String(t.invoice) === String(invoice));
-      if (!invoice || invoiceInSales || invoiceInOtherTab) setInvoice(nextInvoice);
+      const taken = new Set([
+        ...sales.map(s => String(s.invoice)),
+        ...otherTabs.map(t => String(t.invoice)),
+      ]);
+      const invoiceConflicts = !invoice || invoice === '…' || taken.has(String(invoice));
+      if (invoiceConflicts) {
+        let next = nextInvData?.invoice ?? genNextInvoice([...sales, ...otherTabs]);
+        while (taken.has(next)) {
+          const m = String(next).match(/^([^0-9]*)(\d+)$/);
+          if (!m) break;
+          next = `${m[1]}${Number(m[2]) + 1}`;
+        }
+        setInvoice(next);
+      }
     }
-  }, [activeTabId, cart.length, invoice, sales, saleTabs]);
+  }, [activeTabId, cart.length, invoice, sales, saleTabs, nextInvData?.invoice]);
 
   const createSale = useMutation({
     mutationFn: SalesAPI.create,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sales'] }); qc.invalidateQueries({ queryKey: ['items'] }); }
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sales'] });
+      qc.invalidateQueries({ queryKey: ['items'] });
+      qc.invalidateQueries({ queryKey: ['next-invoice'] });
+    },
   });
 
   const subtotal   = cart.reduce((s, i) => s + i.price * i.qty, 0);
@@ -137,7 +151,14 @@ export default function POS() {
   };
 
   const addSaleTab = () => {
-    const tab = makeSaleTab(genInvoice([...sales, ...saleTabs]));
+    const taken = new Set(saleTabs.map(t => String(t.invoice)));
+    let inv = nextInvData?.invoice ?? genNextInvoice([...sales, ...saleTabs]);
+    while (taken.has(inv)) {
+      const m = String(inv).match(/^([^0-9]*)(\d+)$/);
+      if (!m) break;
+      inv = `${m[1]}${Number(m[2]) + 1}`;
+    }
+    const tab = makeSaleTab(inv);
     setSaleTabs(prev => [...prev, tab]);
     setActiveTabId(tab.id);
     setSearch('');
@@ -199,7 +220,9 @@ export default function POS() {
       setActiveTabId(remainingTabs[0].id);
       setReceivedAmount(0);
     } else {
-      const freshTab = makeSaleTab(genInvoice([...sales, savedSale]));
+      const freshInvResult = await SalesAPI.getNextNumber().catch(() => null);
+      const freshInv = freshInvResult?.invoice ?? genNextInvoice([...sales, savedSale]);
+      const freshTab = makeSaleTab(freshInv);
       setSaleTabs([freshTab]);
       setActiveTabId(freshTab.id);
       setReceivedAmount(0);

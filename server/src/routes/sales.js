@@ -24,7 +24,7 @@ router.get('/next-number', async (_req, res) => {
       prisma.sale.findMany({ select: { invoice: true } }),
       prisma.settings.findFirst({ select: { invoicePrefix: true } }),
     ]);
-    const prefix = settings?.invoicePrefix ?? 'INV';
+    const prefix = settings?.invoicePrefix ?? '';
 
     let maxNum = 0;
     for (const s of allSales) {
