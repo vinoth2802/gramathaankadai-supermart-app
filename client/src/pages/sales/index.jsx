@@ -81,6 +81,7 @@ function makeTabData() {
     billingAddr:   '',
     shippingAddr:  '',
     rows:          [emptyRow(), emptyRow(), emptyRow()],
+    needsTransport: false,
     vehicleNo:     '',
     dispatchLoc:   '',
     deliveryDate:  '',
@@ -124,7 +125,7 @@ function calcRow(row, priceMode) {
 }
 
 /* ── Item search cell ── */
-function ItemSearchCell({ row, idx, allItems, onSelect, onNameChange }) {
+function ItemSearchCell({ row, idx, allItems, onSelect, onNameChange, onAfterSelect }) {
   const [searchQ,    setSearchQ]    = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [open,       setOpen]       = useState(false);
@@ -172,7 +173,15 @@ function ItemSearchCell({ row, idx, allItems, onSelect, onNameChange }) {
 
   const handleChange = e => { setSearchQ(e.target.value); onNameChange(idx, e.target.value); calcPos(); setOpen(true); };
   const handleFocus  = () => { setSearchQ(''); calcPos(); setOpen(true); };
-  const handleSelect = it => { onSelect(idx, it); setSearchQ(''); setOpen(false); };
+  const handleSelect = it => {
+    onSelect(idx, it);
+    setSearchQ('');
+    setOpen(false);
+    setTimeout(() => {
+      const qtyInput = document.querySelector(`[data-qty-row="${idx}"]`);
+      if (qtyInput) { qtyInput.focus(); qtyInput.select(); }
+    }, 0);
+  };
   const displayValue = open ? searchQ : (row.name || '');
 
   function highlight(text, query) {
@@ -379,6 +388,7 @@ export default function SalePage() {
         unit:        product.uom        || 'NO.',
         rate:        product.salesPrice != null ? String(+product.salesPrice) : r.rate,
         gstRate:     product.gstRate    != null ? String(+product.gstRate)    : r.gstRate,
+        qty:         '1',
         total:       '',
       }),
     }));
@@ -576,6 +586,18 @@ export default function SalePage() {
             onClick={() => setTab({ isCash: false, partyError: false })}
             className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${!tab.isCash ? 'bg-green-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
             Credit Sale
+          </button>
+        </div>
+        <div className="flex items-center bg-slate-200 rounded-lg p-1">
+          <button type="button"
+            onClick={() => setTab({ needsTransport: false })}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${!tab.needsTransport ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            No Transport
+          </button>
+          <button type="button"
+            onClick={() => setTab({ needsTransport: true })}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${tab.needsTransport ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            Transport
           </button>
         </div>
         <div className="ml-auto">
@@ -785,6 +807,8 @@ export default function SalePage() {
                     <td className="border-r border-slate-100 p-0">
                       <input type="number" value={row.qty}
                         onChange={e => updateRow(idx, 'qty', e.target.value)}
+                        onFocus={e => e.target.select()}
+                        data-qty-row={idx}
                         className={`${cellCls} text-right font-semibold text-slate-700`} placeholder="0" />
                     </td>
                     <td className="border-r border-slate-100 p-0">
@@ -858,33 +882,41 @@ export default function SalePage() {
       <div className="shrink-0 sticky bottom-0 z-10 bg-white border-t border-gray-200 shadow-[0_-2px_8px_rgba(0,0,0,0.08)]">
 
         {/* Cards row */}
-        <div className={`grid gap-3 px-4 pt-3 pb-2 items-stretch ${selectedParty ? 'grid-cols-5' : 'grid-cols-4'}`}>
+        <div className={`grid gap-3 px-4 pt-3 pb-2 items-stretch ${
+          tab.needsTransport
+            ? (selectedParty ? 'grid-cols-5' : 'grid-cols-4')
+            : (selectedParty ? 'grid-cols-3' : 'grid-cols-2')
+        }`}>
 
           {/* Transport */}
-          <div className="bg-amber-50 rounded-xl border border-amber-100 p-3 space-y-2">
-            <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-widest">Transport</p>
-            <FloatInput label="Vehicle Number" value={tab.vehicleNo}
-              onChange={e => setTab({ vehicleNo: e.target.value })} />
-            <FloatInput label="Dispatch Location" value={tab.dispatchLoc}
-              onChange={e => setTab({ dispatchLoc: e.target.value })} />
-          </div>
+          {tab.needsTransport && (
+            <div className="bg-amber-50 rounded-xl border border-amber-100 p-3 space-y-2">
+              <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-widest">Transport</p>
+              <FloatInput label="Vehicle Number" value={tab.vehicleNo}
+                onChange={e => setTab({ vehicleNo: e.target.value })} />
+              <FloatInput label="Dispatch Location" value={tab.dispatchLoc}
+                onChange={e => setTab({ dispatchLoc: e.target.value })} />
+            </div>
+          )}
 
           {/* Delivery */}
-          <div className="bg-sky-50 rounded-xl border border-sky-100 p-3 space-y-2">
-            <p className="text-[10px] font-semibold text-sky-600 uppercase tracking-widest">Delivery</p>
-            <div className="relative">
-              <input type="date" value={tab.deliveryDate}
-                onChange={e => setTab({ deliveryDate: e.target.value })}
-                style={!tab.deliveryDate ? { color: 'transparent' } : undefined}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-800
-                  focus:outline-none focus:border-blue-400 bg-white" />
-              {!tab.deliveryDate && (
-                <span className="absolute left-3 top-2.5 text-sm text-gray-400 pointer-events-none">Delivery Date</span>
-              )}
+          {tab.needsTransport && (
+            <div className="bg-sky-50 rounded-xl border border-sky-100 p-3 space-y-2">
+              <p className="text-[10px] font-semibold text-sky-600 uppercase tracking-widest">Delivery</p>
+              <div className="relative">
+                <input type="date" value={tab.deliveryDate}
+                  onChange={e => setTab({ deliveryDate: e.target.value })}
+                  style={!tab.deliveryDate ? { color: 'transparent' } : undefined}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-800
+                    focus:outline-none focus:border-blue-400 bg-white" />
+                {!tab.deliveryDate && (
+                  <span className="absolute left-3 top-2.5 text-sm text-gray-400 pointer-events-none">Delivery Date</span>
+                )}
+              </div>
+              <FloatInput label="Delivery Location" value={tab.deliveryLoc}
+                onChange={e => setTab({ deliveryLoc: e.target.value })} />
             </div>
-            <FloatInput label="Delivery Location" value={tab.deliveryLoc}
-              onChange={e => setTab({ deliveryLoc: e.target.value })} />
-          </div>
+          )}
 
           {/* Loyalty Points (only when party selected) */}
           {selectedParty && (

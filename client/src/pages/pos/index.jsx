@@ -442,6 +442,23 @@ export default function POS() {
                   );
                 })}
               </tbody>
+              {cart.length > 0 && (
+                <tfoot>
+                  <tr className="bg-slate-100 border-t-2 border-slate-300">
+                    <td colSpan="4" />
+                    <td className="px-3 py-2 text-center font-bold text-slate-800 border-r border-slate-200">
+                      {cart.reduce((s, i) => s + i.qty, 0)}
+                    </td>
+                    <td className="px-3 py-2 border-r border-slate-200" />
+                    <td className="px-3 py-2 border-r border-slate-200" />
+                    <td className="px-3 py-2 border-r border-slate-200" />
+                    <td className="px-3 py-2 text-right font-bold text-slate-800 border-r border-slate-200">
+                      {RS}{cart.reduce((s, i) => s + i.price * i.qty, 0).toFixed(2)}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </div>

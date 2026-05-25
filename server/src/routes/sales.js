@@ -20,11 +20,7 @@ function deriveStatus(grandTotal, totalReceived, explicit) {
 /* ── Next invoice number ── */
 router.get('/next-number', async (_req, res) => {
   try {
-    const [allSales, settings] = await Promise.all([
-      prisma.sale.findMany({ select: { invoice: true } }),
-      prisma.settings.findFirst({ select: { invoicePrefix: true } }),
-    ]);
-    const prefix = settings?.invoicePrefix ?? '';
+    const allSales = await prisma.sale.findMany({ select: { invoice: true } });
 
     let maxNum = 0;
     for (const s of allSales) {
@@ -33,7 +29,7 @@ router.get('/next-number', async (_req, res) => {
     }
 
     const nextNum = maxNum + 1;
-    res.json({ invoice: `${prefix}${nextNum}`, number: nextNum });
+    res.json({ invoice: String(nextNum), number: nextNum });
   } catch (err) {
     console.error('next-number error:', err);
     res.status(500).json({ error: err.message });
