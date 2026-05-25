@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, X, Check, Search } from 'lucide-react';
 import { toast } from 'sonner';
-import ResizableTable from '../../components/ResizableTable.jsx';
+
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import { PurchasesAPI } from '../../api/purchases.js';
 import { PartiesAPI } from '../../api/parties.js';
 import { PaymentsAPI } from '../../api/payments.js';
 import { ItemsAPI } from '../../api/items.js';
 
-const inp     = 'w-full border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:border-amber-500 text-sm text-slate-800 bg-white';
+
 const cellInp = 'w-full px-2 py-1 text-xs bg-transparent focus:outline-none focus:bg-amber-50 rounded';
 const ITEM_ROW = {
   name: '',
@@ -78,6 +78,52 @@ function FloatInput({ label, value, onChange, type = 'text', readOnly = false, l
   );
 }
 
+function SupplierCombo({ query, onQueryChange, onSelect, suppliers }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    const fn = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', fn);
+    return () => document.removeEventListener('mousedown', fn);
+  }, []);
+  const q = query.toLowerCase();
+  const filtered = q.length === 0 ? suppliers
+    : suppliers.filter(s => s.name.toLowerCase().includes(q) || (s.phone ?? '').includes(q));
+  return (
+    <div ref={ref} className="relative">
+      <input type="text" value={query}
+        onChange={e => { onQueryChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        placeholder=" "
+        className="peer w-full border border-slate-300 rounded-lg px-3 pt-4 pb-1 text-sm text-slate-800
+          focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-100 bg-white" />
+      <label className="absolute left-3 top-1 text-[10px] text-slate-400 pointer-events-none
+        transition-all duration-150
+        peer-placeholder-shown:top-3 peer-placeholder-shown:text-sm
+        peer-focus:top-1 peer-focus:text-[10px] peer-focus:text-amber-500">
+        Supplier Name
+      </label>
+      {query && (
+        <button type="button" onClick={() => { onQueryChange(''); onSelect(null); }}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+          <X size={12} />
+        </button>
+      )}
+      {open && filtered.length > 0 && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+          {filtered.map(s => (
+            <button key={s.id} type="button" onMouseDown={() => { onSelect(s); setOpen(false); }}
+              className="w-full flex items-center justify-between px-4 py-2 hover:bg-amber-50 text-left">
+              <span className="text-sm text-slate-800">{s.name}</span>
+              {s.phone && <span className="text-xs text-slate-400">{s.phone}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function genPurchaseBill(purchases = []) {
   const billNumbers = purchases
     .map(p => String(p.invoice || '').trim())
@@ -96,7 +142,8 @@ function makePurchaseTab(invoice) {
     form: {
       partyId: '', partyName: '',
       paymentMode: 'Cash',
-      grnDate: new Date().toISOString().split('T')[0],
+      totalPaid: '',
+      grnDate: new Date().toLocaleString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }),
       supplierInvoiceNo: '', supplierInvoiceDate: '',
       ewayBillNo: '',
       stateOfSupply: 'Tamil Nadu',
@@ -122,7 +169,7 @@ export default function Purchases() {
 
   const activeTab = purchaseTabs.find(t => t.id === activeTabId) || purchaseTabs[0];
   const items = activeTab?.items || [{ ...ITEM_ROW }];
-  const form = activeTab?.form || { partyId: '', paymentMode: 'Cash', grnDate: new Date().toISOString().split('T')[0], supplierInvoiceNo: '', supplierInvoiceDate: '' };
+  const form = activeTab?.form || { partyId: '', paymentMode: 'Cash', totalPaid: '', grnDate: new Date().toLocaleString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }), supplierInvoiceNo: '', supplierInvoiceDate: '' };
   const invoice = activeTab?.invoice || genPurchaseBill(purchases);
   const purchaseType = activeTab?.purchaseType || 'cash';
 
@@ -235,7 +282,7 @@ export default function Purchases() {
     setTimeout(() => scanRef.current?.focus(), 0);
   };
 
-  const addRow = () => setItems(prev => [...prev, { ...ITEM_ROW }]);
+
   const removeRow = (idx) => setItems(prev => prev.length > 1 ? prev.filter((_, i) => i !== idx) : [{ ...ITEM_ROW }]);
   const updateRow = (idx, field, value) => {
     setItems(prev => prev.map((row, i) => {
@@ -255,7 +302,7 @@ export default function Purchases() {
     const party = suppliers.find(p => String(p.id) === String(form.partyId));
     const savedPurchase = await createMut.mutateAsync({
       invoice,
-      date: form.grnDate ? new Date(form.grnDate).toISOString() : new Date().toISOString(),
+      date: new Date().toISOString(),
       supplierInvoiceNo: form.supplierInvoiceNo || null,
       supplierInvoiceDate: form.supplierInvoiceDate || null,
       partyId: party?.id || null,
@@ -324,24 +371,23 @@ export default function Purchases() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
+
           {/* ── Four-column header ── */}
-          <div className="grid grid-cols-4 gap-4 mb-6">
+          <div className="shrink-0 px-6 py-4 border-b border-slate-200 bg-white">
+          <div className="grid grid-cols-4 gap-4">
 
             {/* Column 1 — Supplier Name, Supplier Invoice No */}
             <div className="space-y-3">
-              <FloatInput
-                label="Supplier Name"
-                value={form.partyName}
-                list="supplier-datalist"
-                onChange={e => {
-                  const match = suppliers.find(s => s.name === e.target.value);
-                  setForm(f => ({ ...f, partyName: e.target.value, partyId: match ? String(match.id) : '' }));
+              <SupplierCombo
+                query={form.partyName}
+                onQueryChange={v => setForm(f => ({ ...f, partyName: v, partyId: '' }))}
+                onSelect={s => {
+                  if (!s) setForm(f => ({ ...f, partyName: '', partyId: '' }));
+                  else    setForm(f => ({ ...f, partyName: s.name, partyId: String(s.id) }));
                 }}
+                suppliers={suppliers}
               />
-              <datalist id="supplier-datalist">
-                {suppliers.map(s => <option key={s.id} value={s.name} />)}
-              </datalist>
               <FloatInput
                 label="Supplier Invoice No"
                 value={form.supplierInvoiceNo}
@@ -397,98 +443,128 @@ export default function Purchases() {
                 />
                 <label className="absolute left-3 top-1 text-[10px] text-slate-400 pointer-events-none">GRN No</label>
               </div>
-              <FloatInput
-                label="GRN Date"
-                type="date"
-                value={form.grnDate}
-                onChange={e => setForm(f => ({ ...f, grnDate: e.target.value }))}
-              />
-            </div>
-
-          </div>
-
-
-          {/* ── Scan / Search bar ── */}
-          <div className="mb-3 relative">
-            <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 focus-within:border-amber-500 bg-white">
-              <Search size={14} className="text-slate-400 shrink-0" />
-              <input
-                ref={scanRef}
-                value={scanSearch}
-                onChange={e => { setScanSearch(e.target.value); setScanShowAll(false); }}
-                onKeyDown={e => {
-                  if (e.key === 'F1') { e.preventDefault(); setScanShowAll(true); }
-                  if (e.key === 'Enter') {
-                    if (scanDropList.length) addProductRow(scanDropList[0]);
-                  }
-                  if (e.key === 'Escape') { setScanSearch(''); setScanShowAll(false); }
-                }}
-                placeholder="Search or scan barcode to add item… (F1 for all)"
-                className="flex-1 text-sm focus:outline-none bg-transparent text-slate-800 placeholder:text-slate-400"
-              />
-              {(scanSearch || scanShowAll) && (
-                <button type="button" onClick={() => { setScanSearch(''); setScanShowAll(false); scanRef.current?.focus(); }}
-                  className="text-slate-400 hover:text-slate-600">
-                  <X size={13} />
-                </button>
-              )}
-            </div>
-            {scanDropOpen && scanDropList.length > 0 && (
-              <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-72 overflow-y-auto">
-                {/* Column headers */}
-                <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-0 px-3 py-1.5 bg-slate-100 border-b border-slate-200 sticky top-0">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Item Name</span>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide text-center">Item Code</span>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide text-right">MRP</span>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide text-right">Purchase</span>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide text-right">Sales</span>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide text-right">Stock</span>
-                </div>
-                {scanDropList.map(p => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onMouseDown={() => addProductRow(p)}
-                    className="w-full grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-0 px-3 py-2 hover:bg-amber-50 transition text-left border-b border-slate-100 last:border-0">
-                    <span className="text-sm font-semibold text-slate-800 truncate pr-2">{p.shortName}</span>
-                    <span className="text-xs text-slate-500 text-center self-center">{p.itemCode || '—'}</span>
-                    <span className="text-xs text-slate-600 text-right self-center">{RS}{Number(p.mrp || 0).toFixed(2)}</span>
-                    <span className="text-xs font-semibold text-amber-600 text-right self-center">{RS}{Number(p.purchasePrice || 0).toFixed(2)}</span>
-                    <span className="text-xs text-emerald-600 text-right self-center">{RS}{Number(p.salesPrice || 0).toFixed(2)}</span>
-                    <span className={`text-xs font-semibold text-right self-center ${Number(p.stock) <= Number(p.reorderLevel || 10) ? 'text-rose-500' : 'text-emerald-600'}`}>
-                      {Number(p.stock || 0)}
-                    </span>
-                  </button>
-                ))}
+              <div className="relative">
+                <input
+                  type="text"
+                  value={form.grnDate}
+                  readOnly
+                  placeholder=" "
+                  className="peer w-full border border-slate-300 rounded-lg px-3 pt-4 pb-1 text-sm
+                    text-slate-700 bg-slate-50 cursor-default focus:outline-none"
+                />
+                <label className="absolute left-3 top-1 text-[10px] text-slate-400 pointer-events-none">GRN Date & Time</label>
               </div>
-            )}
-          </div>
+            </div>
 
-          <div className="mb-4">
-            <ResizableTable
-              defaultWidths={{ 1: 16 }}
-              headers={['S.No', 'ITEM', 'COUNT', 'BATCH NO.', 'EXP. DATE', 'MFG. DATE', 'MRP', 'QTY', 'FREE QTY', 'UNIT',
-                <div key="price" className="flex flex-col gap-0.5">
-                  <span className="text-xs font-semibold uppercase tracking-wide">Price/Unit</span>
-                  <select
-                    value={form.priceType}
-                    onChange={e => {
-                      const pt = e.target.value;
-                      setForm(f => ({ ...f, priceType: pt }));
-                      setItems(prev => prev.map(r => {
-                        const { gstAmount, total } = calcAmounts(r.qty, r.price, r.gstRate, pt);
-                        return { ...r, gstAmount, total };
-                      }));
+          </div>
+          </div>{/* end shrink-0 header */}
+
+          {/* ── Items card: search bar + table ── */}
+          <div className="flex-1 overflow-y-auto px-3 py-2 bg-gray-100">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+
+            {/* Card header: title + search bar */}
+            <div className="px-4 py-3 border-b border-slate-200">
+              <div className="flex items-center gap-2 mb-2.5">
+                <span className="font-bold text-slate-800 text-sm">Purchase Items</span>
+                <span className="text-xs text-slate-400 font-normal">({items.filter(i => i.name).length})</span>
+              </div>
+              <div className="relative">
+                <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2 focus-within:border-amber-500 bg-white">
+                  <Search size={14} className="text-slate-400 shrink-0" />
+                  <input
+                    ref={scanRef}
+                    value={scanSearch}
+                    onChange={e => { setScanSearch(e.target.value); setScanShowAll(false); }}
+                    onKeyDown={e => {
+                      if (e.key === 'F1') { e.preventDefault(); setScanShowAll(true); }
+                      if (e.key === 'Enter') {
+                        if (scanDropList.length) addProductRow(scanDropList[0]);
+                      }
+                      if (e.key === 'Escape') { setScanSearch(''); setScanShowAll(false); }
                     }}
-                    onClick={e => e.stopPropagation()}
-                    className="text-[10px] font-normal bg-slate-700 border border-slate-500 rounded px-1 py-0.5 text-white focus:outline-none normal-case tracking-normal">
-                    <option value="With Tax">With Tax</option>
-                    <option value="Without Tax">Without Tax</option>
-                  </select>
-                </div>,
-                'GST RATE', 'GST AMOUNT', 'TOTAL AMOUNT', '']}
-              className="border border-slate-200 overflow-x-auto"
-            >
+                    placeholder="Search or scan barcode to add item… (F1 for all)"
+                    className="flex-1 text-sm focus:outline-none bg-transparent text-slate-800 placeholder:text-slate-400"
+                  />
+                  {(scanSearch || scanShowAll) && (
+                    <button type="button" onClick={() => { setScanSearch(''); setScanShowAll(false); scanRef.current?.focus(); }}
+                      className="text-slate-400 hover:text-slate-600">
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+                {scanDropOpen && scanDropList.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-72 overflow-y-auto">
+                    <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-0 px-3 py-1.5 bg-slate-100 border-b border-slate-200 sticky top-0">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Item Name</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide text-center">Item Code</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide text-right">MRP</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide text-right">Purchase</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide text-right">Sales</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide text-right">Stock</span>
+                    </div>
+                    {scanDropList.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onMouseDown={() => addProductRow(p)}
+                        className="w-full grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-0 px-3 py-2 hover:bg-amber-50 transition text-left border-b border-slate-100 last:border-0">
+                        <span className="text-sm font-semibold text-slate-800 truncate pr-2">{p.shortName}</span>
+                        <span className="text-xs text-slate-500 text-center self-center">{p.itemCode || '—'}</span>
+                        <span className="text-xs text-slate-600 text-right self-center">{RS}{Number(p.mrp || 0).toFixed(2)}</span>
+                        <span className="text-xs font-semibold text-amber-600 text-right self-center">{RS}{Number(p.purchasePrice || 0).toFixed(2)}</span>
+                        <span className="text-xs text-emerald-600 text-right self-center">{RS}{Number(p.salesPrice || 0).toFixed(2)}</span>
+                        <span className={`text-xs font-semibold text-right self-center ${Number(p.stock) <= Number(p.reorderLevel || 10) ? 'text-rose-500' : 'text-emerald-600'}`}>
+                          {Number(p.stock || 0)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-xs">
+              <thead className="sticky top-0 bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-7 text-center border-r border-slate-200">S.No</th>
+                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide min-w-[120px] border-r border-slate-200">Item</th>
+                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-10 text-right border-r border-slate-200">Count</th>
+                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-16 border-r border-slate-200">Batch</th>
+                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-16 border-r border-slate-200">Exp.</th>
+                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-16 border-r border-slate-200">Mfg.</th>
+                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-14 text-right border-r border-slate-200">MRP</th>
+                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-12 text-right border-r border-slate-200">Qty</th>
+                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-12 text-right border-r border-slate-200">Free</th>
+                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-12 border-r border-slate-200">Unit</th>
+                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-24 border-r border-slate-200">
+                    <div className="flex flex-col gap-0.5">
+                      <span>Price/Unit</span>
+                      <select
+                        value={form.priceType}
+                        onChange={e => {
+                          const pt = e.target.value;
+                          setForm(f => ({ ...f, priceType: pt }));
+                          setItems(prev => prev.map(r => {
+                            const { gstAmount, total } = calcAmounts(r.qty, r.price, r.gstRate, pt);
+                            return { ...r, gstAmount, total };
+                          }));
+                        }}
+                        onClick={e => e.stopPropagation()}
+                        className="text-[10px] font-normal bg-white border border-slate-300 rounded px-1 py-0.5 text-slate-600 focus:outline-none normal-case tracking-normal">
+                        <option value="With Tax">With Tax</option>
+                        <option value="Without Tax">Without Tax</option>
+                      </select>
+                    </div>
+                  </th>
+                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-12 text-right border-r border-slate-200">GST%</th>
+                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-16 text-right border-r border-slate-200">GST Amt</th>
+                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-20 text-right border-r border-slate-200">Total Amt</th>
+                  <th className="px-2 py-2 w-7 border-r border-slate-200" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
               {items.map((row, idx) => (
                 <tr key={idx} className="border-b border-slate-200 hover:bg-slate-50 transition">
                   <td className="px-2 py-1 text-center text-xs text-slate-400 border-r border-slate-200">{idx + 1}</td>
@@ -570,55 +646,76 @@ export default function Purchases() {
                 <td className="border-r border-slate-200 px-2 py-2 text-right text-xs text-amber-700">{grandTotal.toFixed(2)}</td>
                 <td />
               </tr>
-            </ResizableTable>
-          </div>
-
-          <div className="mb-4">
-            <button type="button" onClick={addRow} className="text-amber-600 hover:text-amber-700 text-sm font-semibold flex items-center gap-1.5 transition">
-              <Plus size={15} /> Add Row
-            </button>
-          </div>
-
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <div className="w-80">
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Payment Mode</label>
-              <select value={form.paymentMode} onChange={e => setForm(f => ({ ...f, paymentMode: e.target.value }))} className={inp}>
-                {modes.map(m => <option key={m.name}>{m.name}</option>)}
-              </select>
+            </tbody>
+            </table>
             </div>
 
-            {/* Summary box */}
-            <div className="w-72 shrink-0 border border-slate-200 rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
-                <span className="text-xs text-slate-500">Sub Total</span>
-                <span className="text-sm font-semibold text-slate-700">{RS}{(grandTotal - totalGstAmt).toFixed(2)}</span>
-              </div>
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
-                <span className="text-xs text-slate-500">Tax Amount</span>
-                <span className="text-sm font-semibold text-slate-700">{RS}{totalGstAmt.toFixed(2)}</span>
-              </div>
-              <div className="flex items-center justify-between px-4 py-3 bg-amber-50">
-                <span className="text-sm font-bold text-slate-800">Grand Total</span>
-                <span className="text-lg font-bold text-amber-700">{RS}{grandTotal.toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
+          </div>{/* end h-full card */}
+          </div>{/* end flex-1 items area */}
 
-          <div className="flex items-center justify-end gap-4">
-            <button type="button" onClick={() => setItems([{ ...ITEM_ROW }])}
-              className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
-              <Trash2 size={15} /> Clear
-            </button>
-            <button type="button" className="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
-              <Check size={15} /> Draft Purchase
-            </button>
-            <button type="button" className="bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-200 px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
-              <Check size={15} /> Print Purchase
-            </button>
-            <button type="button" onClick={() => setSaveConfirm(true)} disabled={createMut.isPending} className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-6 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition shadow-sm">
-              <Check size={15} /> {createMut.isPending ? 'Saving...' : 'Save Purchase'}
-            </button>
-          </div>
+          {/* ── Footer: payment + summary + buttons ── */}
+          <div className="shrink-0 bg-white border-t border-slate-200 px-6 py-4">
+            <div className="flex items-start justify-end gap-4 mb-4">
+
+              {/* Payment card */}
+              <div className="w-72 shrink-0 border border-slate-200 rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100">
+                  <span className="text-xs text-slate-500 shrink-0">Payment Mode</span>
+                  <select value={form.paymentMode} onChange={e => setForm(f => ({ ...f, paymentMode: e.target.value }))}
+                    className="ml-3 flex-1 border border-slate-200 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:border-amber-500">
+                    {modes.map(m => <option key={m.name}>{m.name}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100">
+                  <span className="text-xs text-slate-500 shrink-0">Amount Paid</span>
+                  <input type="number" min="0" value={form.totalPaid}
+                    onChange={e => setForm(f => ({ ...f, totalPaid: e.target.value }))}
+                    placeholder="0.00"
+                    className="ml-3 w-28 border border-slate-200 rounded px-2 py-1 text-xs text-right bg-white focus:outline-none focus:border-amber-500" />
+                </div>
+                <div className="flex items-center justify-between px-4 py-2.5 bg-blue-50">
+                  <span className="text-xs font-semibold text-slate-700">Balance Amount</span>
+                  <span className={`text-sm font-bold ${grandTotal - Number(form.totalPaid || 0) > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    {RS}{Math.max(0, grandTotal - Number(form.totalPaid || 0)).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Totals card */}
+              <div className="w-72 shrink-0 border border-slate-200 rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
+                  <span className="text-xs text-slate-500">Sub Total</span>
+                  <span className="text-sm font-semibold text-slate-700">{RS}{(grandTotal - totalGstAmt).toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
+                  <span className="text-xs text-slate-500">Tax Amount</span>
+                  <span className="text-sm font-semibold text-slate-700">{RS}{totalGstAmt.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3 bg-amber-50">
+                  <span className="text-sm font-bold text-slate-800">Grand Total</span>
+                  <span className="text-lg font-bold text-amber-700">{RS}{grandTotal.toFixed(2)}</span>
+                </div>
+              </div>
+
+            </div>
+
+            <div className="flex items-center justify-end gap-4">
+              <button type="button" onClick={() => setItems([{ ...ITEM_ROW }])}
+                className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
+                <Trash2 size={15} /> Clear
+              </button>
+              <button type="button" className="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
+                <Check size={15} /> Draft Purchase
+              </button>
+              <button type="button" className="bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-200 px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition">
+                <Check size={15} /> Print Purchase
+              </button>
+              <button type="button" onClick={() => setSaveConfirm(true)} disabled={createMut.isPending} className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-6 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition shadow-sm">
+                <Check size={15} /> {createMut.isPending ? 'Saving...' : 'Save Purchase'}
+              </button>
+            </div>
+          </div>{/* end footer */}
+
         </form>
       </div>
 

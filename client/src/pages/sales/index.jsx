@@ -93,6 +93,7 @@ function makeTabData() {
     totalReceived: '',
     description:   '',
     partyError:    false,
+    invoiceNo:     '…',
   };
 }
 
@@ -339,7 +340,15 @@ export default function SalePage() {
   const [tabs,     setTabs]     = useState(() => [makeTabData()]);
   const [activeId, setActiveId] = useState(() => tabs[0].id);
 
-  const invoiceNo = invoiceData?.invoice ?? '…';
+  /* When server invoice data arrives, stamp it onto any tab still showing '…' */
+  useEffect(() => {
+    if (!invoiceData?.invoice) return;
+    setTabs(prev => prev.map((t, i) =>
+      t.invoiceNo === '…' && i === prev.findIndex(x => x.invoiceNo === '…')
+        ? { ...t, invoiceNo: invoiceData.invoice }
+        : t
+    ));
+  }, [invoiceData]);
 
   const tab    = tabs.find(t => t.id === activeId) ?? tabs[0];
   const setTab = patch => setTabs(prev => prev.map(t =>
@@ -486,13 +495,14 @@ export default function SalePage() {
       toast.error('Select a party for credit sale');
       return;
     }
+    if (tab.invoiceNo === '…') { toast.error('Invoice number not ready, please wait'); return; }
     const filled = computed.filter(r => r.name);
     if (!filled.length) { toast.error('Add at least one item'); return; }
     if (!invoiceData?.invoice) { toast.error('Invoice number not ready, please wait'); return; }
     setIsSaving(true);
     try {
       await createMut.mutateAsync({
-        invoice:          invoiceNo,
+        invoice:          tab.invoiceNo,
         date:             tab.invoiceDate,
         customerName:     tab.partyQuery  || 'Walk-in Customer',
         partyId:          tab.partyId     ? Number(tab.partyId) : undefined,
@@ -654,7 +664,7 @@ export default function SalePage() {
           {/* Col 4: Invoice No + Date */}
           <div className="space-y-2.5">
             <div className="relative">
-              <input type="text" value={invoiceNo} readOnly placeholder=" "
+              <input type="text" value={tab.invoiceNo} readOnly placeholder=" "
                 className="peer w-full border border-gray-300 rounded px-3 pt-5 pb-1.5 text-sm font-bold text-blue-700
                   font-mono bg-gray-50 focus:outline-none cursor-default" />
               <label className="absolute left-3 top-1.5 text-[10px] text-gray-400 pointer-events-none">Invoice No.</label>
@@ -742,7 +752,6 @@ export default function SalePage() {
                   <TH className="w-16">Exp.</TH>
                   <TH className="w-16">Mfg.</TH>
                   <TH className="w-14 text-right">MRP</TH>
-                  <TH className="w-10">Size</TH>
                   <TH className="w-12 text-right">QTY</TH>
                   <TH className="w-12 text-right">Free</TH>
                   <TH className="w-12">Unit</TH>
@@ -799,10 +808,6 @@ export default function SalePage() {
                       <input type="number" value={row.mrp}
                         onChange={e => updateRow(idx, 'mrp', e.target.value)}
                         className={`${cellCls} text-right`} placeholder="0.00" />
-                    </td>
-                    <td className="border-r border-slate-100 p-0">
-                      <input type="text" value={row.size}
-                        onChange={e => updateRow(idx, 'size', e.target.value)} className={cellCls} />
                     </td>
                     <td className="border-r border-slate-100 p-0">
                       <input type="number" value={row.qty}
