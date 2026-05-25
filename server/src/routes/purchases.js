@@ -1,15 +1,27 @@
 import { Router } from 'express';
 import prisma from '../db.js';
+import { logActivity, computeDiff } from '../utils/log.js';
+
+const fmtMoney = v => `₹${parseFloat(String(v || 0)).toFixed(2)}`;
 
 const router = Router();
 
 const include = { items: true };
 
+function deriveStatus(grandTotal, totalPaid) {
+  const gt = Number(grandTotal ?? 0);
+  const tp = Number(totalPaid  ?? 0);
+  if (tp <= 0)  return 'Unpaid';
+  if (tp >= gt) return 'Paid';
+  return 'Partial';
+}
+
 router.get('/', async (req, res) => {
-  const { from, to, invoiceSearch } = req.query;
+  const { from, to, invoiceSearch, partyId } = req.query;
   const where = {};
   if (from && to) where.date = { gte: new Date(from), lte: new Date(to) };
   if (invoiceSearch) where.invoice = { contains: invoiceSearch, mode: 'insensitive' };
+  if (partyId) where.partyId = Number(partyId);
   const purchases = await prisma.purchase.findMany({
     where: Object.keys(where).length ? where : undefined,
     include,
@@ -28,7 +40,7 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { invoice, date, supplierInvoiceNo, supplierInvoiceDate, partyName, partyId, items = [], grandTotal, paymentMode } = req.body;
+  const { invoice, date, supplierInvoiceNo, supplierInvoiceDate, partyName, partyId, items = [], grandTotal, totalPaid, paymentStatus, paymentMode } = req.body;
   const purchase = await prisma.purchase.create({
     data: {
       invoice,
@@ -38,6 +50,8 @@ router.post('/', async (req, res) => {
       partyName:           partyName   || null,
       partyId:             partyId     || null,
       grandTotal:          grandTotal  ?? 0,
+      totalPaid:           totalPaid   ?? grandTotal ?? 0,
+      paymentStatus:       paymentStatus ?? deriveStatus(grandTotal, totalPaid),
       paymentMode:         paymentMode || 'Cash',
       items: {
         create: items.map(({
@@ -69,18 +83,33 @@ router.post('/', async (req, res) => {
     },
     include,
   });
+  logActivity({ action: 'CREATE', type: 'Purchase', refNo: purchase.invoice, partyName: purchase.partyName, amount: Number(purchase.grandTotal), userName: req.headers['x-user'] });
   res.status(201).json(purchase);
 });
 
 router.patch('/:id', async (req, res) => {
   try {
-    const { status, partyName, paymentMode, date, grandTotal, items } = req.body;
+    const prevPurchase = await prisma.purchase.findUnique({
+      where: { id: Number(req.params.id) },
+      select: { partyName: true, grandTotal: true, totalPaid: true, paymentStatus: true, paymentMode: true },
+    });
+
+    const { status, partyName, paymentMode, date, grandTotal, totalPaid, paymentStatus, items } = req.body;
     const data = {};
-    if (status      !== undefined) data.status      = status;
-    if (partyName   !== undefined) data.partyName   = partyName;
-    if (paymentMode !== undefined) data.paymentMode = paymentMode;
-    if (date        !== undefined) data.date        = new Date(date);
-    if (grandTotal  !== undefined) data.grandTotal  = grandTotal;
+    if (status        !== undefined) data.status        = status;
+    if (partyName     !== undefined) data.partyName     = partyName;
+    if (paymentMode   !== undefined) data.paymentMode   = paymentMode;
+    if (date          !== undefined) data.date          = new Date(date);
+    if (grandTotal    !== undefined) data.grandTotal    = grandTotal;
+    if (totalPaid     !== undefined) data.totalPaid     = totalPaid;
+    if (paymentStatus !== undefined) data.paymentStatus = paymentStatus;
+    else if (totalPaid !== undefined || grandTotal !== undefined) {
+      const purchase = await prisma.purchase.findUnique({ where: { id: Number(req.params.id) }, select: { grandTotal: true, totalPaid: true } });
+      data.paymentStatus = deriveStatus(
+        grandTotal  ?? purchase?.grandTotal,
+        totalPaid   ?? purchase?.totalPaid,
+      );
+    }
     if (items) {
       await prisma.purchaseItem.deleteMany({ where: { purchaseId: Number(req.params.id) } });
       data.items = {
@@ -100,6 +129,14 @@ router.patch('/:id', async (req, res) => {
       };
     }
     const purchase = await prisma.purchase.update({ where: { id: Number(req.params.id) }, data, include });
+    const changes = computeDiff(prevPurchase, purchase, [
+      { key: 'partyName',     label: 'Supplier' },
+      { key: 'grandTotal',    label: 'Grand Total', format: fmtMoney },
+      { key: 'totalPaid',     label: 'Amt Paid',    format: fmtMoney },
+      { key: 'paymentStatus', label: 'Status' },
+      { key: 'paymentMode',   label: 'Payment Mode' },
+    ]);
+    logActivity({ action: 'EDIT', type: 'Purchase', refNo: purchase.invoice, partyName: purchase.partyName, amount: Number(purchase.grandTotal), userName: req.headers['x-user'], changes });
     res.json(purchase);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -117,6 +154,15 @@ router.delete('/:id', async (req, res) => {
     if (!purchase) return res.status(404).json({ error: 'Purchase not found' });
 
     await prisma.$transaction(async (tx) => {
+      await tx.recycleBin.create({
+        data: {
+          type:     'Purchase',
+          entityId: purchase.id,
+          name:     purchase.invoice,
+          amount:   Number(purchase.grandTotal || 0),
+          snapshot: JSON.stringify(purchase),
+        },
+      });
       for (const item of purchase.items.filter(i => Number(i.qty) > 0)) {
         const product = await tx.product.findFirst({
           where: { shortName: { equals: item.name, mode: 'insensitive' } },
@@ -131,6 +177,7 @@ router.delete('/:id', async (req, res) => {
       }
       await tx.purchase.delete({ where: { id: purchaseId } });
     });
+    logActivity({ action: 'DELETE', type: 'Purchase', refNo: purchase.invoice, partyName: purchase.partyName, amount: Number(purchase.grandTotal), userName: req.headers['x-user'] });
 
     res.status(204).end();
   } catch (err) {

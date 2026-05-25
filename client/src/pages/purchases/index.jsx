@@ -300,15 +300,18 @@ export default function Purchases() {
     if (purchaseType === 'credit' && !form.partyName.trim()) { toast.warning('Enter supplier name for credit purchase'); return; }
 
     const party = suppliers.find(p => String(p.id) === String(form.partyId));
+    const paid  = purchaseType === 'cash' ? grandTotal : Number(form.totalPaid || 0);
     const savedPurchase = await createMut.mutateAsync({
       invoice,
       date: new Date().toISOString(),
       supplierInvoiceNo: form.supplierInvoiceNo || null,
       supplierInvoiceDate: form.supplierInvoiceDate || null,
-      partyId: party?.id || null,
-      partyName: form.partyName || party?.name || 'Unknown Supplier',
+      partyId: purchaseType === 'cash' ? null : (party?.id || null),
+      partyName: purchaseType === 'cash' ? 'Cash Purchase' : (form.partyName || party?.name || 'Unknown Supplier'),
       items: validItems,
       grandTotal,
+      totalPaid:     paid,
+      paymentStatus: paid <= 0 ? 'Unpaid' : paid >= grandTotal ? 'Paid' : 'Partial',
       paymentMode: purchaseType === 'credit' ? `Credit (${form.paymentMode})` : form.paymentMode,
     });
 

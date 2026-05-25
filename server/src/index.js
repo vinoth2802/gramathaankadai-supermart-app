@@ -21,6 +21,9 @@ import purchaseReturnsRouter    from './routes/purchaseReturns.js';
 import loanAccountsRouter       from './routes/loanAccounts.js';
 import paymentTypesRouter       from './routes/paymentTypes.js';
 import reportsRouter            from './routes/reports.js';
+import recycleBinRouter         from './routes/recycleBin.js';
+import activityLogRouter        from './routes/activityLog.js';
+import cashbookRouter           from './routes/cashbook.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -57,6 +60,9 @@ app.use('/api/purchase-returns',    purchaseReturnsRouter);
 app.use('/api/loan-accounts',       loanAccountsRouter);
 app.use('/api/payment-types',       paymentTypesRouter);
 app.use('/api/reports',             reportsRouter);
+app.use('/api/recycle-bin',         recycleBinRouter);
+app.use('/api/activity-log',        activityLogRouter);
+app.use('/api/cashbook',            cashbookRouter);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 

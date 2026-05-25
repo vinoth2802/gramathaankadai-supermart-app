@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import prisma from '../db.js';
+import { logActivity, computeDiff } from '../utils/log.js';
+
+const fmtMoney = v => `₹${parseFloat(String(v || 0)).toFixed(2)}`;
 
 const router = Router();
 
@@ -86,10 +89,16 @@ router.post('/in', async (req, res) => {
       date:        date ? new Date(date) : undefined,
     },
   });
+  logActivity({ action: 'CREATE', type: 'PaymentIn', refNo: record.reference || `#${record.id}`, partyName: record.partyName, amount: Number(record.amount), userName: req.headers['x-user'] });
   res.status(201).json(record);
 });
 
 router.patch('/in/:id', async (req, res) => {
+  const prevRec = await prisma.paymentInHistory.findUnique({
+    where: { id: Number(req.params.id) },
+    select: { partyName: true, amount: true, discount: true, paymentMode: true, status: true, reference: true },
+  });
+
   const { partyId, partyName, amount, discount, paymentMode, reference, notes, status, date } = req.body;
   const data = {};
   if (partyId     !== undefined) data.partyId     = partyId ? Number(partyId) : null;
@@ -106,14 +115,32 @@ router.patch('/in/:id', async (req, res) => {
     where: { id: Number(req.params.id) },
     data,
   });
+  const changes = computeDiff(prevRec, record, [
+    { key: 'partyName',   label: 'Party' },
+    { key: 'amount',      label: 'Amount',       format: fmtMoney },
+    { key: 'discount',    label: 'Discount',     format: fmtMoney },
+    { key: 'paymentMode', label: 'Payment Mode' },
+    { key: 'status',      label: 'Status' },
+    { key: 'reference',   label: 'Reference' },
+  ]);
+  logActivity({ action: 'EDIT', type: 'PaymentIn', refNo: record.reference || `#${record.id}`, partyName: record.partyName, amount: Number(record.amount), userName: req.headers['x-user'], changes });
   res.json(record);
 });
 
 router.delete('/in/:id', async (req, res) => {
-  await prisma.paymentInHistory.delete({
-    where: { id: Number(req.params.id) },
-  });
-  res.status(204).end();
+  try {
+    const id = Number(req.params.id);
+    const rec = await prisma.paymentInHistory.findUnique({ where: { id } });
+    if (!rec) return res.status(404).json({ error: 'Not found' });
+    await prisma.$transaction([
+      prisma.recycleBin.create({
+        data: { type: 'PaymentIn', entityId: id, name: rec.partyName || `Payment #${id}`, amount: Number(rec.amount || 0), snapshot: JSON.stringify(rec) },
+      }),
+      prisma.paymentInHistory.delete({ where: { id } }),
+    ]);
+    logActivity({ action: 'DELETE', type: 'PaymentIn', refNo: rec.reference || `#${id}`, partyName: rec.partyName, amount: Number(rec.amount), userName: req.headers['x-user'] });
+    res.status(204).end();
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ── Payments Out ──────────────────────────────────────────────
@@ -150,6 +177,7 @@ router.post('/out', async (req, res) => {
         date:        date ? new Date(date) : undefined,
       },
     });
+    logActivity({ action: 'CREATE', type: 'PaymentOut', refNo: record.reference || `#${record.id}`, partyName: record.partyName, amount: Number(record.amount), userName: req.headers['x-user'] });
     res.status(201).json(record);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -158,6 +186,11 @@ router.post('/out', async (req, res) => {
 
 router.patch('/out/:id', async (req, res) => {
   try {
+    const prevRec = await prisma.paymentOutHistory.findUnique({
+      where: { id: Number(req.params.id) },
+      select: { partyName: true, amount: true, discount: true, paymentMode: true, status: true, reference: true },
+    });
+
     const { partyId, partyName, amount, discount, paymentMode, reference, notes, status, date } = req.body;
     const data = {};
     if (partyId     !== undefined) data.partyId     = partyId ? Number(partyId) : null;
@@ -173,6 +206,15 @@ router.patch('/out/:id', async (req, res) => {
       where: { id: Number(req.params.id) },
       data,
     });
+    const changes = computeDiff(prevRec, record, [
+      { key: 'partyName',   label: 'Party' },
+      { key: 'amount',      label: 'Amount',       format: fmtMoney },
+      { key: 'discount',    label: 'Discount',     format: fmtMoney },
+      { key: 'paymentMode', label: 'Payment Mode' },
+      { key: 'status',      label: 'Status' },
+      { key: 'reference',   label: 'Reference' },
+    ]);
+    logActivity({ action: 'EDIT', type: 'PaymentOut', refNo: record.reference || `#${record.id}`, partyName: record.partyName, amount: Number(record.amount), userName: req.headers['x-user'], changes });
     res.json(record);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -181,11 +223,18 @@ router.patch('/out/:id', async (req, res) => {
 
 router.delete('/out/:id', async (req, res) => {
   try {
-    await prisma.paymentOutHistory.delete({ where: { id: Number(req.params.id) } });
+    const id = Number(req.params.id);
+    const rec = await prisma.paymentOutHistory.findUnique({ where: { id } });
+    if (!rec) return res.status(404).json({ error: 'Not found' });
+    await prisma.$transaction([
+      prisma.recycleBin.create({
+        data: { type: 'PaymentOut', entityId: id, name: rec.partyName || `Payment #${id}`, amount: Number(rec.amount || 0), snapshot: JSON.stringify(rec) },
+      }),
+      prisma.paymentOutHistory.delete({ where: { id } }),
+    ]);
+    logActivity({ action: 'DELETE', type: 'PaymentOut', refNo: rec.reference || `#${id}`, partyName: rec.partyName, amount: Number(rec.amount), userName: req.headers['x-user'] });
     res.status(204).end();
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 export default router;

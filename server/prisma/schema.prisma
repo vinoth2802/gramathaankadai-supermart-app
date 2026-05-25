@@ -142,6 +142,8 @@ model Purchase {
   partyName           String?        @map("party_name")
   partyId             Int?           @map("party_id")
   grandTotal          Decimal        @default(0) @map("grand_total") @db.Decimal(12, 2)
+  totalPaid           Decimal        @default(0) @map("total_paid") @db.Decimal(12, 2)
+  paymentStatus       String         @default("Paid") @map("payment_status")
   paymentMode         String?        @map("payment_mode")
   createdAt           DateTime       @default(now()) @map("created_at")
   supplierInvoiceNo   String?        @map("supplier_invoice_no")
@@ -563,6 +565,18 @@ model PurchaseReturnItem {
   purchaseReturn PurchaseReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
 
   @@map("purchase_return_items")
+}
+
+model RecycleBin {
+  id         Int      @id @default(autoincrement())
+  type       String   // Sale | Purchase | PaymentIn | PaymentOut | Party | Item
+  entityId   Int      @map("entity_id")
+  name       String   // human-readable label (invoice no, party name, etc.)
+  amount     Decimal  @default(0) @db.Decimal(12, 2)
+  deletedAt  DateTime @default(now()) @map("deleted_at")
+  snapshot   String   @db.Text // JSON of full record
+
+  @@map("recycle_bin")
 }
 
 model CapitalInvestment {

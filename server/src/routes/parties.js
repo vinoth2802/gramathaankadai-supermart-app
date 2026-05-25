@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import prisma from '../db.js';
+import { logActivity, computeDiff } from '../utils/log.js';
 
 const router = Router();
 
@@ -32,10 +33,16 @@ router.post('/', async (req, res) => {
       notes:     notes     || null,
     },
   });
+  logActivity({ action: 'CREATE', type: 'Party', refNo: '—', partyName: party.name, amount: 0, userName: req.headers['x-user'] });
   res.status(201).json(party);
 });
 
 router.put('/:id', async (req, res) => {
+  const prevParty = await prisma.party.findUnique({
+    where: { id: Number(req.params.id) },
+    select: { name: true, phone: true, email: true, address: true, type: true, gstin: true },
+  });
+
   const { name, type, partyType, phone, email, address, gstin, balance, payable, lastSale, notes } = req.body;
   const resolvedPartyType = partyType === 'B2B' ? 'B2B' : 'B2C';
   const party = await prisma.party.update({
@@ -54,6 +61,15 @@ router.put('/:id', async (req, res) => {
       notes:     notes     || null,
     },
   });
+  const changes = computeDiff(prevParty, party, [
+    { key: 'name',    label: 'Name' },
+    { key: 'phone',   label: 'Phone' },
+    { key: 'email',   label: 'Email' },
+    { key: 'address', label: 'Address' },
+    { key: 'type',    label: 'Type' },
+    { key: 'gstin',   label: 'GSTIN' },
+  ]);
+  logActivity({ action: 'EDIT', type: 'Party', refNo: '—', partyName: party.name, amount: 0, userName: req.headers['x-user'], changes });
   res.json(party);
 });
 
@@ -80,8 +96,19 @@ router.patch('/:id', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
-  await prisma.party.delete({ where: { id: Number(req.params.id) } });
-  res.status(204).end();
+  try {
+    const id = Number(req.params.id);
+    const party = await prisma.party.findUnique({ where: { id } });
+    if (!party) return res.status(404).json({ error: 'Not found' });
+    await prisma.$transaction([
+      prisma.recycleBin.create({
+        data: { type: 'Party', entityId: id, name: party.name, amount: 0, snapshot: JSON.stringify(party) },
+      }),
+      prisma.party.delete({ where: { id } }),
+    ]);
+    logActivity({ action: 'DELETE', type: 'Party', refNo: '—', partyName: party.name, amount: 0, userName: req.headers['x-user'] });
+    res.status(204).end();
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 /* ── POST /check-names ── */

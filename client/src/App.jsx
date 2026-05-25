@@ -41,6 +41,9 @@ import ExportItems    from './pages/utilities/ExportItems.jsx';
 import ImportParties  from './pages/utilities/ImportParties.jsx';
 import ExportParties  from './pages/utilities/ExportParties.jsx';
 import Barcode        from './pages/utilities/Barcode.jsx';
+import Recyclebin     from './pages/utilities/Recyclebin.jsx';
+import LogRegister    from './pages/utilities/LogRegister.jsx';
+import CashBook       from './pages/Cashbook/daybook.jsx';
 
 import UserManagement from './pages/usermanagement/index.jsx';
 import ResetPage      from './pages/settings/Reset.jsx';
@@ -173,6 +176,9 @@ export default function App() {
             <Route path="import-parties" element={<ImportParties />} />
             <Route path="export-parties" element={<ExportParties />} />
             <Route path="barcode"        element={<Barcode />} />
+            <Route path="recycle-bin"    element={<Recyclebin />} />
+            <Route path="log-register"   element={<LogRegister />} />
+            <Route path="cashbook"       element={<CashBook />} />
           </Route>
 
           <Route path="settings">

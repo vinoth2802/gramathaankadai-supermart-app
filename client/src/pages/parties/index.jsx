@@ -8,6 +8,8 @@ import {
 import { toast } from 'sonner';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import AddPartyModal from './AddPartyModal.jsx';
+import { EditSaleModal } from '../sales/History.jsx';
+import { EditPurchaseModal } from '../purchases/History.jsx';
 import { PartiesAPI } from '../../api/parties.js';
 import { SalesAPI } from '../../api/sales.js';
 import { PurchasesAPI } from '../../api/purchases.js';
@@ -45,10 +47,10 @@ function SortTh({ label, colKey, sortCol, sortDir, onSort, className = '' }) {
   );
 }
 
-/* ── Transaction row 3-dot menu ── */
-function TxnMenu({ txn }) {
+/* ── Party row 3-dot menu ── */
+function PartyRowMenu({ onEdit, onDelete, isSynthetic = false }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ top: 0, right: 0 });
+  const [pos, setPos]   = useState({ top: 0, right: 0 });
   const btnRef = useRef(null);
 
   const toggle = (e) => {
@@ -60,21 +62,81 @@ function TxnMenu({ txn }) {
     setOpen(o => !o);
   };
 
+  const act = (fn) => { setOpen(false); fn?.(); };
+
   return (
-    <div className="inline-block">
-      <button ref={btnRef} onClick={toggle} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:bg-slate-100 rounded-lg transition">
+    <div className="inline-block" onClick={e => e.stopPropagation()}>
+      <button ref={btnRef} onClick={toggle}
+        className="w-6 h-6 flex items-center justify-center text-slate-400 hover:bg-slate-200 rounded-md transition">
+        <MoreVertical size={13} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="fixed bg-white border border-slate-200 rounded-xl shadow-xl min-w-[140px] z-50 overflow-hidden"
+            style={{ top: pos.top, right: pos.right }}>
+            {!isSynthetic && (
+              <button onClick={() => act(onEdit)}
+                className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 transition">
+                View / Edit
+              </button>
+            )}
+            {!isSynthetic && (
+              <button onClick={() => act(onDelete)}
+                className="w-full px-4 py-2.5 text-left text-sm text-rose-600 hover:bg-rose-50 transition">
+                Delete
+              </button>
+            )}
+            {isSynthetic && (
+              <span className="block px-4 py-2.5 text-xs text-slate-400">No actions available</span>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ── Transaction row 3-dot menu ── */
+function TxnMenu({ onEdit, onDelete, onPrint }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos]   = useState({ top: 0, right: 0 });
+  const btnRef = useRef(null);
+
+  const toggle = (e) => {
+    e.stopPropagation();
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+    }
+    setOpen(o => !o);
+  };
+
+  const act = (fn) => { setOpen(false); fn?.(); };
+
+  return (
+    <div className="inline-block" onClick={e => e.stopPropagation()}>
+      <button ref={btnRef} onClick={toggle}
+        className="w-7 h-7 flex items-center justify-center text-slate-400 hover:bg-slate-100 rounded-lg transition">
         <MoreVertical size={14} />
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="fixed bg-white border border-slate-200 rounded-xl shadow-xl min-w-[150px] z-50 overflow-hidden" style={{ top: pos.top, right: pos.right }}>
-            {['View', 'Edit', 'Print', 'Delete'].map(label => (
-              <button key={label} onClick={() => { setOpen(false); toast.info(`${label}: ${txn.invoiceNo || txn.type}`); }}
-                className={`w-full px-4 py-2.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2 ${label === 'Delete' ? 'text-rose-600' : 'text-slate-700'}`}>
-                {label}
-              </button>
-            ))}
+          <div className="fixed bg-white border border-slate-200 rounded-xl shadow-xl min-w-[150px] z-50 overflow-hidden"
+            style={{ top: pos.top, right: pos.right }}>
+            <button onClick={() => act(onEdit)}
+              className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 transition">
+              View / Edit
+            </button>
+            <button onClick={() => act(onPrint)}
+              className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 transition">
+              Print
+            </button>
+            <button onClick={() => act(onDelete)}
+              className="w-full px-4 py-2.5 text-left text-sm text-rose-600 hover:bg-rose-50 transition">
+              Delete
+            </button>
           </div>
         </>
       )}
@@ -103,6 +165,7 @@ export default function Parties() {
   const [modalKey, setModalKey]       = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null });
   const [selectedTxnKey, setSelectedTxnKey] = useState(null);
+  const [editTxn,        setEditTxn]        = useState(null);
 
   const closeModal = () => { setModal(false); setEditParty(null); };
 
@@ -132,19 +195,157 @@ export default function Parties() {
     onError: () => toast.error('Failed to delete party'),
   });
 
+  const deleteSaleMut = useMutation({
+    mutationFn: (id) => SalesAPI.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sales'] }); toast.success('Sale deleted'); },
+    onError: () => toast.error('Failed to delete sale'),
+  });
+
+  const deletePurchaseMut = useMutation({
+    mutationFn: (id) => PurchasesAPI.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['purchases'] }); toast.success('Purchase deleted'); },
+    onError: () => toast.error('Failed to delete purchase'),
+  });
+
+  const handleTxnDelete = (txn) => {
+    if (!window.confirm(`Delete ${txn.type} ${txn.invoiceNo ? `#${txn.invoiceNo}` : ''}?`)) return;
+    if (txn.type === 'Sale')     deleteSaleMut.mutate(txn.id);
+    else                         deletePurchaseMut.mutate(txn.id);
+  };
+
+  const handleTxnPrint = (txn, fullData) => {
+    if (!fullData) { toast.error('Transaction data not found'); return; }
+    const isSale = txn.type === 'Sale';
+    const items  = (fullData.items || []);
+    const rows   = items.map((it, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${it.name || ''}</td>
+        <td>${it.qty || 0}</td>
+        <td>${it.unit || ''}</td>
+        <td>₹${Number(isSale ? it.rate : it.price || 0).toFixed(2)}</td>
+        <td>₹${Number(isSale ? it.amount : it.total || 0).toFixed(2)}</td>
+      </tr>`).join('');
+    const party = isSale
+      ? (fullData.customerName || 'Walk-in Customer')
+      : (fullData.partyName    || 'Unknown Supplier');
+    const html = `<!DOCTYPE html><html><head><title>${txn.type} #${txn.invoiceNo}</title>
+      <style>
+        body{font-family:Arial,sans-serif;padding:24px;font-size:13px}
+        h2{margin:0 0 4px}p{margin:2px 0}
+        table{width:100%;border-collapse:collapse;margin-top:16px}
+        th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}
+        th{background:#f1f5f9}
+        .total{text-align:right;margin-top:12px;font-size:15px;font-weight:bold}
+      </style></head><body>
+      <h2>${txn.type} Invoice</h2>
+      <p><b>Invoice No:</b> ${txn.invoiceNo || '—'}</p>
+      <p><b>Date:</b> ${txn.date ? new Date(txn.date).toLocaleDateString('en-IN') : '—'}</p>
+      <p><b>${isSale ? 'Customer' : 'Supplier'}:</b> ${party}</p>
+      <p><b>Payment Mode:</b> ${fullData.paymentMode || '—'}</p>
+      <table><thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Amount</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+      <p class="total">Grand Total: ₹${Number(fullData.grandTotal || 0).toLocaleString('en-IN',{minimumFractionDigits:2})}</p>
+      <p class="total" style="font-size:13px;font-weight:normal">
+        ${isSale ? 'Received' : 'Paid'}: ₹${Number(isSale ? fullData.totalReceived : fullData.totalPaid || 0).toLocaleString('en-IN',{minimumFractionDigits:2})}
+      </p>
+      <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close();}</script>
+      </body></html>`;
+    const w = window.open('', '_blank', 'width=800,height=600');
+    w.document.write(html);
+    w.document.close();
+  };
+
   const handleListSort = (col) => {
     if (listSortCol === col) setListSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setListSortCol(col); setListSortDir('asc'); }
   };
 
+  /* name → id lookup for real parties (used to attribute unlinked transactions) */
+  const nameToPartyId = useMemo(() => {
+    const m = {};
+    allParties.forEach(p => { m[p.name.trim().toLowerCase()] = p.id; });
+    return m;
+  }, [allParties]);
+
+  /* Compute actual outstanding receivable per party from unpaid/partial sales */
+  const receivableMap = useMemo(() => {
+    const map = {};
+    sales.forEach(s => {
+      const pid = s.partyId || nameToPartyId[(s.customerName || '').trim().toLowerCase()];
+      if (!pid) return;
+      const outstanding = Math.max(0, Number(s.grandTotal || 0) - Number(s.totalReceived || 0));
+      if (outstanding > 0) map[pid] = (map[pid] || 0) + outstanding;
+    });
+    return map;
+  }, [sales, nameToPartyId]);
+
+  /* Compute actual outstanding payable per party from unpaid/partial purchases */
+  const payableMap = useMemo(() => {
+    const map = {};
+    purchases.forEach(p => {
+      const pid = p.partyId || nameToPartyId[(p.partyName || '').trim().toLowerCase()];
+      if (!pid) return;
+      const outstanding = Math.max(0, Number(p.grandTotal || 0) - Number(p.totalPaid || 0));
+      if (outstanding > 0) map[pid] = (map[pid] || 0) + outstanding;
+    });
+    return map;
+  }, [purchases, nameToPartyId]);
+
+  /* Synthetic parties — transactions with no partyId (Cash Purchase, Cash Sale, Walk-in, etc.) */
+  const syntheticParties = useMemo(() => {
+    const realNames = new Set(allParties.map(p => p.name.trim().toLowerCase()));
+    const nameSet = new Set();
+    sales.forEach(s => { if (!s.partyId && s.customerName) nameSet.add(s.customerName.trim()); });
+    purchases.forEach(p => { if (!p.partyId && p.partyName) nameSet.add(p.partyName.trim()); });
+    return [...nameSet]
+      .filter(name => !realNames.has(name.toLowerCase()))
+      .map((name, i) => ({
+        id: `__syn_${i}_${name}__`,
+        name,
+        phone: null, gstin: null, billingAddress: null, type: 'synthetic', isSynthetic: true,
+      }));
+  }, [sales, purchases, allParties]);
+
+  /* Name-keyed balance maps for synthetic parties */
+  const syntheticReceivable = useMemo(() => {
+    const map = {};
+    sales.forEach(s => {
+      if (s.partyId || !s.customerName) return;
+      const key = s.customerName.trim().toLowerCase();
+      const outstanding = Math.max(0, Number(s.grandTotal || 0) - Number(s.totalReceived || 0));
+      if (outstanding > 0) map[key] = (map[key] || 0) + outstanding;
+    });
+    return map;
+  }, [sales]);
+
+  const syntheticPayable = useMemo(() => {
+    const map = {};
+    purchases.forEach(p => {
+      if (p.partyId || !p.partyName) return;
+      const key = p.partyName.trim().toLowerCase();
+      const outstanding = Math.max(0, Number(p.grandTotal || 0) - Number(p.totalPaid || 0));
+      if (outstanding > 0) map[key] = (map[key] || 0) + outstanding;
+    });
+    return map;
+  }, [purchases]);
+
   const filtered = useMemo(() => {
-    const list = allParties.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || (p.phone || '').includes(search));
+    const combined = [...allParties, ...syntheticParties];
+    const list = combined.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || (p.phone || '').includes(search));
     return [...list].sort((a, b) => {
-      const av = listSortCol === 'balance' ? Number(a.balance || 0) : (a.name || '').toLowerCase();
-      const bv = listSortCol === 'balance' ? Number(b.balance || 0) : (b.name || '').toLowerCase();
+      const displayAmt = (p) => {
+        if (p.isSynthetic) {
+          const key = p.name.toLowerCase();
+          return (syntheticReceivable[key] || 0) || (syntheticPayable[key] || 0);
+        }
+        return (receivableMap[p.id] || 0) || (payableMap[p.id] || 0);
+      };
+      const av = listSortCol === 'balance' ? displayAmt(a) : (a.name || '').toLowerCase();
+      const bv = listSortCol === 'balance' ? displayAmt(b) : (b.name || '').toLowerCase();
       return listSortDir === 'asc' ? (av > bv ? 1 : av < bv ? -1 : 0) : (av < bv ? 1 : av > bv ? -1 : 0);
     });
-  }, [allParties, search, listSortCol, listSortDir]);
+  }, [allParties, syntheticParties, search, listSortCol, listSortDir, receivableMap, payableMap, syntheticReceivable, syntheticPayable]);
 
   const selectedParty = useMemo(() =>
     filtered.find(p => String(p.id) === String(selectedId)) || null,
@@ -180,7 +381,11 @@ export default function Parties() {
       const byId   = p.partyId && String(p.partyId) === String(selectedParty.id);
       const byName = (p.partyName || '').toLowerCase() === selectedParty.name.toLowerCase();
       if (!byId && !byName) return;
-      txns.push({ id: p.id, type: 'Purchase', invoiceNo: p.invoice, date: p.date, total: Number(p.grandTotal || 0), balance: 0, dueDate: null, status: 'Paid' });
+      const total   = Number(p.grandTotal || 0);
+      const paid    = Number(p.totalPaid  || 0);
+      const balance = Math.max(0, total - paid);
+      const status  = p.paymentStatus || (paid >= total ? 'Paid' : paid > 0 ? 'Partial' : 'Unpaid');
+      txns.push({ id: p.id, type: 'Purchase', invoiceNo: p.invoice, date: p.date, total, balance, dueDate: null, status });
     });
 
     let result = [...txns].sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -265,18 +470,46 @@ export default function Parties() {
           ) : filtered.length === 0 ? (
             <p className="text-center text-xs text-slate-400 py-6">No parties found</p>
           ) : filtered.map(p => {
-            const bal = Number(p.balance || 0);
             const isSelected = String(selectedId) === String(p.id);
+
+            let receivable, payable;
+            if (p.isSynthetic) {
+              const key = p.name.toLowerCase();
+              receivable = syntheticReceivable[key] || 0;
+              payable    = syntheticPayable[key]    || 0;
+            } else {
+              receivable = receivableMap[p.id] || 0;
+              payable    = payableMap[p.id]    || 0;
+            }
+
+            let displayAmt, amtClass;
+            if (receivable > 0) {
+              displayAmt = receivable;
+              amtClass   = 'text-emerald-600';
+            } else if (payable > 0) {
+              displayAmt = payable;
+              amtClass   = 'text-rose-600';
+            } else {
+              displayAmt = 0;
+              amtClass   = 'text-slate-400';
+            }
+
             return (
               <div
                 key={p.id}
                 onClick={() => setSelectedId(p.id)}
-                className={`flex items-center justify-between px-3 py-2.5 cursor-pointer border-b border-slate-100 transition ${isSelected ? 'bg-green-100 border-l-2 border-l-green-700' : 'hover:bg-slate-50'}`}
+                onDoubleClick={() => { if (!p.isSynthetic) { setEditParty(p); setModal(true); } }}
+                className={`group flex items-center justify-between px-3 py-2 cursor-pointer border-b border-slate-100 transition ${isSelected ? 'bg-green-100 border-l-2 border-l-green-700' : 'hover:bg-slate-50'}`}
               >
-                <span className="text-xs font-bold text-slate-800 uppercase truncate pr-2">{p.name}</span>
-                <span className={`text-xs font-semibold shrink-0 ${bal === 0 ? 'text-teal-600' : 'text-red-500'}`}>
-                  {bal === 0 ? '0' : bal.toLocaleString('en-IN')}
+                <span className="text-xs font-bold text-slate-800 uppercase truncate pr-2 flex-1">{p.name}</span>
+                <span className={`text-xs font-semibold shrink-0 mr-1 ${amtClass}`}>
+                  {displayAmt.toLocaleString('en-IN')}
                 </span>
+                <PartyRowMenu
+                  isSynthetic={!!p.isSynthetic}
+                  onEdit={() => { setEditParty(p); setModal(true); }}
+                  onDelete={() => setDeleteConfirm({ open: true, id: p.id })}
+                />
               </div>
             );
           })}
@@ -297,10 +530,12 @@ export default function Parties() {
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <h2 className="text-lg font-bold text-slate-800 uppercase">{selectedParty.name}</h2>
-                    <button onClick={() => { setEditParty(selectedParty); setModal(true); }}
-                      className="text-blue-500 hover:text-blue-700 transition">
-                      <Pencil size={14} />
-                    </button>
+                    {!selectedParty.isSynthetic && (
+                      <button onClick={() => { setEditParty(selectedParty); setModal(true); }}
+                        className="text-blue-500 hover:text-blue-700 transition">
+                        <Pencil size={14} />
+                      </button>
+                    )}
                   </div>
                   <div className="flex items-center gap-8">
                     <div>
@@ -334,11 +569,15 @@ export default function Parties() {
                     className="w-9 h-9 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center transition">
                     <Bell size={15} className="text-red-600" />
                   </button>
-                  <div className="w-px h-6 bg-slate-200 mx-1" />
-                  <button onClick={() => { setEditParty(selectedParty); setModal(true); }}
-                    className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition">
-                    <MoreVertical size={16} />
-                  </button>
+                  {!selectedParty.isSynthetic && (
+                    <>
+                      <div className="w-px h-6 bg-slate-200 mx-1" />
+                      <button onClick={() => { setEditParty(selectedParty); setModal(true); }}
+                        className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition">
+                        <MoreVertical size={16} />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -390,7 +629,17 @@ export default function Parties() {
                     ) : partyTransactions.map((txn, idx) => {
                       const txnKey = `${txn.type}-${txn.id}-${idx}`;
                       return (
-                      <tr key={txnKey} onClick={() => setSelectedTxnKey(txnKey)}
+                      <tr key={txnKey}
+                        onClick={() => setSelectedTxnKey(txnKey)}
+                        onDoubleClick={() => {
+                          if (txn.type === 'Sale') {
+                            const full = sales.find(s => s.id === txn.id);
+                            if (full) setEditTxn({ type: 'Sale', data: full });
+                          } else {
+                            const full = purchases.find(p => p.id === txn.id);
+                            if (full) setEditTxn({ type: 'Purchase', data: full });
+                          }
+                        }}
                         className={`cursor-pointer transition ${selectedTxnKey === txnKey ? 'bg-green-100' : 'hover:bg-slate-50'}`}>
                         <td className="px-3 py-2.5 border-r border-slate-100">
                           <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${txn.type === 'Sale' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -418,7 +667,21 @@ export default function Parties() {
                           <StatusBadge status={txn.status} />
                         </td>
                         <td className="px-3 py-2.5 text-center">
-                          <TxnMenu txn={txn} />
+                          <TxnMenu
+                            onEdit={() => {
+                              const full = txn.type === 'Sale'
+                                ? sales.find(s => s.id === txn.id)
+                                : purchases.find(p => p.id === txn.id);
+                              if (full) setEditTxn({ type: txn.type, data: full });
+                            }}
+                            onDelete={() => handleTxnDelete(txn)}
+                            onPrint={() => {
+                              const full = txn.type === 'Sale'
+                                ? sales.find(s => s.id === txn.id)
+                                : purchases.find(p => p.id === txn.id);
+                              handleTxnPrint(txn, full);
+                            }}
+                          />
                         </td>
                       </tr>
                     ); })}
@@ -450,6 +713,13 @@ export default function Parties() {
         onConfirm={() => deleteMut.mutate(deleteConfirm.id)}
         onClose={() => setDeleteConfirm({ open: false, id: null })}
       />
+
+      {editTxn?.type === 'Sale' && (
+        <EditSaleModal sale={editTxn.data} onClose={() => setEditTxn(null)} />
+      )}
+      {editTxn?.type === 'Purchase' && (
+        <EditPurchaseModal purchase={editTxn.data} onClose={() => setEditTxn(null)} />
+      )}
     </div>
   );
 }

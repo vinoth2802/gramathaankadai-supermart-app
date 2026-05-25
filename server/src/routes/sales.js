@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import prisma from '../db.js';
+import { logActivity, computeDiff } from '../utils/log.js';
+
+const fmtMoney = v => `₹${parseFloat(String(v || 0)).toFixed(2)}`;
 
 const router = Router();
 
@@ -37,10 +40,11 @@ router.get('/next-number', async (_req, res) => {
 });
 
 router.get('/', async (req, res) => {
-  const { from, to, invoiceSearch } = req.query;
+  const { from, to, invoiceSearch, partyId } = req.query;
   const where = {};
   if (from && to) where.date = { gte: new Date(from), lte: new Date(to) };
   if (invoiceSearch) where.invoice = { contains: invoiceSearch, mode: 'insensitive' };
+  if (partyId) where.partyId = Number(partyId);
   const sales = await prisma.sale.findMany({
     where: Object.keys(where).length ? where : undefined,
     include,
@@ -116,13 +120,19 @@ router.post('/', async (req, res) => {
     },
     include,
   });
+  logActivity({ action: 'CREATE', type: 'Sale', refNo: sale.invoice, partyName: sale.customerName, amount: Number(sale.grandTotal), userName: req.headers['x-user'] });
   res.status(201).json(sale);
 });
 
 router.patch('/:id', async (req, res) => {
   try {
+    const prevSale = await prisma.sale.findUnique({
+      where: { id: Number(req.params.id) },
+      select: { customerName: true, grandTotal: true, totalReceived: true, paymentStatus: true, paymentMode: true },
+    });
+
     const {
-      status, customerName, paymentMode, date,
+      status, customerName, partyId, paymentMode, date,
       phone, billingAddress, shippingAddress, stateOfSupply,
       subtotal, gst, grandTotal, totalReceived, changeGiven,
       paymentStatus, dueDate,
@@ -133,6 +143,7 @@ router.patch('/:id', async (req, res) => {
     const data = {};
     if (status           !== undefined) data.status           = status;
     if (customerName     !== undefined) data.customerName     = customerName;
+    if (partyId          !== undefined) data.partyId          = partyId ? Number(partyId) : null;
     if (paymentMode      !== undefined) data.paymentMode      = paymentMode;
     if (date             !== undefined) data.date             = new Date(date);
     if (phone            !== undefined) data.phone            = phone || null;
@@ -182,6 +193,14 @@ router.patch('/:id', async (req, res) => {
       data,
       include,
     });
+    const changes = computeDiff(prevSale, sale, [
+      { key: 'customerName',  label: 'Customer' },
+      { key: 'grandTotal',    label: 'Grand Total',   format: fmtMoney },
+      { key: 'totalReceived', label: 'Amt Received',  format: fmtMoney },
+      { key: 'paymentStatus', label: 'Status' },
+      { key: 'paymentMode',   label: 'Payment Mode' },
+    ]);
+    logActivity({ action: 'EDIT', type: 'Sale', refNo: sale.invoice, partyName: sale.customerName, amount: Number(sale.grandTotal), userName: req.headers['x-user'], changes });
     res.json(sale);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -198,7 +217,6 @@ router.delete('/:id', async (req, res) => {
     });
     if (!sale) return res.status(404).json({ error: 'Sale not found' });
 
-    // Restore stock for every line item that is linked to a product
     const stockRestores = sale.items
       .filter(i => i.productId && Number(i.qty) > 0)
       .map(i =>
@@ -209,9 +227,19 @@ router.delete('/:id', async (req, res) => {
       );
 
     await prisma.$transaction([
+      prisma.recycleBin.create({
+        data: {
+          type:     'Sale',
+          entityId: sale.id,
+          name:     sale.invoice,
+          amount:   Number(sale.grandTotal || 0),
+          snapshot: JSON.stringify(sale),
+        },
+      }),
       ...stockRestores,
       prisma.sale.delete({ where: { id: saleId } }),
     ]);
+    logActivity({ action: 'DELETE', type: 'Sale', refNo: sale.invoice, partyName: sale.customerName, amount: Number(sale.grandTotal), userName: req.headers['x-user'] });
 
     res.status(204).end();
   } catch (err) {

@@ -1,6 +1,9 @@
 
 import { Router } from 'express';
 import prisma from '../db.js';
+import { logActivity, computeDiff } from '../utils/log.js';
+
+const fmtMoney = v => `₹${parseFloat(String(v || 0)).toFixed(2)}`;
 
 const router = Router();
 
@@ -77,6 +80,7 @@ router.post('/', async (req, res) => {
         location:         location        || null,
       },
     });
+    logActivity({ action: 'CREATE', type: 'Item', refNo: item.itemCode || '—', partyName: item.shortName, amount: Number(item.mrp || 0), userName: req.headers['x-user'] });
     res.status(201).json(item);
   } catch (err) {
     console.error('Create item error:', err);
@@ -86,6 +90,11 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
+    const prevItem = await prisma.product.findUnique({
+      where: { id: Number(req.params.id) },
+      select: { shortName: true, salesPrice: true, purchasePrice: true, mrp: true, stock: true, gstRate: true, category: true },
+    });
+
     const {
       shortName, itemCode, type, category, hsnCode, description, batch, uom, pcsPerUnit,
       purchasePrice, mrp, salesPrice, gstRate, stock, reorderLevel, minStock, expiryDate,
@@ -123,6 +132,16 @@ router.put('/:id', async (req, res) => {
         location:         location        || null,
       },
     });
+    const changes = computeDiff(prevItem, item, [
+      { key: 'shortName',     label: 'Name' },
+      { key: 'salesPrice',    label: 'Sales Price',    format: fmtMoney },
+      { key: 'purchasePrice', label: 'Purchase Price', format: fmtMoney },
+      { key: 'mrp',           label: 'MRP',            format: fmtMoney },
+      { key: 'stock',         label: 'Stock',          format: v => String(parseFloat(String(v || 0))) },
+      { key: 'gstRate',       label: 'GST Rate',       format: v => `${parseFloat(String(v || 0))}%` },
+      { key: 'category',      label: 'Category' },
+    ]);
+    logActivity({ action: 'EDIT', type: 'Item', refNo: item.itemCode || '—', partyName: item.shortName, amount: Number(item.mrp || 0), userName: req.headers['x-user'], changes });
     res.json(item);
   } catch (err) {
     console.error('Update item error:', err);
@@ -248,7 +267,16 @@ router.post('/bulk-import', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    await prisma.product.delete({ where: { id: Number(req.params.id) } });
+    const id = Number(req.params.id);
+    const item = await prisma.product.findUnique({ where: { id } });
+    if (!item) return res.status(404).json({ error: 'Not found' });
+    await prisma.$transaction([
+      prisma.recycleBin.create({
+        data: { type: 'Item', entityId: id, name: item.shortName, amount: Number(item.mrp || 0), snapshot: JSON.stringify(item) },
+      }),
+      prisma.product.delete({ where: { id } }),
+    ]);
+    logActivity({ action: 'DELETE', type: 'Item', refNo: item.itemCode || '—', partyName: item.shortName, amount: Number(item.mrp || 0), userName: req.headers['x-user'] });
     res.status(204).end();
   } catch (err) {
     console.error('Delete item error:', err);

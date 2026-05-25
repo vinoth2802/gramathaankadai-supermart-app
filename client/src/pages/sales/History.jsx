@@ -3,11 +3,13 @@ import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-  ChevronDown, Settings, Search,
+  ChevronDown, Settings, Search, X, Plus, Trash2,
   Printer, MoreVertical, Share2, BarChart2, FileSpreadsheet, Calendar, Check,
   ArrowUp, ArrowDown, ArrowUpDown,
 } from 'lucide-react';
 import { SalesAPI } from '../../api/sales.js';
+import { PartiesAPI } from '../../api/parties.js';
+import { PaymentsAPI } from '../../api/payments.js';
 
 /* ── Helpers ── */
 const pad = (n) => String(n).padStart(2, '0');
@@ -192,6 +194,288 @@ function RowMenu({ onDelete }) {
   );
 }
 
+/* ── Sale item row blank ── */
+const ITEM_BLANK = { name: '', batchNo: '', expiryDate: '', mfgDate: '', mrp: 0, qty: 1, freeQty: 0, unit: 'PCS', rate: 0, gstRate: 0, gstAmount: 0, amount: 0 };
+
+function calcLine(qty, rate, gstRate) {
+  const base = Number(qty) * Number(rate);
+  const gstAmount = base * Number(gstRate) / 100;
+  return { gstAmount, amount: base + gstAmount };
+}
+
+/* ── Edit Sale Modal ── */
+export function EditSaleModal({ sale, onClose }) {
+  const qc = useQueryClient();
+
+  const { data: parties    = [] } = useQuery({ queryKey: ['parties'],        queryFn: PartiesAPI.getAll });
+  const { data: payOptions = [] } = useQuery({ queryKey: ['paymentOptions'], queryFn: PaymentsAPI.getOptions });
+
+  const customers = parties.filter(p => p.type === 'customer' || p.type === 'both');
+  const MODES     = payOptions.length ? payOptions.map(o => o.name) : ['Cash', 'Bank Transfer', 'Cheque', 'UPI', 'Card'];
+
+  const [customerName, setCustomerName] = useState(sale.customerName || sale.party?.name || '');
+  const [partyId,      setPartyId]      = useState(sale.partyId ? String(sale.partyId) : '');
+  const [customerDrop, setCustomerDrop] = useState(false);
+  const customerRef = useRef(null);
+  const [paymentMode,    setPaymentMode]    = useState(sale.paymentMode || 'Cash');
+  const [totalReceived,  setTotalReceived]  = useState(String(Number(sale.totalReceived ?? sale.grandTotal ?? 0)));
+  const [items, setItems] = useState(
+    (sale.items || []).map(i => ({
+      name:       i.name       || '',
+      batchNo:    i.batchNo    || '',
+      expiryDate: i.expiryDate || '',
+      mfgDate:    i.mfgDate    || '',
+      mrp:        Number(i.mrp      || 0),
+      qty:        Number(i.qty      || 0),
+      freeQty:    Number(i.freeQty  || 0),
+      unit:       i.unit       || 'PCS',
+      rate:       Number(i.rate     || 0),
+      gstRate:    Number(i.gstRate  || 0),
+      gstAmount:  Number(i.gstAmount|| 0),
+      amount:     Number(i.amount   || 0),
+    }))
+  );
+
+  useEffect(() => {
+    const fn = (e) => { if (customerRef.current && !customerRef.current.contains(e.target)) setCustomerDrop(false); };
+    document.addEventListener('mousedown', fn);
+    return () => document.removeEventListener('mousedown', fn);
+  }, []);
+
+  const updateRow = (idx, field, value) => {
+    setItems(prev => prev.map((row, i) => {
+      if (i !== idx) return row;
+      const updated = { ...row, [field]: value };
+      const { gstAmount, amount } = calcLine(updated.qty, updated.rate, updated.gstRate);
+      return { ...updated, gstAmount, amount };
+    }));
+  };
+
+  const grandTotal    = items.reduce((s, i) => s + Number(i.amount || 0), 0);
+  const received      = Number(totalReceived || 0);
+  const balance       = Math.max(0, grandTotal - received);
+  const paymentStatus = received <= 0 ? 'Unpaid' : received >= grandTotal ? 'Paid' : 'Partial';
+  const statusColor   = { Paid: 'text-emerald-600', Partial: 'text-amber-600', Unpaid: 'text-rose-600' };
+
+  const updateMut = useMutation({
+    mutationFn: (data) => SalesAPI.update(sale.id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sales'] });
+      toast.success('Sale updated');
+      onClose();
+    },
+    onError: () => toast.error('Failed to update sale'),
+  });
+
+  const handleSave = () => {
+    const validItems = items.filter(i => i.name && Number(i.qty) > 0);
+    if (!validItems.length) { toast.warning('Add at least one valid item'); return; }
+    updateMut.mutate({
+      customerName:  customerName || null,
+      partyId:       partyId ? Number(partyId) : null,
+      paymentMode,
+      totalReceived: received,
+      paymentStatus,
+      grandTotal,
+      items: validItems.map(i => ({
+        name:       i.name,
+        batchNo:    i.batchNo    || null,
+        expiryDate: i.expiryDate || null,
+        mfgDate:    i.mfgDate    || null,
+        mrp:        Number(i.mrp      || 0),
+        qty:        Number(i.qty),
+        freeQty:    Number(i.freeQty  || 0),
+        unit:       i.unit       || null,
+        rate:       Number(i.rate),
+        gstRate:    Number(i.gstRate  || 0),
+        gstAmount:  Number(i.gstAmount|| 0),
+        amount:     Number(i.amount),
+      })),
+    });
+  };
+
+  const inp  = 'w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-100';
+  const cell = 'px-2 py-1.5 text-xs bg-transparent focus:outline-none focus:bg-emerald-50 rounded w-full';
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-5xl flex flex-col max-h-[92vh]">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
+          <div>
+            <h2 className="text-base font-bold text-slate-800">Edit Sale</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Invoice: {sale.invoice}</p>
+          </div>
+          <button onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-full transition">
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0 space-y-4">
+
+          {/* Header fields */}
+          <div className="grid grid-cols-2 gap-4">
+
+            {/* Customer */}
+            <div ref={customerRef} className="relative">
+              <label className="text-xs text-slate-500 mb-1 block">Customer Name</label>
+              <input
+                value={customerName}
+                onChange={e => { setCustomerName(e.target.value); setPartyId(''); setCustomerDrop(true); }}
+                onFocus={() => setCustomerDrop(true)}
+                placeholder="Search customer…"
+                className={inp}
+              />
+              {customerDrop && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-40 overflow-y-auto">
+                  {customers
+                    .filter(c => c.name.toLowerCase().includes(customerName.toLowerCase()))
+                    .map(c => (
+                      <button key={c.id} type="button"
+                        onMouseDown={() => { setCustomerName(c.name); setPartyId(String(c.id)); setCustomerDrop(false); }}
+                        className="w-full flex items-center justify-between px-4 py-2 hover:bg-emerald-50 text-left text-sm text-slate-800">
+                        {c.name}
+                        {c.phone && <span className="text-xs text-slate-400">{c.phone}</span>}
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* Payment Mode */}
+            <div>
+              <label className="text-xs text-slate-500 mb-1 block">Payment Mode</label>
+              <select value={paymentMode} onChange={e => setPaymentMode(e.target.value)} className={inp}>
+                {MODES.map(m => <option key={m}>{m}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Items table */}
+          <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+              <span className="text-xs font-semibold text-slate-600">Items</span>
+              <button type="button" onClick={() => setItems(prev => [...prev, { ...ITEM_BLANK }])}
+                className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-semibold">
+                <Plus size={12} /> Add Row
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-2 py-2 text-left text-slate-500 font-medium w-6">#</th>
+                    <th className="px-2 py-2 text-left text-slate-500 font-medium min-w-[140px]">Item Name</th>
+                    <th className="px-2 py-2 text-left text-slate-500 font-medium w-20">Batch</th>
+                    <th className="px-2 py-2 text-right text-slate-500 font-medium w-14">MRP</th>
+                    <th className="px-2 py-2 text-right text-slate-500 font-medium w-14">Qty</th>
+                    <th className="px-2 py-2 text-right text-slate-500 font-medium w-14">Free</th>
+                    <th className="px-2 py-2 text-left text-slate-500 font-medium w-14">Unit</th>
+                    <th className="px-2 py-2 text-right text-slate-500 font-medium w-20">Rate</th>
+                    <th className="px-2 py-2 text-right text-slate-500 font-medium w-14">GST%</th>
+                    <th className="px-2 py-2 text-right text-slate-500 font-medium w-20">GST Amt</th>
+                    <th className="px-2 py-2 text-right text-slate-500 font-medium w-24">Amount</th>
+                    <th className="w-8" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {items.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50">
+                      <td className="px-2 py-1 text-slate-400 text-center">{idx + 1}</td>
+                      <td className="px-1 py-1"><input value={row.name}    onChange={e => updateRow(idx, 'name',    e.target.value)} className={cell} placeholder="Item name" /></td>
+                      <td className="px-1 py-1"><input value={row.batchNo} onChange={e => updateRow(idx, 'batchNo', e.target.value)} className={cell} /></td>
+                      <td className="px-1 py-1"><input type="number" value={row.mrp}     onChange={e => updateRow(idx, 'mrp',     e.target.value)} className={`${cell} text-right`} /></td>
+                      <td className="px-1 py-1"><input type="number" value={row.qty}     onChange={e => updateRow(idx, 'qty',     e.target.value)} className={`${cell} text-right`} /></td>
+                      <td className="px-1 py-1"><input type="number" value={row.freeQty} onChange={e => updateRow(idx, 'freeQty', e.target.value)} className={`${cell} text-right`} /></td>
+                      <td className="px-1 py-1"><input value={row.unit}    onChange={e => updateRow(idx, 'unit',    e.target.value)} className={cell} /></td>
+                      <td className="px-1 py-1"><input type="number" value={row.rate}    onChange={e => updateRow(idx, 'rate',    e.target.value)} className={`${cell} text-right`} /></td>
+                      <td className="px-1 py-1"><input type="number" value={row.gstRate} onChange={e => updateRow(idx, 'gstRate', e.target.value)} className={`${cell} text-right`} /></td>
+                      <td className="px-2 py-1 text-right text-slate-500">{Number(row.gstAmount).toFixed(2)}</td>
+                      <td className="px-2 py-1 text-right font-semibold text-slate-800">{Number(row.amount).toFixed(2)}</td>
+                      <td className="px-1 py-1 text-center">
+                        <button type="button" onClick={() => setItems(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-slate-300 hover:text-rose-500 transition">
+                          <Trash2 size={13} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Totals + Payment */}
+          <div className="flex items-start justify-end gap-4">
+
+            {/* Payment card */}
+            <div className="w-64 border border-slate-200 rounded-xl overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
+                <span className="text-xs text-slate-500">Amount Received</span>
+                <input
+                  type="number" min="0"
+                  value={totalReceived}
+                  onChange={e => setTotalReceived(e.target.value)}
+                  className="w-28 border border-slate-300 rounded-lg px-2 py-1 text-sm text-right text-slate-800 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
+                <span className="text-xs text-slate-500">Balance</span>
+                <span className={`text-sm font-semibold ${balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  ₹ {balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div className="px-4 py-2.5 flex items-center justify-between bg-slate-50">
+                <span className="text-xs text-slate-500">Status</span>
+                <span className={`text-xs font-bold ${statusColor[paymentStatus]}`}>{paymentStatus}</span>
+              </div>
+            </div>
+
+            {/* Totals card */}
+            <div className="w-64 border border-slate-200 rounded-xl overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
+                <span className="text-xs text-slate-500">Sub Total</span>
+                <span className="text-sm text-slate-700">
+                  ₹ {items.reduce((s, i) => s + Number(i.qty || 0) * Number(i.rate || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
+                <span className="text-xs text-slate-500">Tax Amount</span>
+                <span className="text-sm text-slate-700">
+                  ₹ {items.reduce((s, i) => s + Number(i.gstAmount || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div className="px-4 py-2.5 bg-emerald-50 flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-700">Grand Total</span>
+                <span className="text-base font-bold text-emerald-700">
+                  ₹ {grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 shrink-0">
+          <button onClick={onClose}
+            className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition">
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={updateMut.isPending}
+            className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition disabled:opacity-60">
+            {updateMut.isPending ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ══════════════════════════════════════════
    Main Page
 ══════════════════════════════════════════ */
@@ -199,6 +483,7 @@ export default function SalesHistory() {
   const location = useLocation();
   const [dateLabel, setDateLabel] = useState(location.state?.initFilter ?? 'This Month');
   const [selected,  setSelected]  = useState(null);
+  const [editRow,   setEditRow]   = useState(null);
   const [search,    setSearch]    = useState('');
   const [sortCol,   setSortCol]   = useState('date');
   const [sortDir,   setSortDir]   = useState('desc');
@@ -365,6 +650,7 @@ export default function SalesHistory() {
                     <tr
                       key={row.id}
                       onClick={() => setSelected(isSel ? null : row.id)}
+                      onDoubleClick={() => setEditRow(rawSales.find(s => s.id === row.id) ?? null)}
                       className={`cursor-pointer transition ${isSel ? 'bg-emerald-50' : 'hover:bg-slate-50/80'}`}
                     >
                       <td className={`px-4 py-3 text-xs whitespace-nowrap ${isSel ? bold : 'text-slate-600'}`}>
@@ -417,6 +703,13 @@ export default function SalesHistory() {
         </div>
 
       </div>
+
+      {editRow && (
+        <EditSaleModal
+          sale={editRow}
+          onClose={() => setEditRow(null)}
+        />
+      )}
     </div>
   );
 }

@@ -504,7 +504,7 @@ export default function SalePage() {
       await createMut.mutateAsync({
         invoice:          tab.invoiceNo,
         date:             tab.invoiceDate,
-        customerName:     tab.partyQuery  || 'Walk-in Customer',
+        customerName:     tab.isCash ? (tab.partyQuery || 'Cash Sale') : (tab.partyQuery || 'Walk-in Customer'),
         partyId:          tab.partyId     ? Number(tab.partyId) : undefined,
         phone:            tab.phone       || undefined,
         billingAddress:   tab.billingAddr || undefined,

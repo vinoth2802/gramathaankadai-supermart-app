@@ -6,6 +6,7 @@ export const SalesAPI = {
   getByDateRange:  (from, to)   => http.get('/sales', { params: { from, to } }),
   getNextNumber:   ()           => http.get('/sales/next-number'),
   searchByInvoice: (q)          => http.get('/sales', { params: { invoiceSearch: q } }),
+  getByParty:      (partyId)    => http.get('/sales', { params: { partyId } }),
   create:          (data)       => http.post('/sales', data),
   update:          (id, data)   => http.patch(`/sales/${id}`, data),
   delete:          (id)         => http.delete(`/sales/${id}`),
