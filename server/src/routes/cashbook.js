@@ -3,13 +3,18 @@ import prisma from '../db.js';
 
 const router = Router();
 
+// Cash actually received for a sale = totalReceived − changeGiven (not grandTotal, which may be unpaid)
+const saleCash  = s => Math.max(0, Number(s.totalReceived) - Number(s.changeGiven));
+// Cash actually paid for a purchase = totalPaid (not grandTotal, which may be unpaid/partial)
+const purchCash = p => Math.max(0, Number(p.totalPaid));
+
 router.get('/summary', async (req, res) => {
   try {
     const dateStr = req.query.date || new Date().toISOString().slice(0, 10);
     const [yr, mo, dy] = dateStr.split('-').map(Number);
 
-    const dayStart = new Date(yr, mo - 1, dy, 0, 0, 0, 0);
-    const dayEnd   = new Date(yr, mo - 1, dy, 23, 59, 59, 999);
+    const dayStart  = new Date(yr, mo - 1, dy, 0, 0, 0, 0);
+    const dayEnd    = new Date(yr, mo - 1, dy, 23, 59, 59, 999);
     const beforeDay = new Date(yr, mo - 1, dy, 0, 0, 0, 0);
 
     const [
@@ -18,11 +23,11 @@ router.get('/summary', async (req, res) => {
     ] = await Promise.all([
       prisma.sale.findMany({
         where: { date: { lt: beforeDay }, paymentMode: 'Cash' },
-        select: { grandTotal: true },
+        select: { totalReceived: true, changeGiven: true },
       }),
       prisma.purchase.findMany({
         where: { date: { lt: beforeDay }, paymentMode: 'Cash' },
-        select: { grandTotal: true },
+        select: { totalPaid: true },
       }),
       prisma.cashTransaction.findMany({
         where: { date: { lt: beforeDay } },
@@ -38,11 +43,11 @@ router.get('/summary', async (req, res) => {
       }),
       prisma.sale.findMany({
         where: { date: { gte: dayStart, lte: dayEnd } },
-        select: { grandTotal: true, paymentMode: true, customerName: true, invoice: true },
+        select: { grandTotal: true, totalReceived: true, changeGiven: true, paymentMode: true, customerName: true, invoice: true },
       }),
       prisma.purchase.findMany({
         where: { date: { gte: dayStart, lte: dayEnd } },
-        select: { grandTotal: true, paymentMode: true, partyName: true, invoice: true },
+        select: { grandTotal: true, totalPaid: true, paymentMode: true, partyName: true, invoice: true },
       }),
       prisma.cashTransaction.findMany({
         where: { date: { gte: dayStart, lte: dayEnd } },
@@ -58,30 +63,32 @@ router.get('/summary', async (req, res) => {
       }),
     ]);
 
-    // Opening balance = all cash flows before today
+    // Opening balance = all actual cash flows before today
     let opening = 0;
-    prevCashSales.forEach(s  => opening += Number(s.grandTotal));
-    prevCashPurch.forEach(p  => opening -= Number(p.grandTotal));
-    prevCashTxns.forEach(t   => { opening += t.type === 'Add Cash' ? Number(t.amount) : -Number(t.amount); });
-    prevPayIn.forEach(p      => opening += Number(p.amount));
-    prevPayOut.forEach(p     => opening -= Number(p.amount));
+    prevCashSales.forEach(s => opening += saleCash(s));
+    prevCashPurch.forEach(p => opening -= purchCash(p));
+    prevCashTxns.forEach(t  => { opening += t.type === 'Add Cash' ? Number(t.amount) : -Number(t.amount); });
+    prevPayIn.forEach(p     => opening += Number(p.amount));
+    prevPayOut.forEach(p    => opening -= Number(p.amount));
 
     // Today — sales
     const cashSales   = daySales.filter(s => s.paymentMode === 'Cash');
     const creditSales = daySales.filter(s => s.paymentMode !== 'Cash');
-    const totalCashSales   = cashSales.reduce((s, i) => s + Number(i.grandTotal), 0);
+    const totalCashSales   = cashSales.reduce((s, i) => s + saleCash(i), 0);
     const totalCreditSales = creditSales.reduce((s, i) => s + Number(i.grandTotal), 0);
 
     // Today — purchases
     const cashPurch   = dayPurchases.filter(p => p.paymentMode === 'Cash');
     const creditPurch = dayPurchases.filter(p => p.paymentMode !== 'Cash');
-    const totalCashPurch   = cashPurch.reduce((s, i) => s + Number(i.grandTotal), 0);
+    const totalCashPurch   = cashPurch.reduce((s, i) => s + purchCash(i), 0);
     const totalCreditPurch = creditPurch.reduce((s, i) => s + Number(i.grandTotal), 0);
 
-    // Today — cash transactions (expenses & other cash)
+    // Today — cash transactions
     const incomeItems   = dayCashTxns.filter(t => t.type === 'Add Cash');
-    const expenseItems  = dayCashTxns.filter(t => t.type !== 'Add Cash');
+    const withdrawItems = dayCashTxns.filter(t => t.type === 'Reduce Cash');
+    const expenseItems  = dayCashTxns.filter(t => t.type !== 'Add Cash' && t.type !== 'Reduce Cash');
     const totalIncome   = incomeItems.reduce((s, t) => s + Number(t.amount), 0);
+    const totalWithdraw = withdrawItems.reduce((s, t) => s + Number(t.amount), 0);
     const totalExpenses = expenseItems.reduce((s, t) => s + Number(t.amount), 0);
 
     // Today — payment in/out (cash only)
@@ -91,7 +98,7 @@ router.get('/summary', async (req, res) => {
     const totalPayOut = cashPayOut.reduce((s, p) => s + Number(p.amount), 0);
 
     const closing = opening + totalCashSales + totalIncome + totalPayIn
-                             - totalCashPurch - totalExpenses - totalPayOut;
+                             - totalCashPurch - totalExpenses - totalWithdraw - totalPayOut;
 
     res.json({
       date: dateStr,
@@ -113,6 +120,10 @@ router.get('/summary', async (req, res) => {
       expenses: {
         cash:  +totalExpenses.toFixed(2),
         count: expenseItems.length,
+      },
+      cashWithdraw: {
+        cash:  +totalWithdraw.toFixed(2),
+        count: withdrawItems.length,
       },
       income: {
         cash:  +totalIncome.toFixed(2),
@@ -145,22 +156,22 @@ router.get('/history', async (req, res) => {
       prevSales, prevPurch, prevTxns, prevPayIn, prevPayOut,
       ranSales, ranPurch, ranTxns, ranPayIn, ranPayOut,
     ] = await Promise.all([
-      prisma.sale.findMany({ where: { date: { lt: rangeStart }, paymentMode: 'Cash' }, select: { grandTotal: true } }),
-      prisma.purchase.findMany({ where: { date: { lt: rangeStart }, paymentMode: 'Cash' }, select: { grandTotal: true } }),
+      prisma.sale.findMany({ where: { date: { lt: rangeStart }, paymentMode: 'Cash' }, select: { totalReceived: true, changeGiven: true } }),
+      prisma.purchase.findMany({ where: { date: { lt: rangeStart }, paymentMode: 'Cash' }, select: { totalPaid: true } }),
       prisma.cashTransaction.findMany({ where: { date: { lt: rangeStart } }, select: { amount: true, type: true } }),
       prisma.paymentInHistory.findMany({ where: { date: { lt: rangeStart }, paymentMode: 'Cash' }, select: { amount: true } }),
       prisma.paymentOutHistory.findMany({ where: { date: { lt: rangeStart }, paymentMode: 'Cash' }, select: { amount: true } }),
-      prisma.sale.findMany({ where: { date: { gte: rangeStart, lte: rangeEnd } }, select: { grandTotal: true, paymentMode: true, date: true } }),
-      prisma.purchase.findMany({ where: { date: { gte: rangeStart, lte: rangeEnd } }, select: { grandTotal: true, paymentMode: true, date: true } }),
+      prisma.sale.findMany({ where: { date: { gte: rangeStart, lte: rangeEnd } }, select: { grandTotal: true, totalReceived: true, changeGiven: true, paymentMode: true, date: true } }),
+      prisma.purchase.findMany({ where: { date: { gte: rangeStart, lte: rangeEnd } }, select: { grandTotal: true, totalPaid: true, paymentMode: true, date: true } }),
       prisma.cashTransaction.findMany({ where: { date: { gte: rangeStart, lte: rangeEnd } }, select: { amount: true, type: true, date: true } }),
       prisma.paymentInHistory.findMany({ where: { date: { gte: rangeStart, lte: rangeEnd }, paymentMode: 'Cash' }, select: { amount: true, date: true } }),
       prisma.paymentOutHistory.findMany({ where: { date: { gte: rangeStart, lte: rangeEnd }, paymentMode: 'Cash' }, select: { amount: true, date: true } }),
     ]);
 
-    // Opening balance before rangeStart
+    // Opening balance before rangeStart (actual cash exchanged)
     let runningBalance = 0;
-    prevSales.forEach(s  => runningBalance += Number(s.grandTotal));
-    prevPurch.forEach(p  => runningBalance -= Number(p.grandTotal));
+    prevSales.forEach(s  => runningBalance += saleCash(s));
+    prevPurch.forEach(p  => runningBalance -= purchCash(p));
     prevTxns.forEach(t   => { runningBalance += t.type === 'Add Cash' ? Number(t.amount) : -Number(t.amount); });
     prevPayIn.forEach(p  => runningBalance += Number(p.amount));
     prevPayOut.forEach(p => runningBalance -= Number(p.amount));
@@ -181,23 +192,25 @@ router.get('/history', async (req, res) => {
       bucket[ds] = { cashSales: 0, creditSales: 0, cashSalesCount: 0, creditSalesCount: 0,
                      cashPurch: 0, creditPurch: 0, cashPurchCount: 0, creditPurchCount: 0,
                      expenses: 0, expensesCount: 0, income: 0, incomeCount: 0,
+                     cashWithdraw: 0, cashWithdrawCount: 0,
                      payIn: 0, payInCount: 0, payOut: 0, payOutCount: 0 };
     }
 
     ranSales.forEach(s => {
       const b = bucket[toDateStr(s.date)]; if (!b) return;
-      if (s.paymentMode === 'Cash') { b.cashSales += Number(s.grandTotal); b.cashSalesCount++; }
+      if (s.paymentMode === 'Cash') { b.cashSales += saleCash(s); b.cashSalesCount++; }
       else { b.creditSales += Number(s.grandTotal); b.creditSalesCount++; }
     });
     ranPurch.forEach(p => {
       const b = bucket[toDateStr(p.date)]; if (!b) return;
-      if (p.paymentMode === 'Cash') { b.cashPurch += Number(p.grandTotal); b.cashPurchCount++; }
+      if (p.paymentMode === 'Cash') { b.cashPurch += purchCash(p); b.cashPurchCount++; }
       else { b.creditPurch += Number(p.grandTotal); b.creditPurchCount++; }
     });
     ranTxns.forEach(t => {
       const b = bucket[toDateStr(t.date)]; if (!b) return;
-      if (t.type === 'Add Cash') { b.income += Number(t.amount); b.incomeCount++; }
-      else { b.expenses += Number(t.amount); b.expensesCount++; }
+      if (t.type === 'Add Cash')         { b.income       += Number(t.amount); b.incomeCount++;       }
+      else if (t.type === 'Reduce Cash') { b.cashWithdraw += Number(t.amount); b.cashWithdrawCount++; }
+      else                               { b.expenses     += Number(t.amount); b.expensesCount++;     }
     });
     ranPayIn.forEach(p  => { const b = bucket[toDateStr(p.date)]; if (b) { b.payIn  += Number(p.amount); b.payInCount++;  } });
     ranPayOut.forEach(p => { const b = bucket[toDateStr(p.date)]; if (b) { b.payOut += Number(p.amount); b.payOutCount++; } });
@@ -206,19 +219,20 @@ router.get('/history', async (req, res) => {
     const result = [];
     for (const ds of [...dateSet].sort()) {
       const d = bucket[ds];
-      const opening  = runningBalance;
-      const cashIn   = d.cashSales + d.income + d.payIn;
-      const cashOut  = d.cashPurch + d.expenses + d.payOut;
-      const closing  = opening + cashIn - cashOut;
+      const opening = runningBalance;
+      const cashIn  = d.cashSales + d.income + d.payIn;
+      const cashOut = d.cashPurch + d.expenses + d.cashWithdraw + d.payOut;
+      const closing = opening + cashIn - cashOut;
       result.push({
         date: ds,
         openingBalance: +opening.toFixed(2),
-        sales:     { cash: +d.cashSales.toFixed(2), credit: +d.creditSales.toFixed(2), total: +(d.cashSales + d.creditSales).toFixed(2), cashCount: d.cashSalesCount, creditCount: d.creditSalesCount },
-        purchases: { cash: +d.cashPurch.toFixed(2), credit: +d.creditPurch.toFixed(2), total: +(d.cashPurch + d.creditPurch).toFixed(2), cashCount: d.cashPurchCount, creditCount: d.creditPurchCount },
-        expenses:  { cash: +d.expenses.toFixed(2), count: d.expensesCount },
-        income:    { cash: +d.income.toFixed(2),   count: d.incomeCount   },
-        paymentIn:  { cash: +d.payIn.toFixed(2),  count: d.payInCount  },
-        paymentOut: { cash: +d.payOut.toFixed(2), count: d.payOutCount },
+        sales:        { cash: +d.cashSales.toFixed(2), credit: +d.creditSales.toFixed(2), total: +(d.cashSales + d.creditSales).toFixed(2), cashCount: d.cashSalesCount, creditCount: d.creditSalesCount },
+        purchases:    { cash: +d.cashPurch.toFixed(2), credit: +d.creditPurch.toFixed(2), total: +(d.cashPurch + d.creditPurch).toFixed(2), cashCount: d.cashPurchCount, creditCount: d.creditPurchCount },
+        expenses:     { cash: +d.expenses.toFixed(2),     count: d.expensesCount     },
+        cashWithdraw: { cash: +d.cashWithdraw.toFixed(2), count: d.cashWithdrawCount },
+        income:       { cash: +d.income.toFixed(2),       count: d.incomeCount       },
+        paymentIn:    { cash: +d.payIn.toFixed(2),        count: d.payInCount        },
+        paymentOut:   { cash: +d.payOut.toFixed(2),       count: d.payOutCount       },
         cashIn:  +cashIn.toFixed(2),
         cashOut: +cashOut.toFixed(2),
         closingBalance: +closing.toFixed(2),

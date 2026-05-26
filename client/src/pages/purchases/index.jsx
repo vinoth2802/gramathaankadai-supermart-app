@@ -525,48 +525,60 @@ export default function Purchases() {
                   </div>
                 )}
               </div>
-            </div>
-
-            <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-xs">
-              <thead className="sticky top-0 bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-7 text-center border-r border-slate-200">S.No</th>
-                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide min-w-[120px] border-r border-slate-200">Item</th>
-                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-10 text-right border-r border-slate-200">Count</th>
-                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-16 border-r border-slate-200">Batch</th>
-                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-16 border-r border-slate-200">Exp.</th>
-                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-16 border-r border-slate-200">Mfg.</th>
-                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-14 text-right border-r border-slate-200">MRP</th>
-                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-12 text-right border-r border-slate-200">Qty</th>
-                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-12 text-right border-r border-slate-200">Free</th>
-                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-12 border-r border-slate-200">Unit</th>
-                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-24 border-r border-slate-200">
-                    <div className="flex flex-col gap-0.5">
-                      <span>Price/Unit</span>
-                      <select
-                        value={form.priceType}
-                        onChange={e => {
-                          const pt = e.target.value;
-                          setForm(f => ({ ...f, priceType: pt }));
-                          setItems(prev => prev.map(r => {
-                            const { gstAmount, total } = calcAmounts(r.qty, r.price, r.gstRate, pt);
-                            return { ...r, gstAmount, total };
-                          }));
-                        }}
-                        onClick={e => e.stopPropagation()}
-                        className="text-[10px] font-normal bg-white border border-slate-300 rounded px-1 py-0.5 text-slate-600 focus:outline-none normal-case tracking-normal">
-                        <option value="With Tax">With Tax</option>
-                        <option value="Without Tax">Without Tax</option>
-                      </select>
-                    </div>
-                  </th>
-                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-12 text-right border-r border-slate-200">GST%</th>
-                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-16 text-right border-r border-slate-200">GST Amt</th>
-                  <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-20 text-right border-r border-slate-200">Total Amt</th>
-                  <th className="px-2 py-2 w-7 border-r border-slate-200" />
-                </tr>
-              </thead>
+            </div><div className="overflow-x-auto">
+  <table className="w-full border-collapse text-xs">
+    <thead className="sticky top-0 bg-slate-50 border-b border-slate-200">
+      <tr>
+        <th className="px-2 py-2 text-center font-semibold text-slate-600 uppercase tracking-wide w-7 border-r border-slate-200">S.No</th>
+        
+        <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide min-w-[120px] border-r border-slate-200">Item</th>
+        
+        <th className="px-2 py-2 text-right font-semibold text-slate-600 uppercase tracking-wide w-10 border-r border-slate-200">Count</th>
+        
+        <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-16 border-r border-slate-200">Batch</th>
+        
+        <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-16 border-r border-slate-200">Exp.</th>
+        
+        <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-16 border-r border-slate-200">Mfg.</th>
+        
+        <th className="px-2 py-2 text-right font-semibold text-slate-600 uppercase tracking-wide w-14 border-r border-slate-200">MRP</th>
+        
+        <th className="px-2 py-2 text-right font-semibold text-slate-600 uppercase tracking-wide w-12 border-r border-slate-200">Qty</th>
+        
+        <th className="px-2 py-2 text-right font-semibold text-slate-600 uppercase tracking-wide w-12 border-r border-slate-200">Free</th>
+        
+        <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-12 border-r border-slate-200">Unit</th>
+        
+        <th className="px-2 py-2 text-left font-semibold text-slate-600 uppercase tracking-wide w-24 border-r border-slate-200">
+          <div className="flex flex-col gap-0.5">
+            <span>Price/Unit</span>
+            <select
+              value={form.priceType}
+              onChange={e => {
+                const pt = e.target.value;
+                setForm(f => ({ ...f, priceType: pt }));
+                setItems(prev => prev.map(r => {
+                  const { gstAmount, total } = calcAmounts(r.qty, r.price, r.gstRate, pt);
+                  return { ...r, gstAmount, total };
+                }));
+              }}
+              onClick={e => e.stopPropagation()}
+              className="text-[10px] font-normal bg-white border border-slate-300 rounded px-1 py-0.5 text-slate-600 focus:outline-none normal-case tracking-normal">
+              <option value="With Tax">With Tax</option>
+              <option value="Without Tax">Without Tax</option>
+            </select>
+          </div>
+        </th>
+        
+        <th className="px-2 py-2 text-right font-semibold text-slate-600 uppercase tracking-wide w-12 border-r border-slate-200">GST%</th>
+        
+        <th className="px-2 py-2 text-right font-semibold text-slate-600 uppercase tracking-wide w-16 border-r border-slate-200">GST Amt</th>
+        
+        <th className="px-2 py-2 text-right font-semibold text-slate-600 uppercase tracking-wide w-20 border-r border-slate-200">Total Amt</th>
+        
+        <th className="px-2 py-2 w-7 border-r border-slate-200" />
+      </tr>
+    </thead>
               <tbody className="divide-y divide-slate-50">
               {items.map((row, idx) => (
                 <tr key={idx} className="border-b border-slate-200 hover:bg-slate-50 transition">

@@ -9,7 +9,7 @@ import {
   Landmark, Building2, Wallet, FileCheck, TrendingDown, HardDrive, TrendingUp,
   Wrench, Upload, Download, QrCode,
   SlidersHorizontal, ArrowLeftRight, Printer, Percent, UserCog, Box, Ruler, Star, Gift, Trash2,
-  Database, CreditCard, ClipboardList, BookOpen,
+  Database, CreditCard, ClipboardList, BookOpen, History,
 } from 'lucide-react';
 
 const nav = [
@@ -59,7 +59,14 @@ const nav = [
     ],
   },
   { to: '/reports',  icon: BarChart2, label: 'Reports' },
-  { to: '/utilities/cashbook', icon: BookOpen, label: 'Day Cash Book' },
+  {
+    icon: BookOpen,
+    label: 'Day Cash Book',
+    children: [
+      { to: '/utilities/cashbook',         icon: BookOpen, label: 'Day Cash Book' },
+      { to: '/utilities/cashbook-history', icon: History,  label: 'History' },
+    ],
+  },
   {
     icon: Wrench,
     label: 'Utilities',
