@@ -61,6 +61,7 @@ model Party {
   gstin             String?
   balance           Decimal             @default(0) @db.Decimal(12, 2)
   payable           Decimal             @default(0) @db.Decimal(12, 2)
+  loyaltyPoints     Decimal             @default(0) @map("loyalty_points") @db.Decimal(12, 2)
   lastSale          DateTime?           @map("last_sale") @db.Date
   notes             String?
   createdAt         DateTime            @default(now()) @map("created_at")
@@ -85,6 +86,7 @@ model Sale {
   customerName     String     @default("Walk-in Customer") @map("customer_name")
   partyId          Int?       @map("party_id")
   subtotal         Decimal    @default(0) @db.Decimal(12, 2)
+  discount         Decimal    @default(0) @db.Decimal(12, 2)
   gst              Decimal    @default(0) @db.Decimal(12, 2)
   grandTotal       Decimal    @default(0) @map("grand_total") @db.Decimal(12, 2)
   paymentMode      String?    @map("payment_mode")
@@ -125,6 +127,7 @@ model SaleItem {
   mrp         Decimal  @default(0) @db.Decimal(12, 2)
   size        String?
   freeQty     Decimal  @default(0) @map("free_qty") @db.Decimal(12, 3)
+  discount    Decimal  @default(0) @db.Decimal(12, 2)
   unit        String?
   gstRate     Decimal  @default(0) @map("gst_rate") @db.Decimal(5, 2)
   gstAmount   Decimal  @default(0) @map("gst_amount") @db.Decimal(12, 2)
@@ -141,10 +144,15 @@ model Purchase {
   date                DateTime       @default(now())
   partyName           String?        @map("party_name")
   partyId             Int?           @map("party_id")
+  subtotal            Decimal        @default(0) @db.Decimal(12, 2)
+  discount            Decimal        @default(0) @db.Decimal(12, 2)
+  gst                 Decimal        @default(0) @db.Decimal(12, 2)
   grandTotal          Decimal        @default(0) @map("grand_total") @db.Decimal(12, 2)
   totalPaid           Decimal        @default(0) @map("total_paid") @db.Decimal(12, 2)
   paymentStatus       String         @default("Paid") @map("payment_status")
   paymentMode         String?        @map("payment_mode")
+  dueDate             DateTime?      @map("due_date") @db.Date
+  ewayBillNo          String?        @map("eway_bill_no")
   createdAt           DateTime       @default(now()) @map("created_at")
   supplierInvoiceNo   String?        @map("supplier_invoice_no")
   supplierInvoiceDate DateTime?      @map("supplier_invoice_date") @db.Date
@@ -166,6 +174,7 @@ model PurchaseItem {
   expiryDate DateTime? @map("expiry_date") @db.Date
   mfgDate    DateTime? @map("mfg_date") @db.Date
   mrp        Decimal   @default(0) @db.Decimal(12, 2)
+  discount   Decimal   @default(0) @db.Decimal(12, 2)
   unit       String?   @db.VarChar(50)
   gstRate    Decimal   @default(0) @map("gst_rate") @db.Decimal(5, 2)
   gstAmount  Decimal   @default(0) @map("gst_amount") @db.Decimal(12, 2)
