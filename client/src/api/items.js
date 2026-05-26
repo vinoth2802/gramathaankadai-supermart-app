@@ -9,4 +9,5 @@ export const ItemsAPI = {
   save:        (data)     => data.id ? http.put(`/items/${data.id}`, data) : http.post('/items', data),
   delete:      (id)       => http.delete(`/items/${id}`),
   adjustStock: (id, delta) => http.patch(`/items/${id}`, { stockDelta: delta }),
+  bulk:        (ids, data) => http.patch('/items/bulk', { ids, data }),
 };

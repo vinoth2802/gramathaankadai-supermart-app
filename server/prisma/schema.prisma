@@ -37,6 +37,7 @@ model Product {
   atPrice         Decimal    @default(0) @map("at_price") @db.Decimal(12, 2)
   asOfDate        DateTime?  @map("as_of_date") @db.Date
   location        String?    @db.VarChar(100)
+  isActive        Boolean    @default(true) @map("is_active")
   saleItems       SaleItem[]
 
   @@index([shortName])
@@ -338,6 +339,110 @@ model Settings {
   loyaltyMaxDiscount    Decimal  @default(10)    @map("loyalty_max_discount")    @db.Decimal(5, 2)
   loyaltyAllowPartial   Boolean  @default(true)  @map("loyalty_allow_partial")
   loyaltyShowOnInvoice  Boolean  @default(true)  @map("loyalty_show_on_invoice")
+
+  // Print settings
+  printPaperSize           String   @default("A4")                                    @map("print_paper_size")
+  printInvoiceTitle        String   @default("Tax Invoice")                           @map("print_invoice_title")
+  printCopies              Int      @default(1)                                       @map("print_copies")
+  printShowLogo            Boolean  @default(false)                                   @map("print_show_logo")
+  printShowAddress         Boolean  @default(true)                                    @map("print_show_address")
+  printShowGstin           Boolean  @default(true)                                    @map("print_show_gstin")
+  printShowPhone           Boolean  @default(true)                                    @map("print_show_phone")
+  printShowCustomerDetails Boolean  @default(true)                                    @map("print_show_customer_details")
+  printShowDueDate         Boolean  @default(true)                                    @map("print_show_due_date")
+  printShowHsn             Boolean  @default(true)                                    @map("print_show_hsn")
+  printShowBatch           Boolean  @default(false)                                   @map("print_show_batch")
+  printShowExpiry          Boolean  @default(false)                                   @map("print_show_expiry")
+  printShowMrp             Boolean  @default(true)                                    @map("print_show_mrp")
+  printShowFreeQty         Boolean  @default(false)                                   @map("print_show_free_qty")
+  printShowGstBreakdown    Boolean  @default(true)                                    @map("print_show_gst_breakdown")
+  printShowGstSplit        Boolean  @default(false)                                   @map("print_show_gst_split")
+  printFooterText          String   @default("Thank you for shopping with us!")       @map("print_footer_text")
+  printShowSignature       Boolean  @default(false)                                   @map("print_show_signature")
+  printShowTerms           Boolean  @default(false)                                   @map("print_show_terms")
+  printTermsText           String   @default("Goods once sold will not be returned.") @map("print_terms_text")
+  printShowLoyaltyPoints   Boolean  @default(true)                                    @map("print_show_loyalty_points")
+
+  // Tax settings
+  taxMethod            String   @default("exclusive")      @map("tax_method")
+  taxDefaultGstRate    Decimal  @default(5)                @map("tax_default_gst_rate")    @db.Decimal(5, 2)
+  taxRoundOff          String   @default("nearest_rupee")  @map("tax_round_off")
+  taxSupplyType        String   @default("intrastate")     @map("tax_supply_type")
+  taxBusinessType      String   @default("regular")        @map("tax_business_type")
+  taxCompositionRate   Decimal  @default(1)                @map("tax_composition_rate")    @db.Decimal(5, 2)
+  taxEnableTcs         Boolean  @default(false)            @map("tax_enable_tcs")
+  taxTcsRate           Decimal  @default(1)                @map("tax_tcs_rate")            @db.Decimal(5, 2)
+  taxEnableTds         Boolean  @default(false)            @map("tax_enable_tds")
+  taxTdsRate           Decimal  @default(2)                @map("tax_tds_rate")            @db.Decimal(5, 2)
+  taxEnableCess        Boolean  @default(false)            @map("tax_enable_cess")
+  taxCessRate          Decimal  @default(0)                @map("tax_cess_rate")           @db.Decimal(5, 2)
+  taxEnableReverseCharge Boolean @default(false)           @map("tax_enable_reverse_charge")
+  taxActiveSlabs       Json     @default("[0,5,12,18,28]") @map("tax_active_slabs")
+  taxCustomSlabs       Json     @default("[]")             @map("tax_custom_slabs")
+
+  // Transaction settings — Sales
+  txnSalePaymentMode       String   @default("Cash")  @map("txn_sale_payment_mode")
+  txnSaleCreditDays        Int      @default(30)       @map("txn_sale_credit_days")
+  txnRequireCustomer       Boolean  @default(false)    @map("txn_require_customer")
+  txnAllowNegativeStock    Boolean  @default(false)    @map("txn_allow_negative_stock")
+  txnDecimalQty            Boolean  @default(true)     @map("txn_decimal_qty")
+  txnEnableSaleReturns     Boolean  @default(true)     @map("txn_enable_sale_returns")
+  txnSaleReturnDays        Int      @default(7)        @map("txn_sale_return_days")
+
+  // Transaction settings — Purchases
+  txnPurchasePaymentMode      String   @default("Cash")  @map("txn_purchase_payment_mode")
+  txnPurchaseCreditDays       Int      @default(30)       @map("txn_purchase_credit_days")
+  txnAutoUpdatePurchasePrice  Boolean  @default(true)     @map("txn_auto_update_purchase_price")
+  txnAutoUpdateMrp            Boolean  @default(false)    @map("txn_auto_update_mrp")
+  txnEnablePurchaseReturns    Boolean  @default(true)     @map("txn_enable_purchase_returns")
+
+  // Transaction settings — Invoice Numbering
+  txnPurchasePrefix       String   @default("PUR")    @map("txn_purchase_prefix")
+  txnEstimatePrefix       String   @default("EST")    @map("txn_estimate_prefix")
+  txnInvoiceResetPeriod   String   @default("never")  @map("txn_invoice_reset_period")
+  txnInvoicePadding       Int      @default(4)        @map("txn_invoice_padding")
+
+  // Transaction settings — Discount
+  txnAllowItemDiscount     Boolean  @default(true)     @map("txn_allow_item_discount")
+  txnAllowBillDiscount     Boolean  @default(true)     @map("txn_allow_bill_discount")
+  txnMaxDiscountPct        Decimal  @default(100)      @map("txn_max_discount_pct")   @db.Decimal(5, 2)
+
+  // Transaction settings — Estimates & Stock
+  txnEnableEstimates       Boolean  @default(true)     @map("txn_enable_estimates")
+  txnLowStockWarning       Boolean  @default(true)     @map("txn_low_stock_warning")
+  txnBlockBelowMinStock    Boolean  @default(false)    @map("txn_block_below_min_stock")
+  txnEnableBarcode         Boolean  @default(true)     @map("txn_enable_barcode")
+
+  // Party settings
+  partyDefaultType        String   @default("customer") @map("party_default_type")
+  partyDefaultPartyType   String   @default("B2C")      @map("party_default_party_type")
+  partyRequirePhone       Boolean  @default(false)       @map("party_require_phone")
+  partyRequireGstin       Boolean  @default(false)       @map("party_require_gstin")
+  partyEnableCreditLimit  Boolean  @default(false)       @map("party_enable_credit_limit")
+  partyDefaultCreditLimit Decimal  @default(0)           @map("party_default_credit_limit") @db.Decimal(12, 2)
+  partyDuplicateCheck     Boolean  @default(true)        @map("party_duplicate_check")
+  partyShowBalance        Boolean  @default(true)        @map("party_show_balance")
+  partyAutoWhatsapp       Boolean  @default(false)       @map("party_auto_whatsapp")
+
+  // Item settings
+  itemDefaultUom          String   @default("PCS")   @map("item_default_uom")
+  itemEnableBatch         Boolean  @default(false)    @map("item_enable_batch")
+  itemEnableExpiry        Boolean  @default(false)    @map("item_enable_expiry")
+  itemEnableMrp           Boolean  @default(true)     @map("item_enable_mrp")
+  itemEnableHsn           Boolean  @default(true)     @map("item_enable_hsn")
+  itemEnableLocation      Boolean  @default(false)    @map("item_enable_location")
+  itemDefaultReorderLevel Decimal  @default(10)       @map("item_default_reorder_level") @db.Decimal(12, 3)
+  itemPriceDecimals       Int      @default(2)        @map("item_price_decimals")
+  itemQtyDecimals         Int      @default(3)        @map("item_qty_decimals")
+  itemEnableWholesale     Boolean  @default(false)    @map("item_enable_wholesale")
+  itemBarcodeType         String   @default("EAN13")  @map("item_barcode_type")
+  itemNegativeStockAlert  Boolean  @default(true)     @map("item_negative_stock_alert")
+
+  // Unit settings
+  unitDefaultCode         String   @default("PCS")   @map("unit_default_code")
+  unitEnableConversion    Boolean  @default(false)    @map("unit_enable_conversion")
+  unitEnableSecondary     Boolean  @default(false)    @map("unit_enable_secondary")
+
   updatedAt             DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("settings")

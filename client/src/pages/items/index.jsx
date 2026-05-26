@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, MoreVertical, Pencil, Trash2, ChevronRight, Ban, Search } from 'lucide-react';
+import { Plus, MoreVertical, Pencil, Trash2, ChevronRight, Ban, Search,
+         ToggleLeft, ToggleRight, Hash, Ruler, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
+import BulkActionModal from './BulkActionModal.jsx';
 import { ItemsAPI } from '../../api/items.js';
 import { AccountsAPI } from '../../api/accounts.js';
 import { SalesAPI } from '../../api/sales.js';
@@ -40,6 +42,11 @@ export default function Items() {
   const [showSearch, setShowSearch] = useState(false);
   const [activeFilter, setActiveFilter] = useState(location.state?.initFilter ?? null); // 'low' | 'expiry' | null
 
+  // Bulk modal state
+  const [headerMenu, setHeaderMenu]   = useState(false);
+  const headerMenuRef                  = useRef(null);
+  const [bulkModal, setBulkModal]      = useState(null); // 'inactive'|'active'|'assignCode'|'assignUnit'|'update'
+
   const toggleSort = (col) => {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortCol(col); setSortDir('asc'); }
@@ -51,6 +58,32 @@ export default function Items() {
     document.addEventListener('click', close);
     return () => document.removeEventListener('click', close);
   }, [rowMenu]);
+
+  // Close header menu on outside click
+  useEffect(() => {
+    if (!headerMenu) return;
+    const close = (e) => { if (!headerMenuRef.current?.contains(e.target)) setHeaderMenu(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [headerMenu]);
+
+  /* ── Bulk modal ── */
+  const openBulkModal = (mode) => { setBulkModal(mode); setHeaderMenu(false); };
+
+  const bulkMut = useMutation({
+    mutationFn: ({ ids, data }) => ItemsAPI.bulk(ids, data),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['items'] });
+      toast.success(`${vars.label} applied to ${vars.ids.length} item${vars.ids.length > 1 ? 's' : ''}`);
+      setBulkModal(null);
+    },
+    onError: () => toast.error('Bulk action failed'),
+  });
+
+  const handleBulkApply = (ids, data) => {
+    const LABELS = { inactive: 'Bulk Inactive', active: 'Bulk Active', assignCode: 'Bulk Assign Code', assignUnit: 'Bulk Assign Unit', update: 'Bulk Update' };
+    bulkMut.mutate({ ids, data, label: LABELS[bulkModal] || 'Bulk Action' });
+  };
 
   const saveMut = useMutation({
     mutationFn: (data) => editItem ? ItemsAPI.update(editItem.id, data) : ItemsAPI.create(data),
@@ -190,6 +223,32 @@ export default function Items() {
                 className="ml-auto flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition whitespace-nowrap shrink-0">
                 <Plus size={13} /> Add Item
               </button>
+              {/* 3-dot header menu */}
+              <div className="relative shrink-0" ref={headerMenuRef}>
+                <button
+                  onClick={() => setHeaderMenu(m => !m)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition">
+                  <MoreVertical size={15} />
+                </button>
+                {headerMenu && (
+                  <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl w-48 py-1.5 text-left">
+                    <p className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Bulk Actions</p>
+                    {[
+                      { mode: 'inactive',   icon: ToggleLeft,  label: 'Bulk Inactive',      color: 'text-rose-600'   },
+                      { mode: 'active',     icon: ToggleRight, label: 'Bulk Active',         color: 'text-emerald-600'},
+                      { mode: 'assignCode', icon: Hash,        label: 'Bulk Assign Code',    color: 'text-blue-600'   },
+                      { mode: 'assignUnit', icon: Ruler,       label: 'Bulk Assign Units',   color: 'text-violet-600' },
+                      { mode: 'update',     icon: RefreshCw,   label: 'Bulk Update Items',   color: 'text-amber-600'  },
+                    ].map(({ mode, icon: Icon, label, color }) => (
+                      <button key={mode}
+                        onClick={() => openBulkModal(mode)}
+                        className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs font-medium ${color} hover:bg-slate-50 transition`}>
+                        <Icon size={13} /> {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             {/* Alerts table */}
             <div className="w-3/4 mx-auto rounded-lg overflow-hidden border border-amber-300 my-2">
@@ -266,9 +325,14 @@ export default function Items() {
                       key={p.id}
                       onClick={() => setSelectedItemId(p.id)}
                       onDoubleClick={() => openEdit(p)}
-                      className={`transition-colors cursor-pointer ${isSelected ? 'bg-emerald-100 border-l-4 border-l-emerald-500' : 'hover:bg-slate-50'}`}>
+                      className={`transition-colors cursor-pointer ${
+                        isSelected ? 'bg-emerald-100 border-l-4 border-l-emerald-500' : 'hover:bg-slate-50'
+                      } ${!p.isActive ? 'opacity-50' : ''}`}>
                       <td className="px-3 py-2 text-slate-400 text-xs border-r border-slate-100">{idx + 1}</td>
-                      <td className="px-3 py-2 font-semibold text-slate-800 text-xs border-r border-slate-100">{p.shortName}</td>
+                      <td className="px-3 py-2 font-semibold text-slate-800 text-xs border-r border-slate-100">
+                        {p.shortName}
+                        {!p.isActive && <span className="ml-1 text-[10px] text-slate-400 font-normal">(inactive)</span>}
+                      </td>
                       <td className={`px-3 py-2 font-bold text-center text-xs border-r border-slate-100 ${stock <= 5 ? 'text-rose-600' : 'text-emerald-600'}`}>{stock}</td>
                       <td className="px-2 py-2 text-center relative" onClick={e => e.stopPropagation()}>
                         <button
@@ -297,6 +361,7 @@ export default function Items() {
               </tbody>
             </table>
           </div>
+
         </div>
 
         {/* Right Panel */}
@@ -331,6 +396,17 @@ export default function Items() {
               toast.success('Item saved');
             }).catch(err => toast.error(err?.message || 'Failed to save'));
           }}
+        />
+      )}
+
+      {bulkModal && (
+        <BulkActionModal
+          mode={bulkModal}
+          items={allItems}
+          uoms={uoms}
+          categories={categories}
+          onApply={handleBulkApply}
+          onClose={() => setBulkModal(null)}
         />
       )}
 

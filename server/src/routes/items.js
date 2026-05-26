@@ -149,6 +149,45 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+/* ── PATCH /bulk ── apply field updates to multiple items at once */
+router.patch('/bulk', async (req, res) => {
+  try {
+    const { ids, data } = req.body;
+    if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'No ids provided' });
+
+    const update = {};
+    if (data.isActive        !== undefined) update.isActive        = Boolean(data.isActive);
+    if (data.uom             !== undefined) update.uom             = data.uom;
+    if (data.category        !== undefined) update.category        = data.category;
+    if (data.gstRate         !== undefined) update.gstRate         = Number(data.gstRate);
+    if (data.purchasePrice   !== undefined) update.purchasePrice   = Number(data.purchasePrice);
+    if (data.salesPrice      !== undefined) update.salesPrice      = Number(data.salesPrice);
+    if (data.mrp             !== undefined) update.mrp             = Number(data.mrp);
+    if (data.reorderLevel    !== undefined) update.reorderLevel    = Number(data.reorderLevel);
+
+    // Bulk assign item codes — codes is an array of { id, itemCode } pairs
+    if (Array.isArray(data.codes)) {
+      await Promise.all(
+        data.codes.map(({ id, itemCode }) =>
+          prisma.product.update({ where: { id: Number(id) }, data: { itemCode } })
+        )
+      );
+      return res.json({ updated: data.codes.length });
+    }
+
+    if (!Object.keys(update).length) return res.status(400).json({ error: 'No fields to update' });
+
+    const result = await prisma.product.updateMany({
+      where: { id: { in: ids.map(Number) } },
+      data:  update,
+    });
+    res.json({ updated: result.count });
+  } catch (err) {
+    console.error('Bulk update error:', err);
+    res.status(500).json({ error: err.message || 'Bulk update failed' });
+  }
+});
+
 router.patch('/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
