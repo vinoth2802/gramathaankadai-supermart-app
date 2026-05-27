@@ -29,8 +29,9 @@ const nav = [
     icon: UsersRound,
     label: 'Employee',
     children: [
-      { to: '/employee',            icon: UserCheck,      label: 'Employee',  end: true },
-      { to: '/employee/attendance', icon: CalendarCheck,  label: 'Attendance' },
+      { to: '/employee',                icon: UserCheck,     label: 'Employee',      end: true },
+      { to: '/employee/attendance',     icon: CalendarCheck, label: 'Attendance'               },
+      { to: '/employee/salary-ledger',  icon: BookOpen,      label: 'Salary Ledger'            },
     ],
   },
   {
@@ -68,6 +69,13 @@ const nav = [
     ],
   },
   { to: '/reports',  icon: BarChart2, label: 'Reports' },
+  {
+    icon: Receipt,
+    label: 'Expenses',
+    children: [
+      { to: '/expenses', icon: Receipt, label: 'Expenses', end: true },
+    ],
+  },
   {
     icon: BookOpen,
     label: 'Day Cash Book',

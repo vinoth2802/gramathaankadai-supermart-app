@@ -5,5 +5,6 @@ export const SalaryRecordsAPI = {
   getByEmployee:  (empId)   => http.get('/salary-records', { params: { employeeId: empId } }),
   create:         (data)    => http.post('/salary-records', data),
   update:         (id, data)=> http.patch(`/salary-records/${id}`, data),
+  bulkUpdate:     (data)    => http.patch('/salary-records/bulk', data),
   delete:         (id)      => http.delete(`/salary-records/${id}`),
 };

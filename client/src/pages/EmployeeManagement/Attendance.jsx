@@ -252,8 +252,9 @@ function CalendarTab({ employees }) {
     return s;
   }, [records]);
 
-  const prevMonth = () => { const d = new Date(year, mon - 2, 1); setYm(d.toISOString().slice(0, 7)); };
-  const nextMonth = () => { const d = new Date(year, mon, 1);     setYm(d.toISOString().slice(0, 7)); };
+  const fmtYM     = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  const prevMonth = () => setYm(fmtYM(new Date(year, mon - 2, 1)));
+  const nextMonth = () => setYm(fmtYM(new Date(year, mon, 1)));
 
   return (
     <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-auto">
@@ -350,28 +351,42 @@ function CalendarTab({ employees }) {
 
 /* ─── Tab 3: Monthly Summary Table ─── */
 function SummaryTab() {
-  const [ym, setYm] = useState(today().slice(0, 7));
+  const [ym, setYm]           = useState(today().slice(0, 7));
+  const [showActive, setShowActive] = useState(true);
   const [year, mon] = ym.split('-').map(Number);
   const days = daysInMonth(year, mon);
 
-  const { data: summary = [], isLoading } = useQuery({
+  const { data: rawSummary = [], isLoading } = useQuery({
     queryKey: ['attendance-summary', ym],
     queryFn:  () => AttendanceAPI.getSummary(ym),
   });
 
-  const prevMonth = () => { const d = new Date(year, mon - 2, 1); setYm(d.toISOString().slice(0, 7)); };
-  const nextMonth = () => { const d = new Date(year, mon, 1);     setYm(d.toISOString().slice(0, 7)); };
+  const summary = rawSummary.filter(e => e.isActive === showActive);
+
+  const fmtYM    = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  const prevMonth = () => { const d = new Date(year, mon - 2, 1); setYm(fmtYM(d)); };
+  const nextMonth = () => { const d = new Date(year, mon, 1);     setYm(fmtYM(d)); };
 
   return (
     <div className="flex flex-col gap-4 flex-1 min-h-0">
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-2 shrink-0 flex-wrap">
         <button onClick={prevMonth} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 transition"><ChevronLeft size={15} /></button>
         <input
           type="month" value={ym} onChange={e => setYm(e.target.value)}
           className="px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
         />
         <button onClick={nextMonth} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 transition"><ChevronRight size={15} /></button>
-        <span className="text-xs text-slate-500 ml-1">{days} working days in month</span>
+        <span className="text-xs text-slate-500 ml-1">{days} days in month</span>
+        <div className="ml-auto flex rounded-lg border border-slate-200 overflow-hidden text-xs font-medium">
+          <button onClick={() => setShowActive(true)}
+            className={`px-3 py-1.5 transition ${showActive ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+            Active
+          </button>
+          <button onClick={() => setShowActive(false)}
+            className={`px-3 py-1.5 transition border-l border-slate-200 ${!showActive ? 'bg-slate-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+            Inactive
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 min-h-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">

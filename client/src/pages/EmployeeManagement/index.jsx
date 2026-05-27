@@ -5,7 +5,7 @@ import {
   UserCheck, Plus, Search, Pencil, Trash2, ToggleLeft, ToggleRight,
   X, User, Phone, Mail, MapPin, Briefcase, Building2, Calendar,
   Banknote, FileText, BadgeCheck, ChevronDown, Check,
-  ChevronLeft, ChevronRight, TrendingUp, Gift, Star, Users, ArrowUp,
+  ChevronLeft, ChevronRight, TrendingUp, Gift, Star, Users, ArrowUp, CalendarCheck, RotateCcw,
 } from 'lucide-react';
 import { EmployeesAPI }     from '../../api/employees.js';
 import { DesignationsAPI }  from '../../api/designations.js';
@@ -494,6 +494,140 @@ function RecordsTable({ records, type, monthLabel, onDelete, onStatusUpdate }) {
   );
 }
 
+/* ─── Attendance Tab ─── */
+const ATT_STATUS = {
+  present: { label: 'P', cls: 'bg-emerald-100 text-emerald-700', full: 'Present'  },
+  halfday: { label: 'H', cls: 'bg-amber-100 text-amber-700',     full: 'Half Day' },
+  absent:  { label: 'A', cls: 'bg-rose-100 text-rose-600',       full: 'Absent'   },
+  leave:   { label: 'L', cls: 'bg-indigo-100 text-indigo-600',   full: 'Leave'    },
+};
+const ATT_CYCLE = ['present', 'halfday', 'absent', 'leave'];
+
+function AttendanceTab({ employeeId, month, basicSalary, salaryType }) {
+  const qc = useQueryClient();
+  const [resetting, setResetting] = useState(false);
+
+  const { data: records = [], isLoading, refetch } = useQuery({
+    queryKey: ['attendance-emp', employeeId, month],
+    queryFn:  () => AttendanceAPI.getByEmployee(employeeId, month),
+    enabled:  !!employeeId && !!month,
+  });
+
+  const markMut = useMutation({
+    mutationFn: ({ date, status }) => AttendanceAPI.save({ employeeId, date, status }),
+    onSuccess:  () => { refetch(); qc.invalidateQueries({ queryKey: ['attendance-summary'] }); },
+    onError:    () => toast.error('Failed to mark attendance'),
+  });
+
+  const delMut = useMutation({
+    mutationFn: (id) => AttendanceAPI.delete(id),
+    onSuccess:  () => { refetch(); qc.invalidateQueries({ queryKey: ['attendance-summary'] }); },
+    onError:    () => toast.error('Failed to clear day'),
+  });
+
+  const handleDayClick = (day, rec) => {
+    const [y, m] = month.split('-').map(Number);
+    const date = `${y}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    if (!rec) {
+      markMut.mutate({ date, status: 'present' });
+    } else {
+      const idx = ATT_CYCLE.indexOf(rec.status);
+      if (idx === ATT_CYCLE.length - 1) {
+        delMut.mutate(rec.id);
+      } else {
+        markMut.mutate({ date, status: ATT_CYCLE[idx + 1] });
+      }
+    }
+  };
+
+  const handleReset = async () => {
+    if (!records.length) return;
+    setResetting(true);
+    try {
+      await Promise.all(records.map(r => AttendanceAPI.delete(r.id)));
+      refetch();
+      qc.invalidateQueries({ queryKey: ['attendance-summary'] });
+      toast.success('Attendance reset');
+    } catch { toast.error('Failed to reset attendance'); }
+    finally   { setResetting(false); }
+  };
+
+  const { days, summary, earned } = useMemo(() => {
+    const [y, m] = month.split('-').map(Number);
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const map = {};
+    records.forEach(r => { map[new Date(r.date).getDate()] = r; });
+    const days     = Array.from({ length: daysInMonth }, (_, i) => ({ day: i + 1, rec: map[i + 1] ?? null }));
+    const present  = records.filter(r => r.status === 'present').length;
+    const halfday  = records.filter(r => r.status === 'halfday').length;
+    const absent   = records.filter(r => r.status === 'absent').length;
+    const leave    = records.filter(r => r.status === 'leave').length;
+    const payable  = present + halfday * 0.5;
+    const salary   = salaryType === 'perDay'
+      ? Number(basicSalary) * payable
+      : Number(basicSalary) * (payable / daysInMonth);
+    return { days, summary: { present, halfday, absent, leave, daysInMonth }, earned: Math.round(salary) };
+  }, [records, month, basicSalary, salaryType]);
+
+  if (isLoading) return <div className="flex items-center justify-center py-16 text-slate-400 text-sm">Loading...</div>;
+
+  const busy = markMut.isPending || delMut.isPending;
+
+  return (
+    <div className="p-4">
+      {/* Summary row */}
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        {[
+          { lbl: 'Present',      val: summary.present,                         cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+          { lbl: 'Half Day',     val: summary.halfday,                         cls: 'bg-amber-50 text-amber-700 border-amber-200'       },
+          { lbl: 'Absent',       val: summary.absent,                          cls: 'bg-rose-50 text-rose-600 border-rose-200'          },
+          { lbl: 'Leave',        val: summary.leave,                           cls: 'bg-indigo-50 text-indigo-600 border-indigo-200'    },
+          { lbl: 'Payable Days', val: summary.present + summary.halfday * 0.5, cls: 'bg-slate-50 text-slate-700 border-slate-200'       },
+          { lbl: 'Earned',       val: `₹${earned.toLocaleString('en-IN')}`,    cls: 'bg-blue-50 text-blue-700 border-blue-200'          },
+        ].map(({ lbl, val, cls }) => (
+          <div key={lbl} className={`px-2.5 py-1 rounded-lg border text-xs font-medium flex gap-1.5 items-center ${cls}`}>
+            <span className="opacity-60">{lbl}</span>
+            <span className="font-bold">{val}</span>
+          </div>
+        ))}
+        <button onClick={handleReset} disabled={resetting || !records.length}
+          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 text-xs font-medium text-rose-600 hover:bg-rose-50 transition disabled:opacity-40 shrink-0">
+          <RotateCcw size={12} className={resetting ? 'animate-spin' : ''} /> Reset
+        </button>
+      </div>
+
+      {/* Legend */}
+      <div className="flex gap-2 mb-3 flex-wrap items-center">
+        {Object.entries(ATT_STATUS).map(([key, s]) => (
+          <span key={key} className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.cls}`}>{s.label} — {s.full}</span>
+        ))}
+        <span className="text-xs text-slate-400">· Click to cycle, click last to clear</span>
+      </div>
+
+      {/* Calendar grid */}
+      <div className="grid grid-cols-7 gap-1">
+        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
+          <div key={d} className="text-center text-xs font-semibold text-slate-400 py-1">{d}</div>
+        ))}
+        {Array.from({ length: new Date(month + '-01').getDay() }).map((_, i) => <div key={'o'+i} />)}
+        {days.map(({ day, rec }) => {
+          const s = rec ? (ATT_STATUS[rec.status] ?? ATT_STATUS.present) : null;
+          return (
+            <button key={day} onClick={() => handleDayClick(day, rec)} disabled={busy}
+              className={`rounded-lg p-1.5 flex flex-col items-center gap-0.5 border transition active:scale-95 ${
+                s ? `${s.cls} border-transparent hover:opacity-75`
+                  : 'bg-slate-50 border-slate-100 text-slate-300 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-400'
+              } ${busy ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+              <span className="text-xs font-bold">{day}</span>
+              {s && <span className="text-[10px] font-semibold leading-none">{s.label}</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ─── Bulk Salary Modal ─── */
 function BulkSalaryModal({ defaultMonth, employees, onClose }) {
   const qc = useQueryClient();
@@ -504,8 +638,9 @@ function BulkSalaryModal({ defaultMonth, employees, onClose }) {
     const [y, m] = ym.split('-').map(Number);
     return new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month:'long', year:'numeric' });
   };
-  const goPrev = () => { const [y,m] = month.split('-').map(Number); setMonth(new Date(y,m-2,1).toISOString().slice(0,7)); };
-  const goNext = () => { const [y,m] = month.split('-').map(Number); setMonth(new Date(y,m,1).toISOString().slice(0,7)); };
+  const fmtYM = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  const goPrev = () => { const [y,m] = month.split('-').map(Number); setMonth(fmtYM(new Date(y,m-2,1))); };
+  const goNext = () => { const [y,m] = month.split('-').map(Number); setMonth(fmtYM(new Date(y,m,1))); };
 
   const { data: summary = [], isLoading } = useQuery({
     queryKey: ['attendance-summary', month],
@@ -529,7 +664,7 @@ function BulkSalaryModal({ defaultMonth, employees, onClose }) {
           id: s.id, name: s.name, designation: s.designation, isActive: s.isActive,
           basicSalary: emp.basicSalary, salaryType: emp.salaryType,
           present: s.present, halfday: s.halfday, absent: s.absent, leave: s.leave,
-          payableDays, daysInMonth, amount: Math.round(amount * 100) / 100,
+          payableDays, daysInMonth, amount: Math.round(amount),
         };
       }).filter(Boolean);
   }, [summary, employees, month]);
@@ -774,8 +909,9 @@ export default function EmployeePage() {
     inactive: employees.filter(e => !e.isActive).length,
   }), [employees]);
 
-  const prevMonth = () => { const [y,m] = selMonth.split('-').map(Number); setSelMonth(new Date(y,m-2,1).toISOString().slice(0,7)); };
-  const nextMonth = () => { const [y,m] = selMonth.split('-').map(Number); setSelMonth(new Date(y,m,1).toISOString().slice(0,7)); };
+  const fmtYM = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  const prevMonth = () => { const [y,m] = selMonth.split('-').map(Number); setSelMonth(fmtYM(new Date(y,m-2,1))); };
+  const nextMonth = () => { const [y,m] = selMonth.split('-').map(Number); setSelMonth(fmtYM(new Date(y,m,1))); };
   const monthLabel = (ym) => { const [y,m] = ym.split('-').map(Number); return new Date(y,m-1,1).toLocaleDateString('en-IN',{month:'long',year:'numeric'}); };
 
   const monthRecords = useMemo(() => records.filter(r => r.effectiveDate?.slice(0,7) === selMonth), [records, selMonth]);
@@ -1059,6 +1195,14 @@ export default function EmployeePage() {
                         </button>
                       );
                     })}
+                    <button onClick={() => setActiveTab('attendance')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-t-xl text-xs font-medium border-b-2 transition ${
+                        activeTab === 'attendance'
+                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                          : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100'
+                      }`}>
+                      <CalendarCheck size={13} /> Attendance
+                    </button>
                   </div>
                   <div className="flex items-center gap-1 ml-auto">
                     <button onClick={prevMonth} className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 transition text-slate-500"><ChevronLeft size={13} /></button>
@@ -1070,21 +1214,26 @@ export default function EmployeePage() {
                         className="text-xs text-amber-600 hover:underline px-1">This month</button>
                     )}
                   </div>
-                  <button onClick={() => setAddType(activeTab === 'all' ? 'salary' : activeTab)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white transition shadow-sm shrink-0">
-                    <Plus size={13} /> Add {activeTab === 'all' ? 'Record' : TYPE_META[activeTab].label}
-                  </button>
+                  {activeTab !== 'attendance' && (
+                    <button onClick={() => setAddType(activeTab === 'all' ? 'salary' : activeTab)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white transition shadow-sm shrink-0">
+                      <Plus size={13} /> Add {activeTab === 'all' ? 'Record' : TYPE_META[activeTab].label}
+                    </button>
+                  )}
                 </div>
 
-                {/* Records table */}
+                {/* Records table / Attendance view */}
                 <div className="flex-1 mx-6 mb-4 mt-0 bg-white rounded-b-xl rounded-tr-xl border border-slate-200 shadow-sm overflow-auto min-h-0">
-                  <RecordsTable
-                    records={tabRecords}
-                    type={activeTab}
-                    monthLabel={monthLabel(selMonth)}
-                    onDelete={setDeleteRecId}
-                    onStatusUpdate={(id, payStatus) => statusUpdateMut.mutate({ id, payStatus })}
-                  />
+                  {activeTab === 'attendance'
+                    ? <AttendanceTab employeeId={currentEmployee.id} month={selMonth} basicSalary={currentEmployee.basicSalary} salaryType={currentEmployee.salaryType} />
+                    : <RecordsTable
+                        records={tabRecords}
+                        type={activeTab}
+                        monthLabel={monthLabel(selMonth)}
+                        onDelete={setDeleteRecId}
+                        onStatusUpdate={(id, payStatus) => statusUpdateMut.mutate({ id, payStatus })}
+                      />
+                  }
                 </div>
               </div>
             )}
