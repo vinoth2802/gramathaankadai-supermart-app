@@ -46,6 +46,9 @@ import LogRegister    from './pages/utilities/LogRegister.jsx';
 import CashBook          from './pages/Cashbook/daybook.jsx';
 import CashBookHistory   from './pages/Cashbook/history.jsx';
 
+import EmployeePage   from './pages/EmployeeManagement/index.jsx';
+import AttendancePage from './pages/EmployeeManagement/Attendance.jsx';
+
 import UserManagement from './pages/usermanagement/index.jsx';
 import ResetPage      from './pages/settings/Reset.jsx';
 
@@ -78,6 +81,10 @@ export default function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="items"     element={<Items />} />
+          <Route path="employee">
+            <Route index element={<EmployeePage />} />
+            <Route path="attendance" element={<AttendancePage />} />
+          </Route>
           <Route path="parties">
             <Route index element={<Parties />} />
             <Route path="loyalty" element={<LoyaltyPoints />} />

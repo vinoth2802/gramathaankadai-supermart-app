@@ -24,6 +24,10 @@ import reportsRouter            from './routes/reports.js';
 import recycleBinRouter         from './routes/recycleBin.js';
 import activityLogRouter        from './routes/activityLog.js';
 import cashbookRouter           from './routes/cashbook.js';
+import employeesRouter          from './routes/employees.js';
+import designationsRouter       from './routes/designations.js';
+import salaryRecordsRouter      from './routes/salaryRecords.js';
+import attendanceRouter         from './routes/attendance.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -63,6 +67,10 @@ app.use('/api/reports',             reportsRouter);
 app.use('/api/recycle-bin',         recycleBinRouter);
 app.use('/api/activity-log',        activityLogRouter);
 app.use('/api/cashbook',            cashbookRouter);
+app.use('/api/employees',           employeesRouter);
+app.use('/api/designations',        designationsRouter);
+app.use('/api/salary-records',      salaryRecordsRouter);
+app.use('/api/attendance',          attendanceRouter);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 

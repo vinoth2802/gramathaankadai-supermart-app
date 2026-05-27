@@ -10,6 +10,7 @@ import {
   Wrench, Upload, Download, QrCode,
   SlidersHorizontal, ArrowLeftRight, Printer, Percent, UserCog, Box, Ruler, Star, Gift, Trash2,
   Database, CreditCard, ClipboardList, BookOpen, History,
+  UsersRound, UserCheck, Banknote, CalendarCheck,
 } from 'lucide-react';
 
 const nav = [
@@ -22,6 +23,14 @@ const nav = [
       { to: '/items',           icon: Package, label: 'Items' },
       { to: '/parties',         icon: Users,   label: 'Parties',       end: true },
       { to: '/parties/loyalty', icon: Gift,    label: 'Loyalty Points' },
+    ],
+  },
+  {
+    icon: UsersRound,
+    label: 'Employee',
+    children: [
+      { to: '/employee',            icon: UserCheck,      label: 'Employee',  end: true },
+      { to: '/employee/attendance', icon: CalendarCheck,  label: 'Attendance' },
     ],
   },
   {
