@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { TrendingUp, ShoppingBag, Package, Users, ArrowUpRight, Store, Boxes, Clock, Monitor, Receipt, ArrowDownLeft } from 'lucide-react';
@@ -6,6 +7,28 @@ import { PurchasesAPI } from '../../api/purchases.js';
 import { ItemsAPI } from '../../api/items.js';
 import { PartiesAPI } from '../../api/parties.js';
 import { fmt } from '../../utils/formatters.js';
+
+function TimeCard() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const time = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+  const date = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  return (
+    <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl px-5 py-3 text-white shadow-lg text-right min-w-[220px]">
+      <div className="flex items-center justify-end gap-1.5 mb-1">
+        <Clock size={12} className="text-amber-400" />
+        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Live Time</span>
+      </div>
+      <div className="text-2xl font-bold font-mono tracking-tight tabular-nums">{time}</div>
+      <div className="text-xs text-slate-400 mt-0.5">{date}</div>
+    </div>
+  );
+}
 
 function StatCard({ label, value, icon: Icon, color, sub, onClick }) {
   const bgColorClass = color.replace('text-', 'bg-').replace('-600', '-50');
@@ -64,11 +87,13 @@ export default function Dashboard() {
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
           <p className="text-slate-500 text-sm mt-0.5">
-            Welcome back, {user.username || 'Admin'} —{' '}
+            Welcome back, {user.name || 'Admin'} —{' '}
             {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
+        <div className="flex flex-col items-end gap-3">
+          <TimeCard />
+          <div className="flex items-center gap-2 flex-wrap justify-end">
           <button onClick={() => navigate('/pos')}
             className="flex items-center gap-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
             <Monitor size={13} /> Add POS Sale
@@ -92,7 +117,8 @@ export default function Dashboard() {
           <div className="w-9 h-9 bg-amber-100 rounded-xl flex items-center justify-center ml-1">
             <Store className="text-amber-600" size={18} />
           </div>
-        </div>
+          </div>{/* end buttons row */}
+        </div>{/* end flex-col */}
       </div>
 
       {/* Sales Segment */}

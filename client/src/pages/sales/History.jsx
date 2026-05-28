@@ -10,6 +10,7 @@ import {
 import { SalesAPI } from '../../api/sales.js';
 import { PartiesAPI } from '../../api/parties.js';
 import { PaymentsAPI } from '../../api/payments.js';
+import { SettingsAPI } from '../../api/settings.js';
 
 /* ── Helpers ── */
 const pad = (n) => String(n).padStart(2, '0');
@@ -190,6 +191,197 @@ function RowMenu({ onDelete }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/* ─── Print: opens a formatted 80mm thermal receipt in a new window ─── */
+function printInvoice(sale, cfg = {}) {
+  const shopName = cfg.shopName || 'Gramathaankadai SuperMart';
+  const address  = cfg.address  || '';
+  const phone    = cfg.phone    || '';
+  const gstin    = cfg.gstin    || '';
+
+  const dateStr = new Date(sale.date).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const timeStr = new Date(sale.date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  const rows = (sale.items || []).map((it, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${it.name}</td>
+      <td style="text-align:center">${it.qty}</td>
+      <td style="text-align:right">₹${Number(it.rate).toFixed(2)}</td>
+      <td style="text-align:right">₹${Number(it.amount).toFixed(2)}</td>
+    </tr>`).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+<title>Invoice ${sale.invoice}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Courier New',monospace;font-size:11px;color:#000;width:80mm;margin:0 auto;padding:4mm}
+  .c{text-align:center} .r{text-align:right} .b{font-weight:bold}
+  .shop{font-size:15px;font-weight:bold;text-align:center;letter-spacing:.5px}
+  .dash{border-top:1px dashed #000;margin:5px 0}
+  .solid{border-top:1px solid #000;margin:5px 0}
+  table{width:100%;border-collapse:collapse}
+  th{font-size:10px;padding:2px 1px;border-bottom:1px solid #000}
+  td{font-size:10px;padding:1px 1px;vertical-align:top}
+  .grand td{font-size:12px;font-weight:bold;border-top:1px solid #000;border-bottom:2px solid #000;padding:3px 1px}
+  .footer{text-align:center;margin-top:8px;font-size:10px}
+  @media print{@page{margin:4mm;size:80mm auto}body{width:100%}}
+</style></head><body>
+<div class="shop">${shopName}</div>
+${address ? `<div class="c">${address}</div>` : ''}
+${phone   ? `<div class="c">Ph: ${phone}</div>` : ''}
+${gstin   ? `<div class="c">GSTIN: ${gstin}</div>` : ''}
+<div class="solid"></div>
+<div class="c b" style="font-size:12px;margin:4px 0">TAX INVOICE</div>
+<div class="dash"></div>
+<table>
+  <tr><td>Invoice</td><td class="r b">${sale.invoice}</td></tr>
+  <tr><td>Date</td><td class="r">${dateStr} ${timeStr}</td></tr>
+  <tr><td>Customer</td><td class="r">${sale.customerName || sale.party?.name || 'CASH SALE'}</td></tr>
+  ${sale.party?.phone ? `<tr><td>Phone</td><td class="r">${sale.party.phone}</td></tr>` : ''}
+</table>
+<div class="dash"></div>
+<table>
+  <thead><tr>
+    <th style="width:14px">#</th>
+    <th style="text-align:left">Item</th>
+    <th style="text-align:center;width:24px">Qty</th>
+    <th style="text-align:right;width:52px">Rate</th>
+    <th style="text-align:right;width:56px">Amount</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+<div class="dash"></div>
+<table>
+  <tr><td>Subtotal</td><td class="r">₹${Number(sale.subtotal ?? 0).toFixed(2)}</td></tr>
+  <tr><td>Tax (GST)</td><td class="r">₹${Number(sale.gst ?? 0).toFixed(2)}</td></tr>
+  <tr class="grand"><td>Grand Total</td><td class="r">₹${Number(sale.grandTotal).toFixed(0)}</td></tr>
+</table>
+<div class="dash"></div>
+<table>
+  <tr><td>Received</td><td class="r">₹${Number(sale.totalReceived ?? sale.grandTotal).toFixed(2)}</td></tr>
+  <tr><td>Payment</td><td class="r">${sale.paymentMode || 'Cash'}</td></tr>
+</table>
+<div class="solid"></div>
+<div class="footer">
+  <p class="b">Thank you for your purchase!</p>
+  <p>Please visit us again</p>
+</div>
+</body></html>`;
+
+  const win = window.open('', '_blank', 'width=420,height=650,toolbar=0,menubar=0');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); }, 300);
+}
+
+/* ─── Invoice Preview Modal ─── */
+function InvoicePreviewModal({ sale, settings, onClose }) {
+  const cfg      = settings || {};
+  const shopName = cfg.shopName || 'Gramathaankadai SuperMart';
+  const address  = cfg.address  || '';
+  const phone    = cfg.phone    || '';
+  const gstin    = cfg.gstin    || '';
+  const dateStr  = new Date(sale.date).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const timeStr  = new Date(sale.date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const customer = sale.customerName || sale.party?.name || 'CASH SALE';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh] w-full max-w-sm">
+
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
+          <div className="flex items-center gap-2">
+            <Printer size={16} className="text-blue-600" />
+            <span className="font-bold text-slate-800 text-sm">Invoice Preview</span>
+            <span className="text-xs font-mono text-amber-600 font-bold">#{sale.invoice}</span>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto min-h-0 px-4 py-4">
+          <div className="bg-white border border-dashed border-slate-300 rounded-lg p-4 font-mono text-[11px] text-slate-800 shadow-inner"
+               style={{ fontFamily: "'Courier New', monospace" }}>
+
+            <div className="text-center font-bold text-sm mb-0.5">{shopName}</div>
+            {address && <div className="text-center text-[10px] text-slate-500">{address}</div>}
+            {phone   && <div className="text-center text-[10px] text-slate-500">Ph: {phone}</div>}
+            {gstin   && <div className="text-center text-[10px] text-slate-500">GSTIN: {gstin}</div>}
+
+            <div className="border-t border-slate-400 my-2" />
+            <div className="text-center font-bold text-xs tracking-wider mb-2">TAX INVOICE</div>
+            <div className="border-t border-dashed border-slate-300 my-2" />
+
+            <div className="space-y-0.5">
+              <div className="flex justify-between"><span>Invoice</span><span className="font-bold">{sale.invoice}</span></div>
+              <div className="flex justify-between"><span>Date</span><span>{dateStr} {timeStr}</span></div>
+              <div className="flex justify-between"><span>Customer</span><span className="font-medium">{customer}</span></div>
+              {sale.party?.phone && <div className="flex justify-between"><span>Phone</span><span>{sale.party.phone}</span></div>}
+            </div>
+
+            <div className="border-t border-dashed border-slate-300 my-2" />
+
+            <table className="w-full text-[10px]">
+              <thead>
+                <tr className="border-b border-slate-400">
+                  <th className="text-left pb-1 w-5">#</th>
+                  <th className="text-left pb-1">Item</th>
+                  <th className="text-center pb-1 w-8">Qty</th>
+                  <th className="text-right pb-1 w-14">Rate</th>
+                  <th className="text-right pb-1 w-16">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(sale.items || []).map((it, i) => (
+                  <tr key={i}>
+                    <td className="py-0.5">{i + 1}</td>
+                    <td className="py-0.5 pr-1">{it.name}</td>
+                    <td className="py-0.5 text-center">{it.qty}</td>
+                    <td className="py-0.5 text-right">₹{Number(it.rate).toFixed(2)}</td>
+                    <td className="py-0.5 text-right font-medium">₹{Number(it.amount).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="border-t border-dashed border-slate-300 my-2" />
+
+            <div className="space-y-0.5">
+              <div className="flex justify-between"><span>Subtotal</span><span>₹{Number(sale.subtotal ?? 0).toFixed(2)}</span></div>
+              <div className="flex justify-between"><span>Tax (GST)</span><span>₹{Number(sale.gst ?? 0).toFixed(2)}</span></div>
+            </div>
+            <div className="flex justify-between font-bold text-sm border-t border-b border-slate-400 py-1.5 my-1.5">
+              <span>Grand Total</span><span>₹{Number(sale.grandTotal).toFixed(0)}</span>
+            </div>
+
+            <div className="space-y-0.5">
+              <div className="flex justify-between"><span>Received</span><span>₹{Number(sale.totalReceived ?? sale.grandTotal).toFixed(2)}</span></div>
+              <div className="flex justify-between"><span>Payment</span><span className="font-medium">{sale.paymentMode || 'Cash'}</span></div>
+            </div>
+
+            <div className="border-t border-slate-400 my-2" />
+            <div className="text-center font-bold text-[10px]">Thank you for your purchase!</div>
+            <div className="text-center text-[10px] text-slate-400">Please visit us again</div>
+          </div>
+        </div>
+
+        <div className="flex gap-2 px-5 py-4 border-t border-slate-100 shrink-0">
+          <button onClick={onClose}
+            className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition">
+            Close
+          </button>
+          <button onClick={() => printInvoice(sale, cfg)}
+            className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition">
+            <Printer size={14} /> Print
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -484,9 +676,12 @@ export default function SalesHistory() {
   const [dateLabel, setDateLabel] = useState(location.state?.initFilter ?? 'This Month');
   const [selected,  setSelected]  = useState(null);
   const [editRow,   setEditRow]   = useState(null);
+  const [printSale, setPrintSale] = useState(null);
   const [search,    setSearch]    = useState('');
   const [sortCol,   setSortCol]   = useState('date');
   const [sortDir,   setSortDir]   = useState('desc');
+
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: SettingsAPI.get });
 
   const handleSort = (col) => {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -684,6 +879,7 @@ export default function SalesHistory() {
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-0.5">
                           <button title="Print"
+                            onClick={() => setPrintSale(rawSales.find(s => s.id === row.id))}
                             className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition">
                             <Printer size={13} />
                           </button>
@@ -708,6 +904,14 @@ export default function SalesHistory() {
         <EditSaleModal
           sale={editRow}
           onClose={() => setEditRow(null)}
+        />
+      )}
+
+      {printSale && (
+        <InvoicePreviewModal
+          sale={printSale}
+          settings={settings}
+          onClose={() => setPrintSale(null)}
         />
       )}
     </div>

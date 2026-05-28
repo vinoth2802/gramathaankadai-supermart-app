@@ -242,10 +242,10 @@ export default function Sidebar() {
       <div className="px-4 py-4 border-t border-slate-700/60">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
-            {(user.username || 'A')[0].toUpperCase()}
+            {(user.name || 'A')[0].toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-white text-sm font-medium truncate">{user.username || 'Admin'}</div>
+            <div className="text-white text-sm font-medium truncate">{user.name || 'Admin'}</div>
             <div className="text-slate-500 text-xs">Owner</div>
           </div>
         </div>

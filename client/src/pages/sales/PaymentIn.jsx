@@ -196,10 +196,12 @@ function PaymentInModal({ receiptNo, editData, onClose, onSave, isSaving }) {
   const handlePartySelect = (p) => {
     if (!p) {
       setPartyQuery('');
-      setForm(prev => ({ ...prev, party: '', linkedSaleIds: [] }));
+      setForm(prev => ({ ...prev, party: '', linkedSaleIds: [], received: '' }));
+      setShowLinkPanel(false);
     } else {
       setPartyQuery(p.name);
-      setForm(prev => ({ ...prev, party: String(p.id), linkedSaleIds: [] }));
+      setForm(prev => ({ ...prev, party: String(p.id), linkedSaleIds: [], received: '' }));
+      setShowLinkPanel(true);
     }
   };
 
@@ -218,6 +220,19 @@ function PaymentInModal({ receiptNo, editData, onClose, onSave, isSaving }) {
         received: newIds.length > 0 ? String(newReceived.toFixed(2)) : prev.received,
       };
     });
+  };
+
+  const allLinked  = pendingInvoices.length > 0 && pendingInvoices.every(s => form.linkedSaleIds.includes(s.id));
+  const someLinked = pendingInvoices.some(s => form.linkedSaleIds.includes(s.id));
+
+  const toggleAll = () => {
+    if (allLinked) {
+      setForm(prev => ({ ...prev, linkedSaleIds: [], received: '' }));
+    } else {
+      const allIds  = pendingInvoices.map(s => s.id);
+      const balance = pendingInvoices.reduce((sum, s) => sum + Math.max(0, Number(s.grandTotal) - Number(s.totalReceived)), 0);
+      setForm(prev => ({ ...prev, linkedSaleIds: allIds, received: String(balance.toFixed(2)) }));
+    }
   };
 
   const total  = Math.max(0, Number(form.received || 0) - Number(form.discount || 0));
@@ -304,14 +319,10 @@ function PaymentInModal({ receiptNo, editData, onClose, onSave, isSaving }) {
                 <Camera size={16} />
               </button>
 
-              {/* Link to Invoices */}
+              {/* Link to Invoices — auto-shown when party selected */}
               {form.party && (
                 <div className="border border-slate-200 rounded-lg overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setShowLinkPanel(p => !p)}
-                    className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition"
-                  >
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200">
                     <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
                       <Link2 size={14} className="text-blue-500" />
                       Link to Invoices
@@ -321,63 +332,144 @@ function PaymentInModal({ receiptNo, editData, onClose, onSave, isSaving }) {
                         </span>
                       )}
                     </div>
-                    <ChevronDown size={13} className={`text-slate-400 transition-transform ${showLinkPanel ? 'rotate-180' : ''}`} />
-                  </button>
+                    {pendingInvoices.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowLinkPanel(p => !p)}
+                        className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-0.5 transition"
+                      >
+                        {showLinkPanel ? 'Hide' : 'Show'}
+                        <ChevronDown size={12} className={`transition-transform ${showLinkPanel ? 'rotate-180' : ''}`} />
+                      </button>
+                    )}
+                  </div>
 
-                  {showLinkPanel && (
-                    <div className="border-t border-slate-200 max-h-52 overflow-y-auto">
-                      {salesLoading ? (
-                        <p className="text-center text-xs text-slate-400 py-4">Loading invoices…</p>
-                      ) : pendingInvoices.length === 0 ? (
-                        <p className="text-center text-xs text-slate-400 py-4">No pending invoices for this party</p>
-                      ) : (
-                        <table className="w-full text-xs">
-                          <thead className="sticky top-0 bg-slate-50 border-b border-slate-100">
-                            <tr>
-                              <th className="w-8" />
-                              <th className="px-3 py-2 text-left font-medium text-slate-500">Invoice</th>
-                              <th className="px-3 py-2 text-left font-medium text-slate-500">Date</th>
-                              <th className="px-3 py-2 text-right font-medium text-slate-500">Total</th>
-                              <th className="px-3 py-2 text-right font-medium text-slate-500">Balance</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {pendingInvoices.map(sale => {
-                              const balance = Math.max(0, Number(sale.grandTotal) - Number(sale.totalReceived));
-                              const linked  = form.linkedSaleIds.includes(sale.id);
-                              return (
-                                <tr
-                                  key={sale.id}
+                  <div className="max-h-52 overflow-y-auto">
+                    {salesLoading ? (
+                      <p className="text-center text-xs text-slate-400 py-4">Loading invoices…</p>
+                    ) : pendingInvoices.length === 0 ? (
+                      <p className="text-center text-xs text-slate-400 py-4">No pending invoices for this party</p>
+                    ) : showLinkPanel ? (
+                      <table className="w-full text-xs">
+                        <thead className="sticky top-0 bg-slate-50 border-b border-slate-100">
+                          <tr>
+                            <th className="w-8 px-3 py-2">
+                              <input
+                                type="checkbox"
+                                checked={allLinked}
+                                ref={el => { if (el) el.indeterminate = someLinked && !allLinked; }}
+                                onChange={toggleAll}
+                                className="w-3.5 h-3.5 rounded accent-blue-600 cursor-pointer"
+                              />
+                            </th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-500">Invoice</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-500">Date</th>
+                            <th className="px-3 py-2 text-right font-medium text-slate-500">Total</th>
+                            <th className="px-3 py-2 text-right font-medium text-slate-500">Balance</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pendingInvoices.map(sale => {
+                            const balance = Math.max(0, Number(sale.grandTotal) - Number(sale.totalReceived));
+                            const linked  = form.linkedSaleIds.includes(sale.id);
+                            return (
+                              <tr
+                                key={sale.id}
+                                onClick={() => toggleLink(sale)}
+                                className={`border-b border-slate-100 cursor-pointer transition-colors
+                                  ${linked ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'}`}
+                              >
+                                <td className="px-3 py-2.5 text-center">
+                                  <input
+                                    type="checkbox"
+                                    readOnly
+                                    checked={linked}
+                                    className="w-3.5 h-3.5 rounded accent-blue-600 pointer-events-none"
+                                  />
+                                </td>
+                                <td className="px-3 py-2.5 font-mono font-semibold text-slate-700">{sale.invoice}</td>
+                                <td className="px-3 py-2.5 text-slate-500">
+                                  {new Date(sale.date).toLocaleDateString('en-IN')}
+                                </td>
+                                <td className="px-3 py-2.5 text-right text-slate-700">
+                                  ₹{Number(sale.grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                </td>
+                                <td className={`px-3 py-2.5 text-right font-semibold ${balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                  ₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <p className="text-center text-xs text-slate-400 py-3">
+                        {pendingInvoices.length} pending invoice{pendingInvoices.length !== 1 ? 's' : ''} —{' '}
+                        <button type="button" onClick={() => setShowLinkPanel(true)} className="text-blue-500 hover:underline">
+                          show
+                        </button>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Linked Invoices Preview */}
+              {form.linkedSaleIds.length > 0 && (
+                <div className="border border-blue-200 rounded-lg overflow-hidden bg-blue-50/40">
+                  <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
+                    <span className="text-xs font-semibold text-blue-700">
+                      Linked Preview ({form.linkedSaleIds.length} invoice{form.linkedSaleIds.length !== 1 ? 's' : ''})
+                    </span>
+                    <span className="text-xs text-blue-600 font-bold">
+                      Due: ₹{pendingInvoices
+                        .filter(s => form.linkedSaleIds.includes(s.id))
+                        .reduce((sum, s) => sum + Math.max(0, Number(s.grandTotal) - Number(s.totalReceived)), 0)
+                        .toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <table className="w-full text-xs">
+                    <thead className="bg-blue-50 border-b border-blue-100">
+                      <tr>
+                        <th className="px-3 py-1.5 text-left font-medium text-blue-600">Invoice</th>
+                        <th className="px-3 py-1.5 text-left font-medium text-blue-600">Date</th>
+                        <th className="px-3 py-1.5 text-right font-medium text-blue-600">Total</th>
+                        <th className="px-3 py-1.5 text-right font-medium text-blue-600">Balance</th>
+                        <th className="w-7" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-blue-100">
+                      {pendingInvoices
+                        .filter(s => form.linkedSaleIds.includes(s.id))
+                        .map(sale => {
+                          const balance = Math.max(0, Number(sale.grandTotal) - Number(sale.totalReceived));
+                          return (
+                            <tr key={sale.id} className="hover:bg-blue-100/50 transition">
+                              <td className="px-3 py-2 font-mono font-semibold text-slate-700">{sale.invoice}</td>
+                              <td className="px-3 py-2 text-slate-500">
+                                {new Date(sale.date).toLocaleDateString('en-IN')}
+                              </td>
+                              <td className="px-3 py-2 text-right text-slate-700">
+                                ₹{Number(sale.grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className="px-3 py-2 text-right font-semibold text-rose-600">
+                                ₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className="px-2 py-2 text-center">
+                                <button
+                                  type="button"
                                   onClick={() => toggleLink(sale)}
-                                  className={`border-b border-slate-100 cursor-pointer transition-colors
-                                    ${linked ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'}`}
+                                  className="text-slate-300 hover:text-rose-500 transition"
+                                  title="Remove"
                                 >
-                                  <td className="px-3 py-2.5 text-center">
-                                    <input
-                                      type="checkbox"
-                                      readOnly
-                                      checked={linked}
-                                      className="w-3.5 h-3.5 rounded accent-blue-600 pointer-events-none"
-                                    />
-                                  </td>
-                                  <td className="px-3 py-2.5 font-mono font-semibold text-slate-700">{sale.invoice}</td>
-                                  <td className="px-3 py-2.5 text-slate-500">
-                                    {new Date(sale.date).toLocaleDateString('en-IN')}
-                                  </td>
-                                  <td className="px-3 py-2.5 text-right text-slate-700">
-                                    ₹{Number(sale.grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                  </td>
-                                  <td className={`px-3 py-2.5 text-right font-semibold ${balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                    ₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      )}
-                    </div>
-                  )}
+                                  <X size={12} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
