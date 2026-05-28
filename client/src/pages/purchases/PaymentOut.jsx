@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import DateFilterDropdown from '../../components/DateFilterDropdown.jsx';
 import { PartiesAPI } from '../../api/parties.js';
 import { PaymentsAPI } from '../../api/payments.js';
+import { PurchasesAPI } from '../../api/purchases.js';
 
 const pad  = (n) => String(n).padStart(2, '0');
 const _pad = pad;
@@ -142,8 +143,9 @@ function PaymentOutModal({ receiptNo, editData, onClose, onSave, isSaving }) {
     notes:       editData?.notes ?? '',
   }));
 
-  const [partyQuery, setPartyQuery] = useState(editData?.party ?? '');
-  const [showDesc,   setShowDesc]   = useState(Boolean(editData?.notes));
+  const [partyQuery,     setPartyQuery]     = useState(editData?.party ?? '');
+  const [showDesc,       setShowDesc]       = useState(Boolean(editData?.notes));
+  const [linkedInvoices, setLinkedInvoices] = useState([]);
 
   const entryDateDisplay = (() => {
     const d = isEdit && editData.entryDate ? new Date(editData.entryDate) : now;
@@ -156,6 +158,16 @@ function PaymentOutModal({ receiptNo, editData, onClose, onSave, isSaving }) {
 
   const { data: parties = [] }    = useQuery({ queryKey: ['parties'],        queryFn: PartiesAPI.getAll });
   const { data: payOptions = [] } = useQuery({ queryKey: ['paymentOptions'], queryFn: PaymentsAPI.getOptions });
+  const { data: partyInvoices = [], isLoading: invoicesLoading } = useQuery({
+    queryKey: ['partyPurchases', form.party],
+    queryFn:  () => PurchasesAPI.getByParty(form.party),
+    enabled:  Boolean(form.party),
+  });
+  const unpaidInvoices = partyInvoices.filter(
+    inv => Number(inv.grandTotal) - Number(inv.totalPaid) > 0
+  );
+
+  useEffect(() => { setLinkedInvoices([]); }, [form.party]);
   const PAYMENT_TYPES = payOptions.length ? payOptions.map(o => o.name) : PAYMENT_TYPES_FALLBACK;
 
   const setF = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
@@ -217,6 +229,67 @@ function PaymentOutModal({ receiptNo, editData, onClose, onSave, isSaving }) {
                 onChange={setF('paymentType')}
                 options={PAYMENT_TYPES}
               />
+
+              {/* Link to Invoice */}
+              <div className="border border-slate-200 rounded-lg overflow-hidden">
+                <div className="bg-slate-50 px-3 py-2 border-b border-slate-100 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-600">Link to Invoice</span>
+                  {linkedInvoices.length > 0 && (
+                    <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                      {linkedInvoices.length} selected
+                    </span>
+                  )}
+                </div>
+                {!form.party ? (
+                  <div className="px-3 py-3 text-xs text-slate-400">Select a party to see unpaid invoices</div>
+                ) : invoicesLoading ? (
+                  <div className="px-3 py-3 text-xs text-slate-400">Loading invoices…</div>
+                ) : unpaidInvoices.length === 0 ? (
+                  <div className="px-3 py-3 text-xs text-slate-400">No unpaid invoices for this party</div>
+                ) : (
+                  <div className="max-h-44 overflow-y-auto divide-y divide-slate-100">
+                    {unpaidInvoices.map(inv => {
+                      const due     = Number(inv.grandTotal) - Number(inv.totalPaid);
+                      const checked = linkedInvoices.includes(inv.id);
+                      return (
+                        <label key={inv.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-blue-50 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setLinkedInvoices(prev =>
+                                checked ? prev.filter(id => id !== inv.id) : [...prev, inv.id]
+                              )
+                            }
+                            className="accent-blue-600 shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-semibold text-slate-700 truncate">{inv.invoice}</span>
+                              <span className="text-xs font-bold text-rose-600 shrink-0">
+                                ₹{Number(due).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between mt-0.5 gap-2">
+                              <span className="text-[10px] text-slate-400">
+                                {new Date(inv.date).toLocaleDateString('en-IN')}
+                              </span>
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
+                                inv.paymentStatus === 'Unpaid'
+                                  ? 'bg-rose-50 text-rose-600'
+                                  : 'bg-amber-50 text-amber-600'
+                              }`}>
+                                {inv.paymentStatus}
+                              </span>
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               {showDesc ? (
                 <div className="relative">
                   <textarea
