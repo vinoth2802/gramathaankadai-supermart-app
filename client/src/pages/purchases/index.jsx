@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, X, Check, Search } from 'lucide-react';
 import { toast } from 'sonner';
@@ -154,8 +154,49 @@ function makePurchaseTab(invoice) {
   };
 }
 
+function makeEditTab(purchase) {
+  const rawMode = purchase.paymentMode || 'Cash';
+  const mode    = rawMode.startsWith('Credit (') ? rawMode.replace(/^Credit \((.+)\)$/, '$1') : rawMode;
+  return {
+    id:           `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    editId:       purchase.id,
+    invoice:      purchase.invoice,
+    purchaseType: (
+      purchase.paymentMode?.startsWith('Credit') ||
+      (purchase.partyName && purchase.partyName !== 'Cash Purchase')
+    ) ? 'credit' : 'cash',
+    form: {
+      partyId:            purchase.partyId ? String(purchase.partyId) : '',
+      partyName:          purchase.partyName || '',
+      paymentMode:        mode,
+      totalPaid:          String(Number(purchase.totalPaid ?? 0)),
+      grnDate:            new Date().toLocaleString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }),
+      supplierInvoiceNo:  purchase.supplierInvoiceNo  || '',
+      supplierInvoiceDate: purchase.supplierInvoiceDate || '',
+      ewayBillNo:         purchase.ewayBillNo || '',
+      stateOfSupply:      'Tamil Nadu',
+      dueDate:            '',
+      priceType:          'With Tax',
+    },
+    items: (purchase.items || []).map(i => ({
+      name:       i.name       || '',
+      batchNo:    i.batchNo    || '',
+      expiryDate: i.expiryDate || '',
+      mfgDate:    i.mfgDate    || '',
+      mrp:        Number(i.mrp       || 0),
+      qty:        Number(i.qty       || 0),
+      unit:       i.unit       || 'PCS',
+      price:      Number(i.price     || 0),
+      gstRate:    Number(i.gstRate   || 0),
+      gstAmount:  Number(i.gstAmount || 0),
+      total:      Number(i.total     || 0),
+    })),
+  };
+}
+
 export default function Purchases() {
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const location  = useLocation();
   const qc = useQueryClient();
   const { data: purchases = [] } = useQuery({ queryKey: ['purchases'], queryFn: PurchasesAPI.getAll });
   const { data: parties = [] } = useQuery({ queryKey: ['parties'], queryFn: PartiesAPI.getAll });
@@ -163,7 +204,10 @@ export default function Purchases() {
   const modes = payOptions.length ? payOptions : [{ name: 'Cash' }];
   const { data: products = [] } = useQuery({ queryKey: ['items'], queryFn: ItemsAPI.getAll });
 
-  const [purchaseTabs, setPurchaseTabs] = useState(() => [makePurchaseTab(genPurchaseBill())]);
+  const [purchaseTabs, setPurchaseTabs] = useState(() => {
+    const ep = location.state?.editPurchase;
+    return ep ? [makeEditTab(ep)] : [makePurchaseTab(genPurchaseBill())];
+  });
   const [activeTabId, setActiveTabId] = useState(() => purchaseTabs[0].id);
   const [saveConfirm, setSaveConfirm] = useState(false);
 
@@ -176,6 +220,11 @@ export default function Purchases() {
   const createMut = useMutation({
     mutationFn: PurchasesAPI.create,
     onError: () => toast.error('Failed to save purchase'),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, data }) => PurchasesAPI.update(id, data),
+    onError: () => toast.error('Failed to update purchase'),
   });
 
   const updateActiveTab = (updater) => {
@@ -301,24 +350,31 @@ export default function Purchases() {
 
     const party = suppliers.find(p => String(p.id) === String(form.partyId));
     const paid  = purchaseType === 'cash' ? grandTotal : Number(form.totalPaid || 0);
-    const savedPurchase = await createMut.mutateAsync({
-      invoice,
-      date: new Date().toISOString(),
-      supplierInvoiceNo: form.supplierInvoiceNo || null,
+    const payload = {
+      supplierInvoiceNo:  form.supplierInvoiceNo  || null,
       supplierInvoiceDate: form.supplierInvoiceDate || null,
-      partyId: purchaseType === 'cash' ? null : (party?.id || null),
+      partyId:   purchaseType === 'cash' ? null : (party?.id || null),
       partyName: purchaseType === 'cash' ? 'Cash Purchase' : (form.partyName || party?.name || 'Unknown Supplier'),
-      items: validItems,
+      items:     validItems,
       grandTotal,
       totalPaid:     paid,
       paymentStatus: paid <= 0 ? 'Unpaid' : paid >= grandTotal ? 'Paid' : 'Partial',
-      paymentMode: purchaseType === 'credit' ? `Credit (${form.paymentMode})` : form.paymentMode,
-    });
+      paymentMode:   purchaseType === 'credit' ? `Credit (${form.paymentMode})` : form.paymentMode,
+    };
 
-    qc.invalidateQueries({ queryKey: ['purchases'] });
-    qc.invalidateQueries({ queryKey: ['items'] });
-    toast.success(`Purchase recorded — Bill: ${invoice}`);
-    closeCompletedTab(savedPurchase);
+    if (activeTab.editId) {
+      await updateMut.mutateAsync({ id: activeTab.editId, data: payload });
+      qc.invalidateQueries({ queryKey: ['purchases'] });
+      qc.invalidateQueries({ queryKey: ['items'] });
+      toast.success(`Purchase updated — Bill: ${invoice}`);
+      navigate('/purchases/history');
+    } else {
+      const savedPurchase = await createMut.mutateAsync({ invoice, date: new Date().toISOString(), ...payload });
+      qc.invalidateQueries({ queryKey: ['purchases'] });
+      qc.invalidateQueries({ queryKey: ['items'] });
+      toast.success(`Purchase recorded — Bill: ${invoice}`);
+      closeCompletedTab(savedPurchase);
+    }
   };
 
   return (
@@ -335,7 +391,7 @@ export default function Purchases() {
                 }`}
               >
                 <button type="button" onClick={() => setActiveTabId(tab.id)} className="h-full px-3 text-xs font-bold">
-                  Purchase {idx + 1}
+                  {tab.editId ? `Edit #${tab.invoice}` : `Purchase ${idx + 1}`}
                 </button>
                 <button
                   type="button"

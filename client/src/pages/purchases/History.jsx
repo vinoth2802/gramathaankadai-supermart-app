@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -10,6 +10,7 @@ import {
 import { PurchasesAPI } from '../../api/purchases.js';
 import { PartiesAPI } from '../../api/parties.js';
 import { PaymentsAPI } from '../../api/payments.js';
+import { SettingsAPI } from '../../api/settings.js';
 
 /* ── Helpers ── */
 const pad = (n) => String(n).padStart(2, '0');
@@ -146,7 +147,7 @@ function Th({ label, sortKey, sortCol, sortDir, onSort, className = '' }) {
 }
 
 /* ── 3-dot row menu ── */
-function RowMenu({ onDelete }) {
+function RowMenu({ onEdit, onDelete, onDuplicate, onOpenPdf }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos]   = useState({ top: 0, right: 0 });
   const btnRef = useRef(null);
@@ -163,10 +164,10 @@ function RowMenu({ onDelete }) {
   const act = (fn) => { setOpen(false); fn?.(); };
 
   const items = [
-    { label: 'View/Edit',  fn: null,     danger: false },
+    { label: 'View/Edit',  fn: onEdit,   danger: false },
     { label: 'Delete',     fn: onDelete, danger: true  },
-    { label: 'Duplicate',  fn: null,     danger: false },
-    { label: 'Open PDF',   fn: null,     danger: false },
+    { label: 'Duplicate',  fn: onDuplicate, danger: false },
+    { label: 'Open PDF',   fn: onOpenPdf, danger: false },
   ];
 
   return (
@@ -190,6 +191,252 @@ function RowMenu({ onDelete }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/* ── Build printable HTML for a purchase invoice ── */
+function buildPrintHTML(purchase, settings) {
+  const shopName = settings?.shopName || 'Gramathaankadai SuperMart';
+  const address  = settings?.address  || '';
+  const phone    = settings?.phone    || '';
+  const gstin    = settings?.gstin    || '';
+
+  const items      = purchase.items || [];
+  const grandTotal = Number(purchase.grandTotal || 0);
+  const totalPaid  = Number(purchase.totalPaid  || 0);
+  const balance    = Math.max(0, grandTotal - totalPaid);
+  const subtotal   = items.reduce((s, i) => s + Number(i.qty || 0) * Number(i.price || 0), 0);
+  const taxTotal   = items.reduce((s, i) => s + Number(i.gstAmount || 0), 0);
+  const d          = purchase.date ? new Date(purchase.date) : new Date();
+  const dateStr    = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+  const status     = totalPaid <= 0 ? 'Unpaid' : totalPaid >= grandTotal ? 'Paid' : 'Partial';
+  const statusClr  = status === 'Paid' ? '#059669' : status === 'Partial' ? '#d97706' : '#dc2626';
+
+  const itemRows = items.map((item, i) => `
+    <tr style="background:${i % 2 === 0 ? '#fff' : '#f8fafc'}">
+      <td>${i + 1}</td><td>${item.name}</td><td>${item.batchNo || '—'}</td>
+      <td class="r">${Number(item.mrp   || 0).toFixed(2)}</td>
+      <td class="r">${Number(item.qty   || 0)}</td>
+      <td>${item.unit || '—'}</td>
+      <td class="r">${Number(item.price || 0).toFixed(2)}</td>
+      <td class="r">${Number(item.gstRate || 0)}%</td>
+      <td class="r">${Number(item.gstAmount || 0).toFixed(2)}</td>
+      <td class="r b">${Number(item.total || 0).toFixed(2)}</td>
+    </tr>`).join('');
+
+  const fmt = (n) => Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>Purchase Invoice — ${purchase.invoice}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;font-size:12px;color:#1e293b;padding:24px;max-width:900px;margin:0 auto}
+    .hdr{text-align:center;margin-bottom:14px}
+    .hdr h1{font-size:20px;font-weight:700}
+    .hdr p{font-size:11px;color:#64748b;margin-top:2px}
+    .title{border-top:2px solid #1e293b;border-bottom:2px solid #1e293b;text-align:center;padding:4px 0;margin-bottom:14px;font-size:13px;font-weight:700;letter-spacing:2px}
+    .meta{display:flex;justify-content:space-between;margin-bottom:14px}
+    .meta-r{text-align:right}
+    .meta-r .row{display:flex;justify-content:flex-end;gap:12px;margin-bottom:2px;font-size:11px}
+    .meta-r .lbl{color:#94a3b8}
+    table{width:100%;border-collapse:collapse;margin-bottom:14px}
+    thead tr{background:#1e293b;color:#fff}
+    thead th{padding:6px 7px;font-size:11px;font-weight:500;text-align:left}
+    thead th.r{text-align:right}
+    tbody td{padding:5px 7px;font-size:11px;border-bottom:1px solid #f1f5f9}
+    tbody td.r{text-align:right} tbody td.b{font-weight:600}
+    .totals{display:flex;justify-content:flex-end;margin-bottom:14px}
+    .tbox{width:240px}
+    .tr{display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px}
+    .tr .l{color:#64748b}
+    .tr.grand{border-top:1px solid #cbd5e1;padding-top:4px;font-size:13px;font-weight:700;color:#92400e;margin-top:2px}
+    .footer{border-top:1px solid #e2e8f0;padding-top:10px;text-align:center;font-size:11px;color:#94a3b8}
+    @media print{body{padding:6px}}
+  </style></head><body>
+  <div class="hdr">
+    <h1>${shopName}</h1>
+    ${address ? `<p>${address}</p>` : ''}
+    ${phone   ? `<p>Ph: ${phone}</p>` : ''}
+    ${gstin   ? `<p>GSTIN: ${gstin}</p>` : ''}
+  </div>
+  <div class="title">PURCHASE INVOICE</div>
+  <div class="meta">
+    <div>
+      <div style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;margin-bottom:4px">Supplier</div>
+      <strong>${purchase.partyName || '—'}</strong>
+      ${purchase.supplierInvoiceNo ? `<div style="font-size:11px;color:#64748b;margin-top:2px">Supplier Inv: ${purchase.supplierInvoiceNo}</div>` : ''}
+    </div>
+    <div class="meta-r">
+      <div class="row"><span class="lbl">Invoice No:</span><strong>${purchase.invoice}</strong></div>
+      <div class="row"><span class="lbl">Date:</span><span>${dateStr}</span></div>
+      <div class="row"><span class="lbl">Payment:</span><span>${purchase.paymentMode || 'Cash'}</span></div>
+      <div class="row"><span class="lbl">Status:</span><span style="font-weight:600;color:${statusClr}">${status}</span></div>
+    </div>
+  </div>
+  <table>
+    <thead><tr>
+      <th>#</th><th>Item</th><th>Batch</th>
+      <th class="r">MRP</th><th class="r">Qty</th><th>Unit</th>
+      <th class="r">Rate</th><th class="r">GST%</th><th class="r">Tax</th><th class="r">Total</th>
+    </tr></thead>
+    <tbody>${itemRows}</tbody>
+  </table>
+  <div class="totals"><div class="tbox">
+    <div class="tr"><span class="l">Sub Total</span><span>₹ ${fmt(subtotal)}</span></div>
+    <div class="tr"><span class="l">Tax (GST)</span><span>₹ ${fmt(taxTotal)}</span></div>
+    <div class="tr grand"><span>Grand Total</span><span>₹ ${fmt(grandTotal)}</span></div>
+    <div class="tr" style="margin-top:4px"><span class="l">Amount Paid</span><span style="color:#059669">₹ ${fmt(totalPaid)}</span></div>
+    ${balance > 0 ? `<div class="tr"><span class="l">Balance Due</span><span style="color:#dc2626;font-weight:600">₹ ${fmt(balance)}</span></div>` : ''}
+  </div></div>
+  <div class="footer"><p>Thank you for your business!</p></div>
+  </body></html>`;
+}
+
+/* ── Print Preview Modal ── */
+function PrintPreviewModal({ purchase, onClose }) {
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: SettingsAPI.get });
+
+  const items      = purchase.items || [];
+  const grandTotal = Number(purchase.grandTotal || 0);
+  const totalPaid  = Number(purchase.totalPaid  || 0);
+  const balance    = Math.max(0, grandTotal - totalPaid);
+  const subtotal   = items.reduce((s, i) => s + Number(i.qty || 0) * Number(i.price || 0), 0);
+  const taxTotal   = items.reduce((s, i) => s + Number(i.gstAmount || 0), 0);
+  const d          = purchase.date ? new Date(purchase.date) : new Date();
+  const dateStr    = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+  const status     = totalPaid <= 0 ? 'Unpaid' : totalPaid >= grandTotal ? 'Paid' : 'Partial';
+  const statusCls  = { Paid: 'text-emerald-600', Partial: 'text-amber-600', Unpaid: 'text-rose-600' };
+  const fmt        = (n) => Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+
+  const handlePrint = () => {
+    const html = buildPrintHTML(purchase, settings);
+    const url  = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+    const w    = window.open(url);
+    if (w) w.addEventListener('load', () => { w.print(); URL.revokeObjectURL(url); });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl flex flex-col max-h-[92vh]">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
+          <h2 className="text-base font-bold text-slate-800">Invoice Preview</h2>
+          <div className="flex items-center gap-2">
+            <button onClick={handlePrint}
+              className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-lg transition">
+              <Printer size={15} /> Print
+            </button>
+            <button onClick={onClose}
+              className="w-7 h-7 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-full transition">
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* Preview */}
+        <div className="flex-1 overflow-y-auto bg-slate-100 p-6 min-h-0">
+          <div className="bg-white max-w-2xl mx-auto rounded-lg shadow-sm p-8">
+
+            {/* Shop header */}
+            <div className="text-center mb-5">
+              <h1 className="text-xl font-bold text-slate-900">{settings?.shopName || 'Gramathaankadai SuperMart'}</h1>
+              {settings?.address && <p className="text-xs text-slate-500 mt-1">{settings.address}</p>}
+              {settings?.phone   && <p className="text-xs text-slate-500">Ph: {settings.phone}</p>}
+              {settings?.gstin   && <p className="text-xs text-slate-500">GSTIN: {settings.gstin}</p>}
+            </div>
+
+            <div className="border-t-2 border-b-2 border-slate-800 py-1.5 text-center mb-5">
+              <span className="text-sm font-bold tracking-widest text-slate-800">PURCHASE INVOICE</span>
+            </div>
+
+            {/* Supplier + invoice meta */}
+            <div className="flex justify-between mb-5">
+              <div>
+                <p className="text-[10px] font-semibold text-slate-400 uppercase mb-1">Supplier</p>
+                <p className="text-sm font-bold text-slate-800">{purchase.partyName || '—'}</p>
+                {purchase.supplierInvoiceNo && (
+                  <p className="text-xs text-slate-400 mt-0.5">Supplier Inv: {purchase.supplierInvoiceNo}</p>
+                )}
+              </div>
+              <div className="text-right space-y-1">
+                {[
+                  ['Invoice No', purchase.invoice],
+                  ['Date',       dateStr],
+                  ['Payment',    purchase.paymentMode || 'Cash'],
+                ].map(([lbl, val]) => (
+                  <div key={lbl} className="flex justify-end gap-3 text-xs">
+                    <span className="text-slate-400">{lbl}:</span>
+                    <span className="font-semibold text-slate-800">{val}</span>
+                  </div>
+                ))}
+                <div className="flex justify-end gap-3 text-xs">
+                  <span className="text-slate-400">Status:</span>
+                  <span className={`font-bold ${statusCls[status]}`}>{status}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Items table */}
+            <table className="w-full text-xs mb-5 border-collapse">
+              <thead>
+                <tr className="bg-slate-800 text-white">
+                  {['#','Item','Batch','MRP','Qty','Unit','Rate','GST%','Tax','Total'].map((h, i) => (
+                    <th key={h} className={`px-2 py-2 font-medium ${i >= 3 && i !== 5 ? 'text-right' : 'text-left'}`}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, i) => (
+                  <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                    <td className="px-2 py-1.5 text-slate-400">{i + 1}</td>
+                    <td className="px-2 py-1.5 font-medium text-slate-800">{item.name}</td>
+                    <td className="px-2 py-1.5 text-slate-500">{item.batchNo || '—'}</td>
+                    <td className="px-2 py-1.5 text-right text-slate-600">{fmt(item.mrp || 0)}</td>
+                    <td className="px-2 py-1.5 text-right text-slate-700">{Number(item.qty || 0)}</td>
+                    <td className="px-2 py-1.5 text-slate-500">{item.unit || '—'}</td>
+                    <td className="px-2 py-1.5 text-right text-slate-700">{fmt(item.price || 0)}</td>
+                    <td className="px-2 py-1.5 text-right text-slate-500">{Number(item.gstRate || 0)}%</td>
+                    <td className="px-2 py-1.5 text-right text-slate-500">{fmt(item.gstAmount || 0)}</td>
+                    <td className="px-2 py-1.5 text-right font-semibold text-slate-800">{fmt(item.total || 0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Totals */}
+            <div className="flex justify-end mb-5">
+              <div className="w-56 space-y-1.5">
+                {[['Sub Total', subtotal, ''], ['Tax (GST)', taxTotal, '']].map(([lbl, val]) => (
+                  <div key={lbl} className="flex justify-between text-xs">
+                    <span className="text-slate-400">{lbl}</span>
+                    <span className="text-slate-700">₹ {fmt(val)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between text-sm font-bold border-t border-slate-200 pt-1.5">
+                  <span className="text-slate-800">Grand Total</span>
+                  <span className="text-amber-700">₹ {fmt(grandTotal)}</span>
+                </div>
+                <div className="flex justify-between text-xs pt-1">
+                  <span className="text-slate-400">Amount Paid</span>
+                  <span className="text-emerald-600 font-semibold">₹ {fmt(totalPaid)}</span>
+                </div>
+                {balance > 0 && (
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span className="text-slate-400">Balance Due</span>
+                    <span className="text-rose-600">₹ {fmt(balance)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-slate-100 pt-4 text-center">
+              <p className="text-xs text-slate-400">Thank you for your business!</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -485,9 +732,10 @@ export function EditPurchaseModal({ purchase, onClose }) {
 ══════════════════════════════════════════ */
 export default function PurchaseHistory() {
   const location = useLocation();
+  const navigate  = useNavigate();
   const [dateLabel, setDateLabel] = useState(location.state?.initFilter ?? 'This Month');
   const [selected,  setSelected]  = useState(null);
-  const [editRow,   setEditRow]   = useState(null);
+  const [printRow,  setPrintRow]  = useState(null);
   const [search,    setSearch]    = useState('');
   const [sortCol,   setSortCol]   = useState('date');
   const [sortDir,   setSortDir]   = useState('desc');
@@ -525,6 +773,91 @@ export default function PurchaseHistory() {
   const handleDelete = (id) => {
     if (!window.confirm('Delete this purchase?')) return;
     deleteMut.mutate(id);
+  };
+
+  const duplicateMut = useMutation({
+    mutationFn: (data) => PurchasesAPI.create(data),
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['purchases'] }); toast.success('Purchase duplicated'); },
+    onError:    () => toast.error('Failed to duplicate purchase'),
+  });
+
+  const handleDuplicate = (rawPurchase) => {
+    const nextInvoice = String(
+      Math.max(0, ...rawPurchases.map(p => Number(p.invoice) || 0)) + 1
+    );
+    duplicateMut.mutate({
+      invoice:          nextInvoice,
+      date:             new Date().toISOString(),
+      partyName:        rawPurchase.partyName   || null,
+      partyId:          rawPurchase.partyId     || null,
+      paymentMode:      rawPurchase.paymentMode || 'Cash',
+      grandTotal:       Number(rawPurchase.grandTotal || 0),
+      totalPaid:        0,
+      paymentStatus:    'Unpaid',
+      supplierInvoiceNo: null,
+      items: (rawPurchase.items || []).map(i => ({
+        name:      i.name,
+        batchNo:   i.batchNo   || null,
+        expiryDate: i.expiryDate ? new Date(i.expiryDate).toISOString() : null,
+        mfgDate:   i.mfgDate   ? new Date(i.mfgDate).toISOString()    : null,
+        mrp:       Number(i.mrp       || 0),
+        qty:       Number(i.qty       || 0),
+        unit:      i.unit      || null,
+        price:     Number(i.price     || 0),
+        gstRate:   Number(i.gstRate   || 0),
+        gstAmount: Number(i.gstAmount || 0),
+        total:     Number(i.total     || 0),
+      })),
+    });
+  };
+
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: SettingsAPI.get });
+
+  const handleOpenPdf = (rawPurchase) => {
+    const html = buildPrintHTML(rawPurchase, settings);
+    const url  = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+    window.open(url, '_blank');
+  };
+
+  const handleShare = async (rawPurchase) => {
+    const items      = rawPurchase.items || [];
+    const grandTotal = Number(rawPurchase.grandTotal || 0);
+    const totalPaid  = Number(rawPurchase.totalPaid  || 0);
+    const balance    = Math.max(0, grandTotal - totalPaid);
+    const d          = rawPurchase.date ? new Date(rawPurchase.date) : new Date();
+    const dateStr    = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+    const status     = totalPaid <= 0 ? 'Unpaid' : totalPaid >= grandTotal ? 'Paid' : 'Partial';
+    const fmt        = (n) => Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+
+    const itemLines = items.map((item, i) =>
+      `${i + 1}. ${item.name}  Qty: ${Number(item.qty)}  Rate: ₹${fmt(item.price)}  Total: ₹${fmt(item.total)}`
+    ).join('\n');
+
+    const subtotal = items.reduce((s, i) => s + Number(i.qty || 0) * Number(i.price || 0), 0);
+    const taxTotal = items.reduce((s, i) => s + Number(i.gstAmount || 0), 0);
+
+    const text = [
+      `*Purchase Invoice — ${rawPurchase.invoice}*`,
+      `Date: ${dateStr}`,
+      `Supplier: ${rawPurchase.partyName || '—'}`,
+      `Payment: ${rawPurchase.paymentMode || 'Cash'}`,
+      '',
+      itemLines,
+      '',
+      `Sub Total : ₹${fmt(subtotal)}`,
+      `Tax (GST) : ₹${fmt(taxTotal)}`,
+      `Grand Total: ₹${fmt(grandTotal)}`,
+      `Paid      : ₹${fmt(totalPaid)}`,
+      ...(balance > 0 ? [`Balance   : ₹${fmt(balance)}`] : []),
+      `Status    : ${status}`,
+    ].join('\n');
+
+    if (navigator.share) {
+      try { await navigator.share({ title: `Purchase Invoice ${rawPurchase.invoice}`, text }); } catch {}
+    } else {
+      await navigator.clipboard.writeText(text);
+      toast.success('Invoice details copied to clipboard');
+    }
   };
 
   const rows = rawPurchases
@@ -654,7 +987,7 @@ export default function PurchaseHistory() {
                     <tr
                       key={row.id}
                       onClick={() => setSelected(isSel ? null : row.id)}
-                      onDoubleClick={() => setEditRow(rawPurchases.find(p => p.id === row.id) ?? null)}
+                      onDoubleClick={() => navigate('/purchase', { state: { editPurchase: rawPurchases.find(p => p.id === row.id) } })}
                       className={`cursor-pointer transition ${isSel ? 'bg-amber-50' : 'hover:bg-slate-50/80'}`}
                     >
                       <td className={`px-4 py-3 text-xs whitespace-nowrap ${isSel ? bold : 'text-slate-600'}`}>
@@ -688,14 +1021,21 @@ export default function PurchaseHistory() {
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-0.5">
                           <button title="Print"
+                            onClick={() => setPrintRow(rawPurchases.find(p => p.id === row.id) ?? null)}
                             className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition">
                             <Printer size={13} />
                           </button>
                           <button title="Share"
+                            onClick={() => handleShare(rawPurchases.find(p => p.id === row.id))}
                             className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition">
                             <Share2 size={13} />
                           </button>
-                          <RowMenu onDelete={() => handleDelete(row.id)} />
+                          <RowMenu
+                            onEdit={()      => navigate('/purchase', { state: { editPurchase: rawPurchases.find(p => p.id === row.id) } })}
+                            onDelete={()    => handleDelete(row.id)}
+                            onDuplicate={() => handleDuplicate(rawPurchases.find(p => p.id === row.id))}
+                            onOpenPdf={()   => handleOpenPdf(rawPurchases.find(p => p.id === row.id))}
+                          />
                         </div>
                       </td>
                     </tr>
@@ -708,10 +1048,10 @@ export default function PurchaseHistory() {
 
       </div>
 
-      {editRow && (
-        <EditPurchaseModal
-          purchase={editRow}
-          onClose={() => setEditRow(null)}
+      {printRow && (
+        <PrintPreviewModal
+          purchase={printRow}
+          onClose={() => setPrintRow(null)}
         />
       )}
     </div>

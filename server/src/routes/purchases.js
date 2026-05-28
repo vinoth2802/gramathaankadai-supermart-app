@@ -17,11 +17,20 @@ function deriveStatus(grandTotal, totalPaid) {
 }
 
 router.get('/', async (req, res) => {
-  const { from, to, invoiceSearch, partyId, paymentStatus } = req.query;
+  const { from, to, invoiceSearch, partyId, partyName, paymentStatus } = req.query;
   const where = {};
   if (from && to) where.date = { gte: new Date(from), lte: new Date(to) };
   if (invoiceSearch) where.invoice = { contains: invoiceSearch, mode: 'insensitive' };
-  if (partyId) where.partyId = Number(partyId);
+  if (partyId && partyName) {
+    where.OR = [
+      { partyId: Number(partyId) },
+      { partyName: { equals: partyName, mode: 'insensitive' } },
+    ];
+  } else if (partyId) {
+    where.partyId = Number(partyId);
+  } else if (partyName) {
+    where.partyName = { equals: partyName, mode: 'insensitive' };
+  }
   if (paymentStatus) {
     const statuses = paymentStatus.split(',').map(s => s.trim());
     where.paymentStatus = statuses.length === 1 ? statuses[0] : { in: statuses };

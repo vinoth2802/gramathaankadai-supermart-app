@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronDown, Settings, Plus, Search, Filter,
   Printer, FileSpreadsheet, MoreVertical, Share2, X,
-  Calculator, Clock, FileText, Camera,
+  Calculator, Clock, FileText, Camera, Link2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import DateFilterDropdown from '../../components/DateFilterDropdown.jsx';
@@ -135,17 +135,18 @@ function PaymentOutModal({ receiptNo, editData, onClose, onSave, isSaving }) {
   const isEdit = Boolean(editData);
 
   const [form, setForm] = useState(() => ({
-    party:       editData ? String(editData.partyId ?? '') : '',
-    paymentType: editData?.paymentType ?? 'Cash',
-    paid:        editData ? String(editData.paid) : '',
-    discount:    editData ? String(editData.discount ?? 0) : '',
-    date:        editData?.displayDate ? dmyToYmd(editData.displayDate) : ymd(now),
-    notes:       editData?.notes ?? '',
+    party:            editData ? String(editData.partyId ?? '') : '',
+    paymentType:      editData?.paymentType ?? 'Cash',
+    paid:             editData ? String(editData.paid) : '',
+    discount:         editData ? String(editData.discount ?? 0) : '',
+    date:             editData?.displayDate ? dmyToYmd(editData.displayDate) : ymd(now),
+    notes:            editData?.notes ?? '',
+    linkedInvoiceIds: [],
   }));
 
-  const [partyQuery,     setPartyQuery]     = useState(editData?.party ?? '');
-  const [showDesc,       setShowDesc]       = useState(Boolean(editData?.notes));
-  const [linkedInvoices, setLinkedInvoices] = useState([]);
+  const [partyQuery,    setPartyQuery]    = useState(editData?.party ?? '');
+  const [showDesc,      setShowDesc]      = useState(Boolean(editData?.notes));
+  const [showLinkPanel, setShowLinkPanel] = useState(false);
 
   const entryDateDisplay = (() => {
     const d = isEdit && editData.entryDate ? new Date(editData.entryDate) : now;
@@ -159,15 +160,14 @@ function PaymentOutModal({ receiptNo, editData, onClose, onSave, isSaving }) {
   const { data: parties = [] }    = useQuery({ queryKey: ['parties'],        queryFn: PartiesAPI.getAll });
   const { data: payOptions = [] } = useQuery({ queryKey: ['paymentOptions'], queryFn: PaymentsAPI.getOptions });
   const { data: partyInvoices = [], isLoading: invoicesLoading } = useQuery({
-    queryKey: ['partyPurchases', form.party],
-    queryFn:  () => PurchasesAPI.getByParty(form.party),
+    queryKey: ['partyPurchases', form.party, partyQuery],
+    queryFn:  () => PurchasesAPI.getByParty(form.party, partyQuery),
     enabled:  Boolean(form.party),
   });
-  const unpaidInvoices = partyInvoices.filter(
+  const pendingInvoices = partyInvoices.filter(
     inv => Number(inv.grandTotal) - Number(inv.totalPaid) > 0
   );
 
-  useEffect(() => { setLinkedInvoices([]); }, [form.party]);
   const PAYMENT_TYPES = payOptions.length ? payOptions.map(o => o.name) : PAYMENT_TYPES_FALLBACK;
 
   const setF = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
@@ -175,10 +175,38 @@ function PaymentOutModal({ receiptNo, editData, onClose, onSave, isSaving }) {
   const handlePartySelect = (p) => {
     if (!p) {
       setPartyQuery('');
-      setForm(prev => ({ ...prev, party: '' }));
+      setForm(prev => ({ ...prev, party: '', linkedInvoiceIds: [], paid: '' }));
+      setShowLinkPanel(false);
     } else {
       setPartyQuery(p.name);
-      setForm(prev => ({ ...prev, party: String(p.id) }));
+      setForm(prev => ({ ...prev, party: String(p.id), linkedInvoiceIds: [], paid: '' }));
+      setShowLinkPanel(true);
+    }
+  };
+
+  const toggleLink = (inv) => {
+    setForm(prev => {
+      const already = prev.linkedInvoiceIds.includes(inv.id);
+      const newIds  = already
+        ? prev.linkedInvoiceIds.filter(id => id !== inv.id)
+        : [...prev.linkedInvoiceIds, inv.id];
+      const newPaid = pendingInvoices
+        .filter(i => newIds.includes(i.id))
+        .reduce((sum, i) => sum + Math.max(0, Number(i.grandTotal) - Number(i.totalPaid)), 0);
+      return { ...prev, linkedInvoiceIds: newIds, paid: newIds.length > 0 ? String(newPaid.toFixed(2)) : prev.paid };
+    });
+  };
+
+  const allLinked  = pendingInvoices.length > 0 && pendingInvoices.every(i => form.linkedInvoiceIds.includes(i.id));
+  const someLinked = pendingInvoices.some(i => form.linkedInvoiceIds.includes(i.id));
+
+  const toggleAll = () => {
+    if (allLinked) {
+      setForm(prev => ({ ...prev, linkedInvoiceIds: [], paid: '' }));
+    } else {
+      const allIds  = pendingInvoices.map(i => i.id);
+      const balance = pendingInvoices.reduce((sum, i) => sum + Math.max(0, Number(i.grandTotal) - Number(i.totalPaid)), 0);
+      setForm(prev => ({ ...prev, linkedInvoiceIds: allIds, paid: String(balance.toFixed(2)) }));
     }
   };
 
@@ -230,65 +258,159 @@ function PaymentOutModal({ receiptNo, editData, onClose, onSave, isSaving }) {
                 options={PAYMENT_TYPES}
               />
 
-              {/* Link to Invoice */}
-              <div className="border border-slate-200 rounded-lg overflow-hidden">
-                <div className="bg-slate-50 px-3 py-2 border-b border-slate-100 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-600">Link to Invoice</span>
-                  {linkedInvoices.length > 0 && (
-                    <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
-                      {linkedInvoices.length} selected
-                    </span>
-                  )}
-                </div>
-                {!form.party ? (
-                  <div className="px-3 py-3 text-xs text-slate-400">Select a party to see unpaid invoices</div>
-                ) : invoicesLoading ? (
-                  <div className="px-3 py-3 text-xs text-slate-400">Loading invoices…</div>
-                ) : unpaidInvoices.length === 0 ? (
-                  <div className="px-3 py-3 text-xs text-slate-400">No unpaid invoices for this party</div>
-                ) : (
-                  <div className="max-h-44 overflow-y-auto divide-y divide-slate-100">
-                    {unpaidInvoices.map(inv => {
-                      const due     = Number(inv.grandTotal) - Number(inv.totalPaid);
-                      const checked = linkedInvoices.includes(inv.id);
-                      return (
-                        <label key={inv.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-blue-50 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() =>
-                              setLinkedInvoices(prev =>
-                                checked ? prev.filter(id => id !== inv.id) : [...prev, inv.id]
-                              )
-                            }
-                            className="accent-blue-600 shrink-0"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-xs font-semibold text-slate-700 truncate">{inv.invoice}</span>
-                              <span className="text-xs font-bold text-rose-600 shrink-0">
-                                ₹{Number(due).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between mt-0.5 gap-2">
-                              <span className="text-[10px] text-slate-400">
-                                {new Date(inv.date).toLocaleDateString('en-IN')}
-                              </span>
-                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
-                                inv.paymentStatus === 'Unpaid'
-                                  ? 'bg-rose-50 text-rose-600'
-                                  : 'bg-amber-50 text-amber-600'
-                              }`}>
-                                {inv.paymentStatus}
-                              </span>
-                            </div>
-                          </div>
-                        </label>
-                      );
-                    })}
+              {/* Link to Invoices */}
+              {form.party && (
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+                    <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                      <Link2 size={14} className="text-blue-500" />
+                      Link to Invoices
+                      {form.linkedInvoiceIds.length > 0 && (
+                        <span className="bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full font-bold leading-none">
+                          {form.linkedInvoiceIds.length}
+                        </span>
+                      )}
+                    </div>
+                    {pendingInvoices.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowLinkPanel(p => !p)}
+                        className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-0.5 transition"
+                      >
+                        {showLinkPanel ? 'Hide' : 'Show'}
+                        <ChevronDown size={12} className={`transition-transform ${showLinkPanel ? 'rotate-180' : ''}`} />
+                      </button>
+                    )}
                   </div>
-                )}
-              </div>
+
+                  <div className="max-h-52 overflow-y-auto">
+                    {invoicesLoading ? (
+                      <p className="text-center text-xs text-slate-400 py-4">Loading invoices…</p>
+                    ) : pendingInvoices.length === 0 ? (
+                      <p className="text-center text-xs text-slate-400 py-4">No pending invoices for this party</p>
+                    ) : showLinkPanel ? (
+                      <table className="w-full text-xs">
+                        <thead className="sticky top-0 bg-slate-50 border-b border-slate-100">
+                          <tr>
+                            <th className="w-8 px-3 py-2">
+                              <input
+                                type="checkbox"
+                                checked={allLinked}
+                                ref={el => { if (el) el.indeterminate = someLinked && !allLinked; }}
+                                onChange={toggleAll}
+                                className="w-3.5 h-3.5 rounded accent-blue-600 cursor-pointer"
+                              />
+                            </th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-500">Invoice</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-500">Date</th>
+                            <th className="px-3 py-2 text-right font-medium text-slate-500">Total</th>
+                            <th className="px-3 py-2 text-right font-medium text-slate-500">Balance</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pendingInvoices.map(inv => {
+                            const balance = Math.max(0, Number(inv.grandTotal) - Number(inv.totalPaid));
+                            const linked  = form.linkedInvoiceIds.includes(inv.id);
+                            return (
+                              <tr
+                                key={inv.id}
+                                onClick={() => toggleLink(inv)}
+                                className={`border-b border-slate-100 cursor-pointer transition-colors
+                                  ${linked ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'}`}
+                              >
+                                <td className="px-3 py-2.5 text-center">
+                                  <input
+                                    type="checkbox"
+                                    readOnly
+                                    checked={linked}
+                                    className="w-3.5 h-3.5 rounded accent-blue-600 pointer-events-none"
+                                  />
+                                </td>
+                                <td className="px-3 py-2.5 font-mono font-semibold text-slate-700">{inv.invoice}</td>
+                                <td className="px-3 py-2.5 text-slate-500">
+                                  {new Date(inv.date).toLocaleDateString('en-IN')}
+                                </td>
+                                <td className="px-3 py-2.5 text-right text-slate-700">
+                                  ₹{Number(inv.grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                </td>
+                                <td className={`px-3 py-2.5 text-right font-semibold ${balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                  ₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <p className="text-center text-xs text-slate-400 py-3">
+                        {pendingInvoices.length} pending invoice{pendingInvoices.length !== 1 ? 's' : ''} —{' '}
+                        <button type="button" onClick={() => setShowLinkPanel(true)} className="text-blue-500 hover:underline">
+                          show
+                        </button>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Linked Invoices Preview */}
+              {form.linkedInvoiceIds.length > 0 && (
+                <div className="border border-blue-200 rounded-lg overflow-hidden bg-blue-50/40">
+                  <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
+                    <span className="text-xs font-semibold text-blue-700">
+                      Linked Preview ({form.linkedInvoiceIds.length} invoice{form.linkedInvoiceIds.length !== 1 ? 's' : ''})
+                    </span>
+                    <span className="text-xs text-blue-600 font-bold">
+                      Due: ₹{pendingInvoices
+                        .filter(i => form.linkedInvoiceIds.includes(i.id))
+                        .reduce((sum, i) => sum + Math.max(0, Number(i.grandTotal) - Number(i.totalPaid)), 0)
+                        .toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <table className="w-full text-xs">
+                    <thead className="bg-blue-50 border-b border-blue-100">
+                      <tr>
+                        <th className="px-3 py-1.5 text-left font-medium text-blue-600">Invoice</th>
+                        <th className="px-3 py-1.5 text-left font-medium text-blue-600">Date</th>
+                        <th className="px-3 py-1.5 text-right font-medium text-blue-600">Total</th>
+                        <th className="px-3 py-1.5 text-right font-medium text-blue-600">Balance</th>
+                        <th className="w-7" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-blue-100">
+                      {pendingInvoices
+                        .filter(i => form.linkedInvoiceIds.includes(i.id))
+                        .map(inv => {
+                          const balance = Math.max(0, Number(inv.grandTotal) - Number(inv.totalPaid));
+                          return (
+                            <tr key={inv.id} className="hover:bg-blue-100/50 transition">
+                              <td className="px-3 py-2 font-mono font-semibold text-slate-700">{inv.invoice}</td>
+                              <td className="px-3 py-2 text-slate-500">
+                                {new Date(inv.date).toLocaleDateString('en-IN')}
+                              </td>
+                              <td className="px-3 py-2 text-right text-slate-700">
+                                ₹{Number(inv.grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className="px-3 py-2 text-right font-semibold text-rose-600">
+                                ₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className="px-2 py-2 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleLink(inv)}
+                                  className="text-slate-300 hover:text-rose-500 transition"
+                                  title="Remove"
+                                >
+                                  <X size={12} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
               {showDesc ? (
                 <div className="relative">
