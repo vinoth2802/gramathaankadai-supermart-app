@@ -70,8 +70,7 @@ function PayslipModal({ employee, month, attData, salaryRecord, onClose, onProce
   const hasRecord = Boolean(salaryRecord);
 
   const handlePrint = () => {
-    const win = window.open('', '_blank', 'width=820,height=700');
-    win.document.write(`<!DOCTYPE html><html><head><title>Salary Slip – ${employee.name} – ${mLabel(month)}</title>
+    const html = `<!DOCTYPE html><html><head><title>Salary Slip – ${employee.name} – ${mLabel(month)}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',Arial,sans-serif;padding:28px;font-size:12px;color:#1e293b}
@@ -81,7 +80,7 @@ h1{font-size:20px;text-align:center;margin-bottom:3px}
 .lbl{font-size:10px;color:#94a3b8;margin-bottom:2px}
 .val{font-weight:600}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
-.section{border:1px solid #e2e8f0;border-radius:8px;overflow:hidden}
+.section{border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:16px}
 .sh{padding:8px 14px;font-weight:700;font-size:11px;letter-spacing:.05em;text-transform:uppercase}
 .sh.g{background:#d1fae5;color:#065f46}
 .sh.r{background:#fee2e2;color:#7f1d1d}
@@ -97,6 +96,7 @@ td:last-child{text-align:right;font-weight:500}
 .net{background:#0f172a;color:#fff;border-radius:8px;padding:12px 18px;display:flex;justify-content:space-between;align-items:center;margin-top:4px}
 .nl{font-size:13px;letter-spacing:.05em}
 .nv{font-size:22px;font-weight:700}
+@media print{body{padding:16px}}
 </style></head><body>
 <h1>SALARY SLIP</h1><p class="sub">${mLabel(month)}</p>
 <div class="info">
@@ -108,7 +108,7 @@ td:last-child{text-align:right;font-weight:500}
   ${hasRecord ? `<div><div class="lbl">Pay Status</div><div class="val">${PAY_STATUS[salaryRecord.payStatus]?.label || ''}</div></div>` : ''}
 </div>
 ${!isRegular ? `
-<div class="section" style="margin-bottom:16px">
+<div class="section">
   <div class="sh b">Attendance Summary</div>
   <div class="att">
     <div><div class="an">${daysInMonth}</div><div class="al">Total Days</div></div>
@@ -137,7 +137,7 @@ ${isRegular ? `
     </table>
   </div>
 </div>` : `
-<div class="section" style="margin-bottom:16px">
+<div class="section">
   <div class="sh s">Salary Calculation</div>
   <table>
     <tr><td>Daily Rate</td><td>₹${Number(employee.basicSalary).toLocaleString('en-IN')} / ${employee.salaryType === 'perDay' ? 'day' : 'month'}</td></tr>
@@ -146,14 +146,27 @@ ${isRegular ? `
   </table>
 </div>`}
 <div class="net"><span class="nl">NET SALARY</span><span class="nv">₹${net.toLocaleString('en-IN')}</span></div>
-<script>window.onload=function(){window.print();}</script>
-</body></html>`);
-    win.document.close();
+</body></html>`;
+
+    /* inject a hidden iframe — no popup, no CSP inline-script issues */
+    const old = document.getElementById('__payslip_iframe__');
+    if (old) old.remove();
+    const iframe = document.createElement('iframe');
+    iframe.id = '__payslip_iframe__';
+    iframe.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;border:0';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open(); doc.write(html); doc.close();
+    iframe.onload = () => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      setTimeout(() => iframe.remove(), 1000);
+    };
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[92vh]">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[92vh] overflow-hidden">
 
         {/* header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
@@ -285,15 +298,16 @@ ${isRegular ? `
             </div>
           )}
 
-          {/* Net Pay */}
-          <div className="rounded-xl bg-slate-900 px-5 py-4 flex items-center justify-between">
-            <span className="text-slate-300 text-sm font-semibold tracking-wide">NET SALARY</span>
-            <span className="text-white text-2xl font-bold">{fmt(net)}</span>
-          </div>
+        </div>
+
+        {/* Net Pay — fixed strip between scroll body and footer */}
+        <div className="shrink-0 px-6 py-3 bg-slate-900 flex items-center justify-between">
+          <span className="text-slate-300 text-sm font-semibold tracking-wide">NET SALARY</span>
+          <span className="text-white text-2xl font-bold">{fmt(net)}</span>
         </div>
 
         {/* footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 shrink-0">
+        <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 shrink-0 bg-white">
           {!hasRecord ? (
             <button onClick={() => onProcess({ emp: employee, amount: net })}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white transition">
