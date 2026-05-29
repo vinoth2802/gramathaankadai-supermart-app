@@ -101,7 +101,7 @@ function StatCard({ icon: Icon, label, value, sub, color = 'amber' }) {
 /* ══════════════════════════════════════════════════════════
    MANUAL BACKUP TAB
 ═══════════════════════════════════════════════════════════ */
-function ManualBackupTab({ backups, isLoading, refetch }) {
+function ManualBackupTab({ backups, isLoading, isError, error, refetch }) {
   const qc = useQueryClient();
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [restoreFile, setRestoreFile] = useState(null);
@@ -212,6 +212,15 @@ function ManualBackupTab({ backups, isLoading, refetch }) {
         {isLoading ? (
           <div className="flex items-center justify-center py-12 text-slate-400">
             <Loader2 size={20} className="animate-spin mr-2" /> Loading backups…
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center justify-center py-14 text-rose-400">
+            <AlertTriangle size={36} className="mb-3 opacity-50" />
+            <p className="text-sm font-medium">Failed to load backups</p>
+            <p className="text-xs mt-1 text-slate-400">{error?.error || error?.message || 'Server unreachable — ensure the server is running'}</p>
+            <button onClick={refetch} className="mt-3 flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-medium transition-colors">
+              <RefreshCw size={12} /> Retry
+            </button>
           </div>
         ) : backups.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-14 text-slate-400">
@@ -750,10 +759,11 @@ export default function Backup() {
   const [tab, setTab] = useState('manual');
   const qc = useQueryClient();
 
-  const { data: backups = [], isLoading, refetch } = useQuery({
+  const { data: backups = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ['backup-list'],
     queryFn: BackupAPI.list,
     refetchInterval: 30_000,
+    retry: 1,
   });
 
   const { data: config } = useQuery({
@@ -814,7 +824,7 @@ export default function Backup() {
 
         {/* Tab content */}
         {tab === 'manual' && (
-          <ManualBackupTab backups={backups} isLoading={isLoading} refetch={refetch} />
+          <ManualBackupTab backups={backups} isLoading={isLoading} isError={isError} error={error} refetch={refetch} />
         )}
         {tab === 'auto' && (
           <AutoBackupTab config={config} onConfigSave={handleConfigSave} />
