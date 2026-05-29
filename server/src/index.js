@@ -30,6 +30,7 @@ import salaryRecordsRouter      from './routes/salaryRecords.js';
 import attendanceRouter         from './routes/attendance.js';
 import expensesRouter           from './routes/expenses.js';
 import expenseCategoriesRouter  from './routes/expenseCategories.js';
+import backupRouter             from './routes/backup.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -75,6 +76,7 @@ app.use('/api/salary-records',      salaryRecordsRouter);
 app.use('/api/attendance',          attendanceRouter);
 app.use('/api/expenses',            expensesRouter);
 app.use('/api/expense-categories',  expenseCategoriesRouter);
+app.use('/api/backup',              backupRouter);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 

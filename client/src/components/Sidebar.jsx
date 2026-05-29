@@ -97,6 +97,7 @@ const nav = [
       { to: '/utilities/log-register',   icon: ClipboardList, label: 'Log Register' },
     ],
   },
+  { to: '/backup', icon: HardDrive, label: 'Backup' },
   {
     icon: Settings,
     label: 'Settings',

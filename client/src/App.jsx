@@ -51,6 +51,7 @@ import EmployeePage    from './pages/EmployeeManagement/index.jsx';
 import AttendancePage  from './pages/EmployeeManagement/Attendance.jsx';
 import SalaryLedger    from './pages/EmployeeManagement/SalaryLedger.jsx';
 
+import Backup         from './pages/Backup/backup.jsx';
 import UserManagement from './pages/usermanagement/index.jsx';
 import ResetPage      from './pages/settings/Reset.jsx';
 
@@ -195,6 +196,8 @@ export default function App() {
             <Route path="cashbook"         element={<CashBook />} />
             <Route path="cashbook-history" element={<CashBookHistory />} />
           </Route>
+
+          <Route path="backup" element={<Backup />} />
 
           <Route path="settings">
             <Route index element={<Navigate to="/settings/general" replace />} />

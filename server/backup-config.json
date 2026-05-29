@@ -1,0 +1,17 @@
+{
+  "auto": {
+    "enabled": true,
+    "frequency": "daily",
+    "time": "02:00",
+    "weekDay": 1,
+    "monthDay": 1,
+    "retention": 30
+  },
+  "drive": {
+    "enabled": true,
+    "folderId": "",
+    "folderName": "",
+    "syncFrequency": "daily",
+    "credentials": null
+  }
+}
