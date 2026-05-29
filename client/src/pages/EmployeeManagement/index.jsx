@@ -31,6 +31,9 @@ const EMPTY_FORM = {
   name:'', employeeCode:'', phone:'', email:'',
   designation:'', department:'', dateOfJoining:'',
   basicSalary:'', salaryType:'perMonth', address:'', notes:'',
+  employeeType:'dailyWages',
+  hra:'', da:'', ta:'', medicalAllowance:'', specialAllowance:'',
+  pf:'', esi:'', provisionalTax:'', tds:'', loanRecovery:'',
 };
 
 function fmt(n)    { return `₹${Number(n ?? 0).toLocaleString('en-IN')}`; }
@@ -179,18 +182,29 @@ function DesignationSelect({ value, onChange }) {
 function EmployeeModal({ employee, onClose, onSaved }) {
   const [form, setForm] = useState(
     employee ? {
-      name:          employee.name          || '',
-      employeeCode:  employee.employeeCode  || '',
-      phone:         employee.phone         || '',
-      email:         employee.email         || '',
-      designation:   employee.designation   || '',
-      department:    employee.department    || '',
-      dateOfJoining: employee.dateOfJoining
+      name:             employee.name          || '',
+      employeeCode:     employee.employeeCode  || '',
+      phone:            employee.phone         || '',
+      email:            employee.email         || '',
+      designation:      employee.designation   || '',
+      department:       employee.department    || '',
+      dateOfJoining:    employee.dateOfJoining
         ? new Date(employee.dateOfJoining).toISOString().slice(0, 10) : '',
-      basicSalary:   employee.basicSalary != null ? String(employee.basicSalary) : '',
-      salaryType:    employee.salaryType   || 'perMonth',
-      address:       employee.address       || '',
-      notes:         employee.notes         || '',
+      basicSalary:      employee.basicSalary      != null ? String(employee.basicSalary)      : '',
+      salaryType:       employee.salaryType        || 'perMonth',
+      address:          employee.address           || '',
+      notes:            employee.notes             || '',
+      employeeType:     employee.employeeType      || 'dailyWages',
+      hra:              employee.hra              != null ? String(employee.hra)              : '',
+      da:               employee.da               != null ? String(employee.da)               : '',
+      ta:               employee.ta               != null ? String(employee.ta)               : '',
+      medicalAllowance: employee.medicalAllowance != null ? String(employee.medicalAllowance) : '',
+      specialAllowance: employee.specialAllowance != null ? String(employee.specialAllowance) : '',
+      pf:               employee.pf               != null ? String(employee.pf)               : '',
+      esi:              employee.esi              != null ? String(employee.esi)              : '',
+      provisionalTax:   employee.provisionalTax   != null ? String(employee.provisionalTax)   : '',
+      tds:              employee.tds              != null ? String(employee.tds)              : '',
+      loanRecovery:     employee.loanRecovery     != null ? String(employee.loanRecovery)     : '',
     } : { ...EMPTY_FORM },
   );
   const [saving, setSaving] = useState(false);
@@ -200,7 +214,22 @@ function EmployeeModal({ employee, onClose, onSaved }) {
     if (!form.name.trim()) { toast.error('Name is required'); return; }
     setSaving(true);
     try {
-      const payload = { ...form, basicSalary: form.basicSalary ? Number(form.basicSalary) : 0, dateOfJoining: form.dateOfJoining || null };
+      const dec = v => v ? Number(v) : 0;
+      const payload = {
+        ...form,
+        basicSalary:      dec(form.basicSalary),
+        dateOfJoining:    form.dateOfJoining || null,
+        hra:              dec(form.hra),
+        da:               dec(form.da),
+        ta:               dec(form.ta),
+        medicalAllowance: dec(form.medicalAllowance),
+        specialAllowance: dec(form.specialAllowance),
+        pf:               dec(form.pf),
+        esi:              dec(form.esi),
+        provisionalTax:   dec(form.provisionalTax),
+        tds:              dec(form.tds),
+        loanRecovery:     dec(form.loanRecovery),
+      };
       if (employee) { await EmployeesAPI.update(employee.id, payload); toast.success('Employee updated'); }
       else          { await EmployeesAPI.create(payload);              toast.success('Employee added');   }
       onSaved(); onClose();
@@ -210,59 +239,167 @@ function EmployeeModal({ employee, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl mx-4 overflow-hidden flex flex-col max-h-[90vh]">
+      <div className={`bg-white rounded-2xl shadow-xl w-full mx-4 overflow-hidden flex flex-col max-h-[90vh] ${form.employeeType === 'regular' ? 'max-w-2xl' : 'max-w-xl'}`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
           <h2 className="text-base font-bold text-slate-800">{employee ? 'Edit Employee' : 'Add Employee'}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition"><X size={18} /></button>
         </div>
-        <div className="px-6 py-4 overflow-y-auto grid grid-cols-2 gap-4">
-          <div className="col-span-2">
-            <Field label="Full Name *" icon={User}>
-              <Input placeholder="e.g. Ravi Kumar" value={form.name} onChange={e => set('name', e.target.value)} />
-            </Field>
-          </div>
-          <Field label="Employee Code" icon={BadgeCheck}>
-            <Input placeholder="e.g. EMP001" value={form.employeeCode} onChange={e => set('employeeCode', e.target.value)} />
-          </Field>
-          <Field label="Phone" icon={Phone}>
-            <Input placeholder="e.g. 9876543210" value={form.phone} onChange={e => set('phone', e.target.value)} />
-          </Field>
-          <Field label="Email" icon={Mail}>
-            <Input type="email" placeholder="e.g. ravi@example.com" value={form.email} onChange={e => set('email', e.target.value)} />
-          </Field>
-          <Field label="Designation" icon={Briefcase}>
-            <DesignationSelect value={form.designation} onChange={v => set('designation', v)} />
-          </Field>
-          <Field label="Department" icon={Building2}>
-            <Input placeholder="e.g. Sales" value={form.department} onChange={e => set('department', e.target.value)} />
-          </Field>
-          <Field label="Date of Joining" icon={Calendar}>
-            <Input type="date" value={form.dateOfJoining} onChange={e => set('dateOfJoining', e.target.value)} />
-          </Field>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500 flex items-center gap-1"><Banknote size={12} /> Basic Salary (₹)</label>
-            <div className="flex items-center gap-2">
-              <Input type="number" min="0" placeholder="0" value={form.basicSalary}
-                onChange={e => set('basicSalary', e.target.value)} className="flex-1" />
+        <div className="px-6 py-4 overflow-y-auto flex flex-col gap-4">
+
+          {/* Employee Type Toggle */}
+          <div>
+            <label className="text-xs font-medium text-slate-500 mb-1.5 block">Employee Type</label>
+            <div className="flex rounded-xl border border-slate-200 text-sm font-semibold w-fit overflow-hidden">
               <button type="button"
-                onClick={() => set('salaryType', form.salaryType === 'perMonth' ? 'perDay' : 'perMonth')}
-                className={`flex items-center rounded-lg border text-xs font-semibold px-1 py-1 gap-1 transition-colors select-none whitespace-nowrap ${
-                  form.salaryType === 'perDay' ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-white'
-                }`}>
-                <span className={`px-2 py-1 rounded-md transition-colors ${form.salaryType === 'perDay' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-400'}`}>/Day</span>
-                <span className={`px-2 py-1 rounded-md transition-colors ${form.salaryType === 'perMonth' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-400'}`}>/Month</span>
+                onClick={() => set('employeeType', 'dailyWages')}
+                className={`px-6 py-2 transition ${form.employeeType !== 'regular' ? 'bg-amber-500 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
+                Daily Wages
+              </button>
+              <button type="button"
+                onClick={() => { set('employeeType', 'regular'); set('salaryType', 'perMonth'); }}
+                className={`px-6 py-2 transition ${form.employeeType === 'regular' ? 'bg-amber-500 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
+                Regular
               </button>
             </div>
           </div>
-          <div className="col-span-2">
-            <Field label="Address" icon={MapPin}>
-              <Input placeholder="Street, City, State" value={form.address} onChange={e => set('address', e.target.value)} />
+
+          {/* Personal details — 2-col grid */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <Field label="Full Name *" icon={User}>
+                <Input placeholder="e.g. Ravi Kumar" value={form.name} onChange={e => set('name', e.target.value)} />
+              </Field>
+            </div>
+            <Field label="Employee Code" icon={BadgeCheck}>
+              <Input placeholder="e.g. EMP001" value={form.employeeCode} onChange={e => set('employeeCode', e.target.value)} />
+            </Field>
+            <Field label="Phone" icon={Phone}>
+              <Input placeholder="e.g. 9876543210" value={form.phone} onChange={e => set('phone', e.target.value)} />
+            </Field>
+            <Field label="Email" icon={Mail}>
+              <Input type="email" placeholder="e.g. ravi@example.com" value={form.email} onChange={e => set('email', e.target.value)} />
+            </Field>
+            <Field label="Designation" icon={Briefcase}>
+              <DesignationSelect value={form.designation} onChange={v => set('designation', v)} />
+            </Field>
+            <Field label="Department" icon={Building2}>
+              <Input placeholder="e.g. Sales" value={form.department} onChange={e => set('department', e.target.value)} />
+            </Field>
+            <Field label="Date of Joining" icon={Calendar}>
+              <Input type="date" value={form.dateOfJoining} onChange={e => set('dateOfJoining', e.target.value)} />
             </Field>
           </div>
-          <div className="col-span-2">
-            <Field label="Notes" icon={FileText}>
-              <Textarea placeholder="Any additional notes…" value={form.notes} onChange={e => set('notes', e.target.value)} />
-            </Field>
+
+          {/* Daily Wages: basic salary + type toggle */}
+          {form.employeeType !== 'regular' && (
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500 flex items-center gap-1"><Banknote size={12} /> Basic Salary (₹)</label>
+              <div className="flex items-center gap-2">
+                <Input type="number" min="0" placeholder="0" value={form.basicSalary}
+                  onChange={e => set('basicSalary', e.target.value)} className="flex-1" />
+                <button type="button"
+                  onClick={() => set('salaryType', form.salaryType === 'perMonth' ? 'perDay' : 'perMonth')}
+                  className={`flex items-center rounded-lg border text-xs font-semibold px-1 py-1 gap-1 transition-colors select-none whitespace-nowrap ${
+                    form.salaryType === 'perDay' ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-white'
+                  }`}>
+                  <span className={`px-2 py-1 rounded-md transition-colors ${form.salaryType === 'perDay' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-400'}`}>/Day</span>
+                  <span className={`px-2 py-1 rounded-md transition-colors ${form.salaryType === 'perMonth' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-400'}`}>/Month</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Regular: Salary Structure */}
+          {form.employeeType === 'regular' && (() => {
+            const gross = ['basicSalary','hra','da','ta','medicalAllowance','specialAllowance'].reduce((s,k) => s + (Number(form[k])||0), 0);
+            const totalDed = ['pf','esi','provisionalTax','tds','loanRecovery'].reduce((s,k) => s + (Number(form[k])||0), 0);
+            const net = gross - totalDed;
+            return (
+              <div className="flex flex-col gap-3">
+                {/* Earnings */}
+                <div className="rounded-xl border border-emerald-200 overflow-hidden">
+                  <div className="px-4 py-2.5 bg-emerald-100 flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-800 uppercase tracking-wide flex items-center gap-1.5">
+                      <Banknote size={13} /> Earnings
+                    </span>
+                    <span className="text-xs font-semibold text-emerald-700">
+                      Gross Salary: ₹{gross.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <div className="p-4 grid grid-cols-2 gap-3 bg-emerald-50/30">
+                    <Field label="Basic Pay (₹)" icon={Banknote}>
+                      <Input type="number" min="0" placeholder="0" value={form.basicSalary} onChange={e => set('basicSalary', e.target.value)} />
+                    </Field>
+                    <Field label="HRA (₹)">
+                      <Input type="number" min="0" placeholder="0" value={form.hra} onChange={e => set('hra', e.target.value)} />
+                    </Field>
+                    <Field label="Dearness Allowance — DA (₹)">
+                      <Input type="number" min="0" placeholder="0" value={form.da} onChange={e => set('da', e.target.value)} />
+                    </Field>
+                    <Field label="Travel Allowance — TA (₹)">
+                      <Input type="number" min="0" placeholder="0" value={form.ta} onChange={e => set('ta', e.target.value)} />
+                    </Field>
+                    <Field label="Medical Allowance (₹)">
+                      <Input type="number" min="0" placeholder="0" value={form.medicalAllowance} onChange={e => set('medicalAllowance', e.target.value)} />
+                    </Field>
+                    <Field label="Special Allowance (₹)">
+                      <Input type="number" min="0" placeholder="0" value={form.specialAllowance} onChange={e => set('specialAllowance', e.target.value)} />
+                    </Field>
+                  </div>
+                </div>
+
+                {/* Deductions */}
+                <div className="rounded-xl border border-rose-200 overflow-hidden">
+                  <div className="px-4 py-2.5 bg-rose-100 flex items-center justify-between">
+                    <span className="text-xs font-bold text-rose-800 uppercase tracking-wide">Deductions</span>
+                    <span className="text-xs font-semibold text-rose-700">
+                      Total: ₹{totalDed.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <div className="p-4 grid grid-cols-2 gap-3 bg-rose-50/20">
+                    <Field label="Provident Fund — PF (₹)">
+                      <Input type="number" min="0" placeholder="0" value={form.pf} onChange={e => set('pf', e.target.value)} />
+                    </Field>
+                    <Field label="ESI (₹)">
+                      <Input type="number" min="0" placeholder="0" value={form.esi} onChange={e => set('esi', e.target.value)} />
+                    </Field>
+                    <Field label="Provisional Tax (₹)">
+                      <Input type="number" min="0" placeholder="0" value={form.provisionalTax} onChange={e => set('provisionalTax', e.target.value)} />
+                    </Field>
+                    <Field label="TDS — Income Tax (₹)">
+                      <Input type="number" min="0" placeholder="0" value={form.tds} onChange={e => set('tds', e.target.value)} />
+                    </Field>
+                    <div className="col-span-2">
+                      <Field label="Loan / Advance Recovery (₹)">
+                        <Input type="number" min="0" placeholder="0" value={form.loanRecovery} onChange={e => set('loanRecovery', e.target.value)} />
+                      </Field>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Net Salary */}
+                <div className={`rounded-xl px-4 py-3 flex items-center justify-between border ${net >= 0 ? 'bg-blue-50 border-blue-200' : 'bg-rose-50 border-rose-200'}`}>
+                  <span className="text-sm font-semibold text-slate-700">Net Salary (Monthly)</span>
+                  <span className={`text-lg font-bold ${net >= 0 ? 'text-blue-700' : 'text-rose-600'}`}>
+                    ₹{net.toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Address & Notes */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <Field label="Address" icon={MapPin}>
+                <Input placeholder="Street, City, State" value={form.address} onChange={e => set('address', e.target.value)} />
+              </Field>
+            </div>
+            <div className="col-span-2">
+              <Field label="Notes" icon={FileText}>
+                <Textarea placeholder="Any additional notes…" value={form.notes} onChange={e => set('notes', e.target.value)} />
+              </Field>
+            </div>
           </div>
         </div>
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 shrink-0">

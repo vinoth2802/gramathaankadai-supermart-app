@@ -32,12 +32,16 @@ async function createSalaryExpense(record, paidDateStr) {
 }
 
 router.get('/', async (req, res) => {
-  const { employeeId, type, payStatus } = req.query;
+  const { employeeId, type, payStatus, month } = req.query;
   const where = {};
   if (employeeId) where.employeeId = Number(employeeId);
   if (type)       where.type = type;
   if (payStatus === 'pending') where.payStatus = { in: ['unpaid', 'partial'] };
   else if (payStatus)          where.payStatus = payStatus;
+  if (month) {
+    const [y, m] = month.split('-').map(Number);
+    where.effectiveDate = { gte: new Date(y, m - 1, 1), lt: new Date(y, m, 1) };
+  }
   const records = await prisma.salaryRecord.findMany({
     where,
     orderBy: { effectiveDate: 'desc' },

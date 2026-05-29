@@ -47,9 +47,11 @@ import CashBook          from './pages/Cashbook/daybook.jsx';
 import CashBookHistory   from './pages/Cashbook/history.jsx';
 
 import ExpensesPage    from './pages/Expenses/expenses.jsx';
-import EmployeePage    from './pages/EmployeeManagement/index.jsx';
-import AttendancePage  from './pages/EmployeeManagement/Attendance.jsx';
-import SalaryLedger    from './pages/EmployeeManagement/SalaryLedger.jsx';
+import EmployeePage      from './pages/EmployeeManagement/index.jsx';
+import AttendancePage    from './pages/EmployeeManagement/Attendance.jsx';
+import SalaryLedger      from './pages/EmployeeManagement/SalaryLedger.jsx';
+import SalaryManagement  from './pages/EmployeeManagement/SalaryManagement.jsx';
+import LeaveManagement   from './pages/EmployeeManagement/LeaveManagement.jsx';
 
 import Backup         from './pages/Backup/backup.jsx';
 import UserManagement from './pages/usermanagement/index.jsx';
@@ -86,8 +88,10 @@ export default function App() {
           <Route path="items"     element={<Items />} />
           <Route path="employee">
             <Route index element={<EmployeePage />} />
-            <Route path="attendance"    element={<AttendancePage />} />
-            <Route path="salary-ledger" element={<SalaryLedger />} />
+            <Route path="attendance"         element={<AttendancePage />} />
+            <Route path="salary-management"  element={<SalaryManagement />} />
+            <Route path="leave-management"   element={<LeaveManagement />} />
+            <Route path="salary-ledger"      element={<SalaryLedger />} />
           </Route>
           <Route path="expenses">
             <Route index element={<ExpensesPage />} />

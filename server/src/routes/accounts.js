@@ -224,14 +224,14 @@ router.get('/bank/:id/transactions', async (req, res) => {
       }),
       prisma.purchase.findMany({
         where: { paymentMode: bank.bankName },
-        select: { id: true, partyName: true, date: true, grandTotal: true, billNo: true },
+        select: { id: true, partyName: true, date: true, grandTotal: true, invoice: true },
         orderBy: { date: 'desc' },
       }),
     ]);
 
     const txns = [
       ...sales.map(s => ({ id: s.id, type: 'Sale',     name: s.customerName,       date: s.date, amount: s.grandTotal, refNo: s.invoice })),
-      ...purchases.map(p => ({ id: p.id, type: 'Purchase', name: p.partyName || 'Supplier', date: p.date, amount: p.grandTotal, refNo: p.billNo })),
+      ...purchases.map(p => ({ id: p.id, type: 'Purchase', name: p.partyName || 'Supplier', date: p.date, amount: p.grandTotal, refNo: p.invoice })),
     ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     res.json(txns);

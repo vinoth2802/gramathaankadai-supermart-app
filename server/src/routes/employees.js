@@ -15,21 +15,37 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { employeeCode, name, phone, email, designation, department, dateOfJoining, basicSalary, salaryType, address, notes } = req.body;
+  const {
+    employeeCode, name, phone, email, designation, department, dateOfJoining,
+    basicSalary, salaryType, address, notes,
+    employeeType, hra, da, ta, medicalAllowance, specialAllowance,
+    pf, esi, provisionalTax, tds, loanRecovery,
+  } = req.body;
   try {
     const employee = await prisma.employee.create({
       data: {
-        employeeCode:  employeeCode || null,
+        employeeCode:    employeeCode || null,
         name,
-        phone:         phone        || null,
-        email:         email        || null,
-        designation:   designation  || null,
-        department:    department   || null,
-        dateOfJoining: dateOfJoining ? new Date(dateOfJoining) : null,
-        basicSalary:   basicSalary  ?? 0,
-        salaryType:    salaryType === 'perDay' ? 'perDay' : 'perMonth',
-        address:       address      || null,
-        notes:         notes        || null,
+        phone:           phone        || null,
+        email:           email        || null,
+        designation:     designation  || null,
+        department:      department   || null,
+        dateOfJoining:   dateOfJoining ? new Date(dateOfJoining) : null,
+        basicSalary:     basicSalary  ?? 0,
+        salaryType:      salaryType === 'perDay' ? 'perDay' : 'perMonth',
+        address:         address      || null,
+        notes:           notes        || null,
+        employeeType:    employeeType || 'dailyWages',
+        hra:             hra              ?? 0,
+        da:              da               ?? 0,
+        ta:              ta               ?? 0,
+        medicalAllowance: medicalAllowance ?? 0,
+        specialAllowance: specialAllowance ?? 0,
+        pf:              pf               ?? 0,
+        esi:             esi              ?? 0,
+        provisionalTax:  provisionalTax   ?? 0,
+        tds:             tds              ?? 0,
+        loanRecovery:    loanRecovery     ?? 0,
       },
     });
     res.status(201).json(employee);
@@ -40,22 +56,38 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const { employeeCode, name, phone, email, designation, department, dateOfJoining, basicSalary, salaryType, address, notes } = req.body;
+  const {
+    employeeCode, name, phone, email, designation, department, dateOfJoining,
+    basicSalary, salaryType, address, notes,
+    employeeType, hra, da, ta, medicalAllowance, specialAllowance,
+    pf, esi, provisionalTax, tds, loanRecovery,
+  } = req.body;
   try {
     const employee = await prisma.employee.update({
       where: { id: Number(req.params.id) },
       data: {
-        employeeCode:  employeeCode || null,
+        employeeCode:    employeeCode || null,
         name,
-        phone:         phone        || null,
-        email:         email        || null,
-        designation:   designation  || null,
-        department:    department   || null,
-        dateOfJoining: dateOfJoining ? new Date(dateOfJoining) : null,
-        basicSalary:   basicSalary  ?? 0,
-        salaryType:    salaryType === 'perDay' ? 'perDay' : 'perMonth',
-        address:       address      || null,
-        notes:         notes        || null,
+        phone:           phone        || null,
+        email:           email        || null,
+        designation:     designation  || null,
+        department:      department   || null,
+        dateOfJoining:   dateOfJoining ? new Date(dateOfJoining) : null,
+        basicSalary:     basicSalary  ?? 0,
+        salaryType:      salaryType === 'perDay' ? 'perDay' : 'perMonth',
+        address:         address      || null,
+        notes:           notes        || null,
+        employeeType:    employeeType || 'dailyWages',
+        hra:             hra              ?? 0,
+        da:              da               ?? 0,
+        ta:              ta               ?? 0,
+        medicalAllowance: medicalAllowance ?? 0,
+        specialAllowance: specialAllowance ?? 0,
+        pf:              pf               ?? 0,
+        esi:             esi              ?? 0,
+        provisionalTax:  provisionalTax   ?? 0,
+        tds:             tds              ?? 0,
+        loanRecovery:    loanRecovery     ?? 0,
       },
     });
     res.json(employee);

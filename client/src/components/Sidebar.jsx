@@ -10,7 +10,7 @@ import {
   Wrench, Upload, Download, QrCode,
   SlidersHorizontal, ArrowLeftRight, Printer, Percent, UserCog, Box, Ruler, Star, Gift, Trash2,
   Database, CreditCard, ClipboardList, BookOpen, History,
-  UsersRound, UserCheck, Banknote, CalendarCheck,
+  UsersRound, UserCheck, Banknote, CalendarCheck, CalendarOff,
 } from 'lucide-react';
 
 const nav = [
@@ -29,9 +29,11 @@ const nav = [
     icon: UsersRound,
     label: 'Employee',
     children: [
-      { to: '/employee',                icon: UserCheck,     label: 'Employee',      end: true },
-      { to: '/employee/attendance',     icon: CalendarCheck, label: 'Attendance'               },
-      { to: '/employee/salary-ledger',  icon: BookOpen,      label: 'Salary Ledger'            },
+      { to: '/employee',                    icon: UserCheck,     label: 'Employee',          end: true },
+      { to: '/employee/attendance',         icon: CalendarCheck, label: 'Attendance'                     },
+      { to: '/employee/salary-management',  icon: Banknote,      label: 'Salary Management'              },
+      { to: '/employee/leave-management',   icon: CalendarOff,   label: 'Leave Management'               },
+      { to: '/employee/salary-ledger',      icon: BookOpen,      label: 'Salary Ledger'                  },
     ],
   },
   {

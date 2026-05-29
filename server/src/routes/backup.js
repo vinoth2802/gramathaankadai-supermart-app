@@ -42,6 +42,9 @@ async function doCreateBackup() {
     uoms, uomConversions,
     paymentModes, paymentTypeSettings,
     designations,
+    appUsers, appRoles, appPermissions, appRolePermissions,
+    recycleBin, auditLogs,
+    fixedAssets,
     settings,
   ] = await Promise.all([
     prisma.product.findMany(),
@@ -75,6 +78,13 @@ async function doCreateBackup() {
     prisma.paymentMode.findMany(),
     prisma.paymentTypeSetting.findMany(),
     prisma.designation.findMany(),
+    prisma.appUser.findMany(),
+    prisma.appRole.findMany(),
+    prisma.appPermission.findMany(),
+    prisma.appRolePermission.findMany(),
+    prisma.recycleBin.findMany(),
+    prisma.auditLog.findMany(),
+    prisma.fixedAsset.findMany(),
     prisma.settings.findUnique({ where: { id: 1 } }),
   ]);
 
@@ -97,6 +107,9 @@ async function doCreateBackup() {
       uoms, uomConversions,
       paymentModes, paymentTypeSettings,
       designations,
+      appUsers, appRoles, appPermissions, appRolePermissions,
+      recycleBin, auditLogs,
+      fixedAssets,
       settings: settings ? [settings] : [],
     },
   };
@@ -104,7 +117,8 @@ async function doCreateBackup() {
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const filename = `backup_${ts}.json`;
   const filepath = path.join(BACKUP_DIR, filename);
-  fs.writeFileSync(filepath, JSON.stringify(payload));
+  // BigInt replacer: AuditLog.id is BigInt — serialize as string to avoid JSON.stringify TypeError
+  fs.writeFileSync(filepath, JSON.stringify(payload, (_k, v) => typeof v === 'bigint' ? v.toString() : v));
 
   // Enforce retention
   const cfg = loadConfig();

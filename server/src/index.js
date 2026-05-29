@@ -31,6 +31,8 @@ import attendanceRouter         from './routes/attendance.js';
 import expensesRouter           from './routes/expenses.js';
 import expenseCategoriesRouter  from './routes/expenseCategories.js';
 import backupRouter             from './routes/backup.js';
+import leaveTypesRouter         from './routes/leaveTypes.js';
+import leaveRequestsRouter      from './routes/leaveRequests.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -77,6 +79,8 @@ app.use('/api/attendance',          attendanceRouter);
 app.use('/api/expenses',            expensesRouter);
 app.use('/api/expense-categories',  expenseCategoriesRouter);
 app.use('/api/backup',              backupRouter);
+app.use('/api/leave-types',         leaveTypesRouter);
+app.use('/api/leave-requests',      leaveRequestsRouter);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
