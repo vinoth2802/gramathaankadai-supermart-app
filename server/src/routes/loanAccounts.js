@@ -12,9 +12,10 @@ function computeBalance(txns) {
 }
 
 // GET /api/loan-accounts
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
     const accounts = await prisma.loanAccount.findMany({
+      where: { tenantId: req.tenantId },
       include: { transactions: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -27,8 +28,8 @@ router.get('/', async (_req, res) => {
 // GET /api/loan-accounts/:id
 router.get('/:id', async (req, res) => {
   try {
-    const account = await prisma.loanAccount.findUnique({
-      where: { id: Number(req.params.id) },
+    const account = await prisma.loanAccount.findFirst({
+      where: { id: Number(req.params.id), tenantId: req.tenantId },
       include: { transactions: { orderBy: { transactionDate: 'asc' } } },
     });
     if (!account) return res.status(404).json({ error: 'Not found' });
@@ -41,9 +42,11 @@ router.get('/:id', async (req, res) => {
 // POST /api/loan-accounts
 router.post('/', async (req, res) => {
   try {
+    const tenantId = req.tenantId;
     const { name, principal, interestRate, startDate, durationMonths, lenderName, paymentMode, notes } = req.body;
     const account = await prisma.loanAccount.create({
       data: {
+        tenantId,
         name,
         principal:      principal      ? Number(principal)      : null,
         interestRate:   interestRate   ? Number(interestRate)   : null,
@@ -54,6 +57,7 @@ router.post('/', async (req, res) => {
         notes:          notes          || null,
         transactions: {
           create: {
+            tenantId,
             type:            'opening_loan',
             principal:       Number(principal) || 0,
             totalAmount:     Number(principal) || 0,
@@ -74,7 +78,8 @@ router.post('/', async (req, res) => {
 // DELETE /api/loan-accounts/:id
 router.delete('/:id', async (req, res) => {
   try {
-    await prisma.loanAccount.delete({ where: { id: Number(req.params.id) } });
+    const result = await prisma.loanAccount.deleteMany({ where: { id: Number(req.params.id), tenantId: req.tenantId } });
+    if (!result.count) return res.status(404).json({ error: 'Not found' });
     res.status(204).end();
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -85,7 +90,7 @@ router.delete('/:id', async (req, res) => {
 router.get('/:id/transactions', async (req, res) => {
   try {
     const txns = await prisma.loanTransaction.findMany({
-      where: { loanId: Number(req.params.id) },
+      where: { loanId: Number(req.params.id), tenantId: req.tenantId },
       orderBy: { transactionDate: 'asc' },
     });
     res.json(txns);
@@ -94,15 +99,24 @@ router.get('/:id/transactions', async (req, res) => {
   }
 });
 
+// Guard: ensure the loan belongs to the tenant before adding a transaction.
+async function assertLoan(req, res) {
+  const loan = await prisma.loanAccount.findFirst({ where: { id: Number(req.params.id), tenantId: req.tenantId }, select: { id: true } });
+  if (!loan) { res.status(404).json({ error: 'Loan not found' }); return false; }
+  return true;
+}
+
 // POST /api/loan-accounts/:id/payments
 router.post('/:id/payments', async (req, res) => {
   try {
+    if (!(await assertLoan(req, res))) return;
     const { paymentDate, principal, interest, otherCharges, paymentMode, referenceNo, notes } = req.body;
     const p = Number(principal) || 0;
     const i = Number(interest)  || 0;
     const o = Number(otherCharges) || 0;
     const txn = await prisma.loanTransaction.create({
       data: {
+        tenantId:        req.tenantId,
         loanId:          Number(req.params.id),
         type:            'payment',
         principal:       p,
@@ -124,10 +138,12 @@ router.post('/:id/payments', async (req, res) => {
 // POST /api/loan-accounts/:id/drawdowns
 router.post('/:id/drawdowns', async (req, res) => {
   try {
+    if (!(await assertLoan(req, res))) return;
     const { date, amount, paymentMode, notes } = req.body;
     const amt = Number(amount) || 0;
     const txn = await prisma.loanTransaction.create({
       data: {
+        tenantId:        req.tenantId,
         loanId:          Number(req.params.id),
         type:            'drawdown',
         principal:       amt,
@@ -148,10 +164,12 @@ router.post('/:id/drawdowns', async (req, res) => {
 // POST /api/loan-accounts/:id/charges
 router.post('/:id/charges', async (req, res) => {
   try {
+    if (!(await assertLoan(req, res))) return;
     const { chargeType, amount, date, notes } = req.body;
     const amt = Number(amount) || 0;
     const txn = await prisma.loanTransaction.create({
       data: {
+        tenantId:        req.tenantId,
         loanId:          Number(req.params.id),
         type:            'charge',
         principal:       0,

@@ -18,9 +18,10 @@ const safe = u => ({
 });
 
 /* GET /api/users */
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
     const users = await prisma.appUser.findMany({
+      where:   { tenantId: req.tenantId },
       include: { role: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -33,8 +34,8 @@ router.get('/', async (_req, res) => {
 /* GET /api/users/:id */
 router.get('/:id', async (req, res) => {
   try {
-    const u = await prisma.appUser.findUnique({
-      where:   { id: Number(req.params.id) },
+    const u = await prisma.appUser.findFirst({
+      where:   { id: Number(req.params.id), tenantId: req.tenantId },
       include: { role: true },
     });
     if (!u) return res.status(404).json({ error: 'Not found' });
@@ -53,7 +54,7 @@ router.post('/', async (req, res) => {
     }
     const passwordHash = await bcrypt.hash(password, SALT);
     const u = await prisma.appUser.create({
-      data: { name, email, phone: phone || null, passwordHash, roleId: Number(roleId), isActive: isActive ?? true },
+      data: { tenantId: req.tenantId, name, email, phone: phone || null, passwordHash, roleId: Number(roleId), isActive: isActive ?? true },
       include: { role: true },
     });
     res.status(201).json(safe(u));
@@ -66,11 +67,14 @@ router.post('/', async (req, res) => {
 /* PUT /api/users/:id */
 router.put('/:id', async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    const existing = await prisma.appUser.findFirst({ where: { id, tenantId: req.tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Not found' });
     const { name, email, phone, password, roleId, isActive } = req.body;
     const data = { name, email, phone: phone || null, roleId: Number(roleId), isActive };
     if (password) data.passwordHash = await bcrypt.hash(password, SALT);
     const u = await prisma.appUser.update({
-      where:   { id: Number(req.params.id) },
+      where:   { id },
       data,
       include: { role: true },
     });
@@ -84,8 +88,11 @@ router.put('/:id', async (req, res) => {
 /* PATCH /api/users/:id/status */
 router.patch('/:id/status', async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    const existing = await prisma.appUser.findFirst({ where: { id, tenantId: req.tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Not found' });
     const u = await prisma.appUser.update({
-      where: { id: Number(req.params.id) },
+      where: { id },
       data:  { isActive: req.body.isActive },
       include: { role: true },
     });
@@ -98,7 +105,8 @@ router.patch('/:id/status', async (req, res) => {
 /* DELETE /api/users/:id */
 router.delete('/:id', async (req, res) => {
   try {
-    await prisma.appUser.delete({ where: { id: Number(req.params.id) } });
+    const result = await prisma.appUser.deleteMany({ where: { id: Number(req.params.id), tenantId: req.tenantId } });
+    if (!result.count) return res.status(404).json({ error: 'Not found' });
     res.status(204).end();
   } catch (err) {
     res.status(500).json({ error: err.message });

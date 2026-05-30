@@ -1,0 +1,1718 @@
+// ════════════════════════════════════════════════════════════════════
+// SuperMart Platform — Data Model v2 (Multi-Tenant SaaS)
+// Paste into https://dbdiagram.io to visualize.
+//
+// Derived from docs/feature-catalog.md. Conventions:
+//   • Every business table carries tenant_id → tenants.id
+//   • All UNIQUE constraints are scoped (tenant_id, …)
+//   • Intentional denormalizations kept: line-item name/rate snapshots,
+//     parties.balance/payable running totals (now backed by ledgers).
+//
+// Implementation constraints (cannot be expressed in DBML — enforce in
+// migrations / application layer):
+//   • Child.tenant_id MUST equal parent.tenant_id. Enforce with a composite
+//     FK (tenant_id, <parent_id>) → parent(tenant_id, id), or a trigger.
+//   • Running totals (parties.balance/payable, products.stock,
+//     bank_accounts.balance) are trigger-maintained from their ledgers —
+//     never hand-written. Ledgers are the source of truth.
+//   • journal_lines within a journal_entry MUST sum debit = credit
+//     (deferred constraint trigger; not a row-level CHECK).
+//   • number_sequences.next_value is incremented via UPDATE … RETURNING
+//     (row lock) to avoid duplicate document numbers under concurrency.
+//   • PII (employees.aadhaar, pan) stored encrypted/tokenized (pgcrypto /
+//     external vault), never raw.
+//   • Soft-delete: only sales.status carries 'deleted' inline; all other
+//     deletions are captured in recycle_bin (snapshot) — restore re-inserts.
+// ════════════════════════════════════════════════════════════════════
+
+
+// ─────────────────────────────────────────────
+// Platform / Control Plane (operated by the SaaS owner)
+// ─────────────────────────────────────────────
+
+Table platform_users {
+  id bigint [primary key]
+  name varchar(100)
+  email varchar(150) [unique]
+  password_hash text
+  platform_role varchar(30) [note: 'super_admin | support | billing | read_only']
+  is_active boolean
+  last_login timestamptz
+  created_at timestamptz
+}
+
+Table plans {
+  id bigint [primary key]
+  code varchar(40) [unique, note: 'free | starter | growth | enterprise']
+  name varchar(100)
+  price_monthly decimal(10,2)
+  price_yearly decimal(10,2)
+  currency varchar(3)
+  trial_days integer
+  is_active boolean
+  created_at timestamptz
+}
+
+Table plan_features {
+  plan_id bigint [not null, ref: > plans.id]
+  feature_key varchar(60) [note: 'loyalty | gst_reports | multi_location | payroll …']
+  is_enabled boolean
+  limit_value integer [note: 'NULL = unlimited (max users / products / locations)']
+
+  indexes {
+    (plan_id, feature_key) [pk]
+  }
+}
+
+Table subscriptions {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  plan_id bigint [not null, ref: > plans.id]
+  status varchar(20) [note: 'trialing | active | past_due | cancelled']
+  billing_cycle varchar(10) [note: 'monthly | yearly']
+  current_period_start timestamptz
+  current_period_end timestamptz
+  cancel_at_period_end boolean
+  external_ref varchar(100) [note: 'Razorpay/Stripe subscription id']
+  created_at timestamptz
+}
+
+Table platform_invoices {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  subscription_id bigint [ref: > subscriptions.id]
+  invoice_no varchar(50) [unique]
+  amount decimal(12,2)
+  tax decimal(12,2)
+  total decimal(12,2)
+  status varchar(20) [note: 'draft | open | paid | void']
+  period_start date
+  period_end date
+  due_date date
+  created_at timestamptz
+}
+
+Table platform_payments {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  platform_invoice_id bigint [ref: > platform_invoices.id]
+  amount decimal(12,2)
+  gateway varchar(40)
+  gateway_ref varchar(100)
+  status varchar(20) [note: 'success | failed | pending | refunded']
+  paid_at timestamptz
+  created_at timestamptz
+}
+
+Table tenant_activity {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  platform_user_id bigint [ref: > platform_users.id]
+  action varchar(100) [note: 'provisioned | plan_changed | suspended | cancelled']
+  details jsonb
+  created_at timestamptz
+}
+
+Table support_tickets {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  subject varchar(255)
+  status varchar(20) [note: 'open | pending | resolved | closed']
+  priority varchar(20) [note: 'low | normal | high | urgent']
+  opened_by_user_id bigint [ref: > app_users.id]
+  assigned_to_platform_user_id bigint [ref: > platform_users.id]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+
+// ─────────────────────────────────────────────
+// Tenancy core (a merchant/shop that onboarded)
+// ─────────────────────────────────────────────
+
+Table tenants {
+  id bigint [primary key]
+  slug varchar(60) [unique, note: 'subdomain/url id e.g. gramathaankadai']
+  legal_name varchar(255)
+  display_name varchar(255)
+  business_type varchar(50) [note: 'Retail | Wholesale | Distributor | Restaurant']
+  status varchar(20) [note: 'trial | active | suspended | cancelled']
+  owner_user_id bigint [ref: > app_users.id, note: 'nullable; set post-insert after first user. Circular w/ app_users.tenant_id — bootstrap via nullable + deferred FK']
+  plan_id bigint [ref: > plans.id]
+  country varchar(2) [note: 'ISO; drives tax engine']
+  default_currency varchar(3)
+  default_timezone varchar(50)
+  locale varchar(10)
+  onboarding_step varchar(40)
+  onboarded_at timestamptz
+  trial_ends_at timestamptz
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table tenant_locations {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  name varchar(150) [note: 'Main Store | Warehouse 2']
+  type varchar(20) [note: 'store | warehouse | counter']
+  address text
+  pincode varchar(10)
+  state varchar(100)
+  phone varchar(20)
+  gstin varchar(20)
+  is_default boolean
+  is_active boolean
+  created_at timestamptz
+}
+
+// Replaces the old single-row `settings` table — one row per tenant.
+Table tenant_settings {
+  tenant_id bigint [primary key, ref: > tenants.id]
+  invoice_prefix varchar(20)
+  currency varchar(3)
+  // Tax
+  tax_method varchar(20)
+  tax_default_gst_rate decimal(5,2)
+  tax_round_off boolean
+  tax_supply_type varchar(20)
+  tax_business_type varchar(20)
+  tax_composition_rate decimal(5,2)
+  tcs_enabled boolean
+  tds_enabled boolean
+  cess_enabled boolean
+  // Transactions
+  credit_days integer
+  allow_negative_stock boolean
+  decimal_qty boolean
+  allow_sale_return boolean
+  allow_purchase_return boolean
+  // Parties
+  default_party_type varchar(10)
+  require_gstin boolean
+  credit_limit decimal(12,2)
+  duplicate_check boolean
+  balance_display varchar(20)
+  // Items
+  default_uom varchar(10)
+  enable_batch boolean
+  enable_expiry boolean
+  enable_mrp boolean
+  enable_hsn boolean
+  enable_location boolean
+  barcode_type varchar(20)
+  unit_conversion_enabled boolean
+  // Loyalty
+  loyalty_enabled boolean
+  loyalty_points_per_rupee decimal(8,4)
+  loyalty_min_points decimal(12,2)
+  loyalty_points_value decimal(8,4)
+  loyalty_expiry_days integer
+  loyalty_max_discount decimal(12,2)
+  loyalty_allow_partial boolean
+  loyalty_show_on_invoice boolean
+  // Print flags (≈20 booleans collapsed)
+  print_flags jsonb [note: 'print_show_logo, print_show_gstin, … (or split to print_templates)']
+  updated_at timestamptz
+}
+
+// Per-tenant document numbering (replaces global estimate_no & prefix+max() logic)
+Table number_sequences {
+  tenant_id bigint [not null, ref: > tenants.id]
+  doc_type varchar(30) [note: 'sale | purchase | estimate | credit_note | debit_note | payment_in | payment_out | employee']
+  prefix varchar(20)
+  next_value bigint
+  padding integer
+
+  indexes {
+    (tenant_id, doc_type) [pk]
+  }
+}
+
+
+// ─────────────────────────────────────────────
+// Identity, Users & RBAC (per tenant)
+// ─────────────────────────────────────────────
+
+Table app_users {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  name varchar(100)
+  email varchar(150)
+  phone varchar(20)
+  password_hash text
+  role_id bigint [ref: > app_roles.id]
+  employee_id bigint [ref: > employees.id, note: 'optional link to HR record']
+  avatar_url text
+  is_active boolean
+  email_verified_at timestamptz
+  must_change_password boolean
+  password_reset_token text
+  password_reset_expires timestamptz
+  failed_login_count integer
+  locked_until timestamptz
+  last_login timestamptz
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (tenant_id, email) [unique]
+  }
+}
+
+Table app_roles {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  name varchar(50) [note: 'Owner | Admin | Manager | Accountant | Sales Staff | Viewer']
+  description text
+  color varchar(40)
+  is_system boolean [note: 'seeded roles cannot be deleted; Owner = full access']
+  created_at timestamptz
+
+  indexes {
+    (tenant_id, name) [unique]
+  }
+}
+
+// Global permission catalog (NOT tenant-scoped)
+Table app_permissions {
+  id bigint [primary key]
+  module varchar(50) [note: 'sales, purchases, pos, items, parties, employees, accounts, banking, expenses, cashbook, loyalty, taxes, reports, utilities, backup, settings, users']
+  action varchar(50) [note: 'view, create, edit, delete, approve, export, void, restore']
+  description text
+
+  indexes {
+    (module, action) [unique]
+  }
+}
+
+Table app_role_permissions {
+  role_id bigint [not null, ref: > app_roles.id]
+  permission_id bigint [not null, ref: > app_permissions.id]
+
+  indexes {
+    (role_id, permission_id) [pk]
+  }
+}
+
+Table user_sessions {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  user_id bigint [not null, ref: > app_users.id]
+  token_hash text
+  ip_address varchar(45)
+  user_agent text
+  expires_at timestamptz
+  revoked_at timestamptz
+  created_at timestamptz
+}
+
+
+// ─────────────────────────────────────────────
+// HR / Payroll
+// ─────────────────────────────────────────────
+
+Table departments {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  name varchar(100)
+  created_at timestamptz
+
+  indexes {
+    (tenant_id, name) [unique]
+  }
+}
+
+Table designations {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  name varchar(100)
+  created_at timestamptz
+
+  indexes {
+    (tenant_id, name) [unique]
+  }
+}
+
+Table employees {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  employee_code varchar(50)
+  name varchar(150) [not null]
+  phone varchar(20)
+  email varchar(150)
+  gender varchar(10)
+  dob date
+  designation_id bigint [ref: > designations.id]
+  department_id bigint [ref: > departments.id]
+  date_of_joining date
+  date_of_exit date
+  exit_reason text
+  salary_type varchar(20) [note: 'perMonth | perDay']
+  employee_type varchar(20) [note: 'dailyWages | salaried']
+  basic_salary decimal(12,2) [note: 'base pay only; all other earnings & deductions live in employee_salary_structure (single source of truth)']
+  // identity / payout
+  bank_account_no varchar(30)
+  ifsc varchar(20)
+  pan varchar(10)
+  aadhaar varchar(255) [note: 'encrypted/tokenized at rest (pgcrypto / vault ref) — never raw; UIDAI compliance']
+  uan varchar(20) [note: 'PF']
+  esic_no varchar(20)
+  emergency_contact varchar(20)
+  photo_url text
+  address text
+  notes text
+  is_active boolean
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (tenant_id, employee_code) [unique]
+    (tenant_id, name)
+  }
+}
+
+Table salary_components {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  name varchar(80)
+  type varchar(10) [note: 'earning | deduction']
+  calc_type varchar(20) [note: 'fixed | percent_of_basic']
+  is_active boolean
+}
+
+Table employee_salary_structure {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  employee_id bigint [not null, ref: > employees.id]
+  component_id bigint [not null, ref: > salary_components.id]
+  amount decimal(12,2)
+  effective_from date
+}
+
+Table shifts {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  name varchar(50)
+  start_time time
+  end_time time
+}
+
+Table attendance_records {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  employee_id bigint [not null, ref: > employees.id]
+  location_id bigint [ref: > tenant_locations.id]
+  shift_id bigint [ref: > shifts.id]
+  date date
+  status varchar(20) [note: 'Present | Absent | Half-Day | Leave']
+  check_in time
+  check_out time
+  worked_hours decimal(5,2)
+  overtime_hours decimal(5,2)
+  note text
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (tenant_id, employee_id, date) [unique]
+    (tenant_id, date)
+  }
+}
+
+Table salary_records {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  employee_id bigint [not null, ref: > employees.id]
+  type varchar(20) [note: 'Salary | Advance | Deduction']
+  amount decimal(12,2)
+  previous_salary decimal(12,2)
+  effective_date date
+  paid_date date
+  pay_status varchar(20) [note: 'unpaid | paid']
+  description text
+  created_at timestamptz
+
+  indexes {
+    (tenant_id, employee_id)
+  }
+}
+
+Table payroll_runs {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  period_month integer
+  period_year integer
+  status varchar(20) [note: 'draft | finalized | paid']
+  total_gross decimal(14,2)
+  total_deductions decimal(14,2)
+  total_net decimal(14,2)
+  run_date date
+  created_at timestamptz
+}
+
+Table payslips {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  payroll_run_id bigint [not null, ref: > payroll_runs.id]
+  employee_id bigint [not null, ref: > employees.id]
+  gross decimal(12,2)
+  total_earnings decimal(12,2)
+  total_deductions decimal(12,2)
+  net_pay decimal(12,2)
+  days_present decimal(5,1)
+  days_lop decimal(5,1)
+  status varchar(20)
+}
+
+Table payslip_lines {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  payslip_id bigint [not null, ref: > payslips.id]
+  component_id bigint [ref: > salary_components.id]
+  label varchar(80)
+  type varchar(10) [note: 'earning | deduction']
+  amount decimal(12,2)
+
+  indexes {
+    (tenant_id, payslip_id)
+  }
+}
+
+Table leave_types {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  name varchar(50)
+  code varchar(10) [note: 'CL, SL, AL, ML, LOP']
+  annual_allotment integer
+  is_paid boolean
+  is_active boolean
+  color varchar(20)
+  created_at timestamptz
+
+  indexes {
+    (tenant_id, code) [unique]
+  }
+}
+
+Table leave_requests {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  employee_id bigint [not null, ref: > employees.id]
+  leave_type_id bigint [not null, ref: > leave_types.id]
+  from_date date
+  to_date date
+  days decimal(4,1) [note: '0.5 for half-day']
+  reason text
+  status varchar(20) [note: 'pending | approved | rejected']
+  approved_by_user_id bigint [ref: > app_users.id]
+  remarks text
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (tenant_id, employee_id)
+    (tenant_id, from_date)
+  }
+}
+
+Table leave_balances {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  employee_id bigint [not null, ref: > employees.id]
+  leave_type_id bigint [not null, ref: > leave_types.id]
+  year integer
+  allotted decimal(5,1)
+  used decimal(5,1)
+  carried_forward decimal(5,1)
+  balance decimal(5,1)
+
+  indexes {
+    (tenant_id, employee_id, leave_type_id, year) [unique]
+  }
+}
+
+Table holiday_calendar {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  location_id bigint [ref: > tenant_locations.id, note: 'null = applies to all locations']
+  date date
+  name varchar(100)
+  type varchar(20) [note: 'public | optional | weekly_off']
+
+  indexes {
+    (tenant_id, location_id, date) [unique]
+  }
+}
+
+
+// ─────────────────────────────────────────────
+// Reference & Configuration (tenant-scoped)
+// ─────────────────────────────────────────────
+
+Table uom_list {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  code varchar(10) [note: 'KG, PCS, LTR, GM, MT, BOX, PKT, BTL']
+  descr varchar(100)
+
+  indexes {
+    (tenant_id, code) [unique]
+  }
+}
+
+Table uom_conversions {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  base_uom_id bigint [not null, ref: > uom_list.id]
+  secondary_uom_id bigint [not null, ref: > uom_list.id]
+  factor float [note: 'secondary = base × factor']
+  created_at timestamptz
+}
+
+Table categories {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  name varchar(255)
+  created_at timestamptz
+
+  indexes {
+    (tenant_id, name) [unique]
+  }
+}
+
+Table payment_modes {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  name varchar(100) [note: 'Cash, UPI, Bank Transfer, Cheque, Card']
+  descr varchar(255)
+  is_active boolean
+
+  indexes {
+    (tenant_id, name) [unique]
+  }
+}
+
+Table payment_type_settings {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  payment_mode_id bigint [not null, ref: > payment_modes.id]
+  color varchar(20)
+  icon varchar(50)
+  description text
+  display_order integer
+  is_default boolean
+  created_at timestamptz
+
+  indexes {
+    (tenant_id, payment_mode_id) [unique]
+  }
+}
+
+Table tax_slabs {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  name varchar(50)
+  rate decimal(5,2)
+  cgst decimal(5,2)
+  sgst decimal(5,2)
+  igst decimal(5,2)
+  cess decimal(5,2)
+  is_active boolean
+}
+
+
+// ─────────────────────────────────────────────
+// Catalog & Inventory
+// ─────────────────────────────────────────────
+
+Table products {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  short_name varchar(255) [not null]
+  item_code varchar(100)
+  category_id bigint [ref: > categories.id]
+  hsn_code varchar(20)
+  uom varchar(10)
+  secondary_unit varchar(20)
+  pcs_per_unit integer
+  is_bulk boolean
+  purchase_price decimal(12,2)
+  purchase_price_tax varchar(10) [note: 'with | without']
+  mrp decimal(12,2)
+  sales_price decimal(12,2)
+  sales_price_tax varchar(10) [note: 'with | without']
+  wholesale_price decimal(12,2)
+  wholesale_qty decimal(12,3)
+  at_price decimal(12,2)
+  as_of_date date
+  gst_rate decimal(5,2) [note: 'cached from tax_slabs; tax_slab_id is source of truth']
+  tax_slab_id bigint [ref: > tax_slabs.id]
+  stock decimal(12,3) [note: 'denormalized on-hand; trigger-maintained from stock_ledger']
+  reorder_level decimal(12,3)
+  min_stock decimal(12,3)
+  type varchar(20) [note: 'Product | Service. Per-batch expiry/MRP → product_batches; per-location stock → stock_ledger.location_id']
+  description text
+  is_active boolean
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (tenant_id, item_code) [unique]
+    (tenant_id, short_name)
+  }
+}
+
+// Optional: only if >3 price tiers or customer-group pricing is needed
+Table product_prices {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  product_id bigint [not null, ref: > products.id]
+  price_tier varchar(30) [note: 'retail | wholesale | special | group:<id>']
+  price decimal(12,2)
+  min_qty decimal(12,3)
+  effective_from date
+}
+
+Table product_batches {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  product_id bigint [not null, ref: > products.id]
+  location_id bigint [ref: > tenant_locations.id]
+  batch_no varchar(50)
+  mfg_date date
+  expiry_date date
+  mrp decimal(12,2)
+  qty_on_hand decimal(12,3)
+
+  indexes {
+    (tenant_id, product_id, location_id, batch_no) [unique]
+  }
+}
+
+Table stock_ledger {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  product_id bigint [not null, ref: > products.id]
+  location_id bigint [ref: > tenant_locations.id]
+  batch_id bigint [ref: > product_batches.id]
+  txn_type varchar(20) [note: 'purchase | sale | sale_return | purchase_return | adjustment | transfer | opening']
+  ref_table varchar(40)
+  ref_id bigint
+  qty_in decimal(12,3)
+  qty_out decimal(12,3)
+  rate decimal(12,2)
+  balance_qty decimal(12,3)
+  created_at timestamptz
+
+  indexes {
+    (tenant_id, product_id)
+  }
+}
+
+Table stock_adjustments {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  location_id bigint [ref: > tenant_locations.id]
+  date date
+  reason varchar(50) [note: 'damage | count | opening | expiry']
+  notes text
+  created_by_user_id bigint [ref: > app_users.id]
+  created_at timestamptz
+}
+
+Table stock_adjustment_items {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  adjustment_id bigint [not null, ref: > stock_adjustments.id]
+  product_id bigint [not null, ref: > products.id]
+  batch_id bigint [ref: > product_batches.id]
+  qty_diff decimal(12,3) [note: 'signed: +increase / -decrease on hand']
+  rate decimal(12,2) [note: 'valuation rate for the adjustment']
+
+  indexes {
+    (tenant_id, adjustment_id)
+  }
+}
+
+Table stock_transfers {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  from_location_id bigint [not null, ref: > tenant_locations.id]
+  to_location_id bigint [not null, ref: > tenant_locations.id]
+  date date
+  status varchar(20) [note: 'draft | in_transit | received']
+  notes text
+  created_at timestamptz
+}
+
+Table stock_transfer_items {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  transfer_id bigint [not null, ref: > stock_transfers.id]
+  product_id bigint [not null, ref: > products.id]
+  batch_id bigint [ref: > product_batches.id]
+  qty decimal(12,3)
+
+  indexes {
+    (tenant_id, transfer_id)
+  }
+}
+
+Table bill_of_materials {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  product_id bigint [not null, ref: > products.id, note: 'output product']
+  output_qty decimal(12,3)
+  is_active boolean
+}
+
+Table bom_components {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  bom_id bigint [not null, ref: > bill_of_materials.id]
+  component_product_id bigint [not null, ref: > products.id]
+  qty decimal(12,3)
+
+  indexes {
+    (tenant_id, bom_id, component_product_id) [unique]
+  }
+}
+
+Table manufacturing_orders {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  bom_id bigint [not null, ref: > bill_of_materials.id]
+  qty decimal(12,3)
+  date date
+  status varchar(20) [note: 'planned | in_progress | done']
+  created_at timestamptz
+}
+
+
+// ─────────────────────────────────────────────
+// Parties
+// ─────────────────────────────────────────────
+
+Table party_groups {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  name varchar(100)
+
+  indexes {
+    (tenant_id, name) [unique]
+  }
+}
+
+Table parties {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  party_code varchar(50)
+  name varchar(255) [not null]
+  type varchar(10) [note: 'customer | supplier | both']
+  party_type varchar(20) [note: 'B2B | B2C']
+  party_group_id bigint [ref: > party_groups.id]
+  phone varchar(20)
+  email varchar(255)
+  address text
+  billing_state varchar(100)
+  gstin varchar(20)
+  opening_balance decimal(12,2)
+  opening_balance_type varchar(10) [note: 'receivable | payable']
+  balance decimal(12,2) [note: 'denormalized receivable; derived from party_ledger']
+  payable decimal(12,2) [note: 'denormalized payable; derived from party_ledger']
+  credit_limit decimal(12,2)
+  credit_days integer
+  loyalty_points decimal(12,2)
+  last_sale date
+  notes text
+  is_active boolean
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (tenant_id, party_code) [unique]
+  }
+}
+
+Table party_ledger {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  party_id bigint [not null, ref: > parties.id]
+  date date
+  txn_type varchar(20) [note: 'sale | purchase | payment_in | payment_out | credit_note | debit_note | opening']
+  ref_table varchar(40)
+  ref_id bigint
+  debit decimal(12,2)
+  credit decimal(12,2)
+  balance decimal(12,2)
+
+  indexes {
+    (tenant_id, party_id)
+  }
+}
+
+
+// ─────────────────────────────────────────────
+// Sales & POS
+// ─────────────────────────────────────────────
+
+Table pos_sessions {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  location_id bigint [ref: > tenant_locations.id]
+  cashier_user_id bigint [ref: > app_users.id]
+  opened_at timestamptz
+  closed_at timestamptz
+  opening_cash decimal(12,2)
+  closing_cash decimal(12,2)
+  expected_cash decimal(12,2)
+  variance decimal(12,2)
+  status varchar(20) [note: 'open | closed']
+}
+
+Table sales {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  invoice varchar(50)
+  date timestamptz
+  party_id bigint [ref: > parties.id]
+  location_id bigint [ref: > tenant_locations.id]
+  pos_session_id bigint [ref: > pos_sessions.id]
+  cashier_user_id bigint [ref: > app_users.id]
+  customer_name varchar(255) [note: 'snapshot']
+  phone varchar(20)
+  billing_address text
+  shipping_address text
+  state_of_supply varchar(100)
+  subtotal decimal(12,2)
+  discount decimal(12,2)
+  gst decimal(12,2)
+  grand_total decimal(12,2)
+  payment_mode varchar(100)
+  payment_status varchar(20) [note: 'Paid | Unpaid | Partial']
+  total_received decimal(12,2)
+  change_given decimal(12,2)
+  due_date date
+  vehicle_no varchar(50)
+  delivery_date date
+  delivery_location text
+  dispatch_location text
+  notes text
+  terms text
+  status varchar(20) [note: 'active | deleted']
+  created_by_user_id bigint [ref: > app_users.id]
+  created_at timestamptz
+
+  indexes {
+    (tenant_id, invoice) [unique]
+  }
+}
+
+Table sale_items {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  sale_id bigint [not null, ref: > sales.id]
+  product_id bigint [ref: > products.id]
+  name varchar(255) [note: 'snapshot']
+  description text
+  qty decimal(12,3)
+  item_count decimal(12,3) [note: 'secondary-unit qty']
+  unit varchar(50)
+  rate decimal(12,2)
+  mrp decimal(12,2)
+  discount decimal(12,2)
+  free_qty decimal(12,3)
+  gst_rate decimal(5,2)
+  gst_amount decimal(12,2)
+  amount decimal(12,2)
+  batch_no varchar(50)
+  exp_date date
+  mfg_date date
+  size varchar(50)
+
+  indexes {
+    (tenant_id, sale_id)
+  }
+}
+
+Table estimates {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  estimate_no integer
+  estimate_date date
+  valid_till date
+  party_id bigint [ref: > parties.id]
+  converted_sale_id bigint [ref: > sales.id]
+  customer_name varchar(255)
+  phone varchar(20)
+  billing_address text
+  state_of_supply varchar(100)
+  subtotal decimal(12,2)
+  gst decimal(12,2)
+  grand_total decimal(12,2)
+  adjustment decimal(12,2)
+  status varchar(20) [note: 'Open | Converted | Cancelled']
+  notes text
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (tenant_id, estimate_no) [unique]
+  }
+}
+
+Table estimate_items {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  estimate_id bigint [not null, ref: > estimates.id]
+  product_id bigint [ref: > products.id]
+  name varchar(255)
+  description text
+  qty decimal(12,3)
+  item_count decimal(12,3)
+  free_qty decimal(12,3)
+  unit varchar(20)
+  rate decimal(12,2)
+  mrp decimal(12,2)
+  gst_rate decimal(5,2)
+  gst_amount decimal(12,2)
+  amount decimal(12,2)
+  batch_no varchar(50)
+  exp_date date
+  mfg_date date
+  size varchar(50)
+  created_at timestamptz
+
+  indexes {
+    (tenant_id, estimate_id)
+  }
+}
+
+
+// ─────────────────────────────────────────────
+// Purchases
+// ─────────────────────────────────────────────
+
+Table purchase_orders {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  po_no varchar(50)
+  date date
+  party_id bigint [ref: > parties.id]
+  location_id bigint [ref: > tenant_locations.id]
+  status varchar(20) [note: 'draft | sent | received | closed']
+  grand_total decimal(12,2)
+  notes text
+  created_at timestamptz
+
+  indexes {
+    (tenant_id, po_no) [unique]
+  }
+}
+
+Table purchase_order_items {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  purchase_order_id bigint [not null, ref: > purchase_orders.id]
+  product_id bigint [ref: > products.id]
+  name varchar(255)
+  qty decimal(12,3)
+  price decimal(12,2)
+  unit varchar(50)
+
+  indexes {
+    (tenant_id, purchase_order_id)
+  }
+}
+
+Table purchases {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  invoice varchar(50)
+  date timestamptz
+  party_id bigint [ref: > parties.id]
+  location_id bigint [ref: > tenant_locations.id]
+  purchase_order_id bigint [ref: > purchase_orders.id]
+  party_name varchar(255) [note: 'snapshot']
+  subtotal decimal(12,2)
+  discount decimal(12,2)
+  gst decimal(12,2)
+  grand_total decimal(12,2)
+  total_paid decimal(12,2)
+  payment_status varchar(20)
+  payment_mode varchar(100)
+  due_date date
+  supplier_invoice_no varchar(100)
+  supplier_invoice_date date
+  eway_bill_no varchar(50)
+  status varchar(20)
+  created_by_user_id bigint [ref: > app_users.id]
+  created_at timestamptz
+
+  indexes {
+    (tenant_id, invoice) [unique]
+  }
+}
+
+Table purchase_items {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  purchase_id bigint [not null, ref: > purchases.id]
+  product_id bigint [ref: > products.id, note: 'added FK so purchases post to stock_ledger']
+  name varchar(255)
+  qty decimal(12,3)
+  price decimal(12,2)
+  total decimal(12,2)
+  discount decimal(12,2)
+  unit varchar(50)
+  gst_rate decimal(5,2)
+  gst_amount decimal(12,2)
+  mrp decimal(12,2)
+  batch_no varchar(100)
+  expiry_date date
+  mfg_date date
+
+  indexes {
+    (tenant_id, purchase_id)
+  }
+}
+
+
+// ─────────────────────────────────────────────
+// Returns (Credit & Debit Notes)
+// ─────────────────────────────────────────────
+
+Table sale_returns {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  credit_note_no varchar(50)
+  date date
+  party_id bigint [ref: > parties.id]
+  original_sale_id bigint [ref: > sales.id]
+  party_name varchar(255)
+  reference_invoice varchar(50)
+  type varchar(50)
+  subtotal decimal(12,2)
+  gst decimal(12,2)
+  grand_total decimal(12,2)
+  payment_mode varchar(50)
+  total_received decimal(12,2)
+  due_date date
+  payment_status varchar(20)
+  notes text
+  status varchar(20)
+  created_at timestamptz
+
+  indexes {
+    (tenant_id, credit_note_no) [unique]
+  }
+}
+
+Table sale_return_items {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  return_id bigint [not null, ref: > sale_returns.id]
+  product_id bigint [ref: > products.id]
+  name varchar(255)
+  qty decimal(12,3)
+  rate decimal(12,2)
+  amount decimal(12,2)
+  unit varchar(50)
+  gst_rate decimal(5,2)
+  gst_amount decimal(12,2)
+  created_at timestamptz
+
+  indexes {
+    (tenant_id, return_id)
+  }
+}
+
+Table purchase_returns {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  debit_note_no varchar(50)
+  date date
+  party_id bigint [ref: > parties.id]
+  original_purchase_id bigint [ref: > purchases.id]
+  party_name varchar(255)
+  reference_invoice varchar(100)
+  type varchar(50)
+  subtotal decimal(12,2)
+  gst decimal(12,2)
+  grand_total decimal(12,2)
+  payment_mode varchar(50)
+  total_paid decimal(12,2)
+  due_date date
+  payment_status varchar(20)
+  notes text
+  status varchar(20)
+  created_at timestamptz
+
+  indexes {
+    (tenant_id, debit_note_no) [unique]
+  }
+}
+
+Table purchase_return_items {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  return_id bigint [not null, ref: > purchase_returns.id]
+  product_id bigint [ref: > products.id]
+  name varchar(255)
+  qty decimal(12,3)
+  rate decimal(12,2)
+  amount decimal(12,2)
+  unit varchar(50)
+  gst_rate decimal(5,2)
+  gst_amount decimal(12,2)
+  created_at timestamptz
+
+  indexes {
+    (tenant_id, return_id)
+  }
+}
+
+
+// ─────────────────────────────────────────────
+// Payments, Cash & Banking
+// ─────────────────────────────────────────────
+
+Table bank_accounts {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  bank_name varchar(255)
+  account_no varchar(50)
+  ifsc varchar(20)
+  type varchar(20) [note: 'Savings | Current']
+  balance decimal(14,2) [note: 'derived from bank_transactions']
+  created_at timestamptz
+}
+
+Table bank_transactions {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  bank_account_id bigint [not null, ref: > bank_accounts.id]
+  date date
+  direction varchar(5) [note: 'in | out']
+  amount decimal(12,2)
+  ref_table varchar(40)
+  ref_id bigint
+  description text
+  balance decimal(14,2)
+  created_at timestamptz
+}
+
+Table payment_in_history {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  party_id bigint [ref: > parties.id]
+  bank_account_id bigint [ref: > bank_accounts.id]
+  party_name varchar(255)
+  amount decimal(12,2)
+  discount decimal(12,2)
+  payment_mode varchar(100)
+  reference varchar(100)
+  notes text
+  date date
+  status varchar(20) [note: 'Unused | Applied']
+  created_at timestamptz
+}
+
+Table payment_out_history {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  party_id bigint [ref: > parties.id]
+  bank_account_id bigint [ref: > bank_accounts.id]
+  party_name varchar(255)
+  amount decimal(12,2)
+  discount decimal(12,2)
+  payment_mode varchar(100)
+  reference varchar(100)
+  notes text
+  date date
+  status varchar(20) [note: 'Unused | Applied']
+  created_at timestamptz
+}
+
+Table payment_in_allocations {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  payment_in_id bigint [not null, ref: > payment_in_history.id]
+  sale_id bigint [not null, ref: > sales.id]
+  amount decimal(12,2)
+
+  indexes {
+    (tenant_id, payment_in_id)
+  }
+}
+
+Table payment_out_allocations {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  payment_out_id bigint [not null, ref: > payment_out_history.id]
+  purchase_id bigint [not null, ref: > purchases.id]
+  amount decimal(12,2)
+
+  indexes {
+    (tenant_id, payment_out_id)
+  }
+}
+
+Table cash_transactions {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  date date
+  type varchar(50) [note: 'in | out']
+  amount decimal(12,2)
+  ref_table varchar(40)
+  ref_id bigint
+  description text
+  created_at timestamptz
+}
+
+Table cheques {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  party_id bigint [ref: > parties.id]
+  bank_account_id bigint [ref: > bank_accounts.id]
+  payment_in_id bigint [ref: > payment_in_history.id, note: 'set when an inbound cheque is recorded as a receipt']
+  payment_out_id bigint [ref: > payment_out_history.id, note: 'set when an outbound cheque is recorded as a payment']
+  party_name varchar(255)
+  amount decimal(12,2)
+  cheque_no varchar(50)
+  bank varchar(255)
+  issue_date date
+  due_date date
+  type varchar(5) [note: 'in | out']
+  status varchar(10) [note: 'pending | cleared | bounced']
+  created_at timestamptz
+}
+
+
+// ─────────────────────────────────────────────
+// Accounting & Assets
+// ─────────────────────────────────────────────
+
+Table fixed_assets {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  name varchar(255)
+  category varchar(100)
+  purchase_date date
+  purchase_value decimal(14,2)
+  current_value decimal(14,2)
+  depreciation_rate decimal(5,2)
+  depreciation_type varchar(20) [note: 'straight-line | written-down-value']
+  serial_no varchar(100)
+  location varchar(200)
+  vendor varchar(200)
+  warranty_expiry date
+  status varchar(20) [note: 'Active | Disposed']
+  notes text
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table asset_depreciation_schedule {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  fixed_asset_id bigint [not null, ref: > fixed_assets.id]
+  period date
+  opening_value decimal(14,2)
+  depreciation decimal(14,2)
+  closing_value decimal(14,2)
+}
+
+Table capital_investments {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  investor_name varchar(255)
+  type varchar(20) [note: 'Director | Promoter | Investor']
+  contact_number varchar(20)
+  email varchar(255)
+  address text
+  investment_amount decimal(15,2)
+  equity_percent decimal(5,2)
+  investment_date date
+  payment_mode varchar(50)
+  reference_no varchar(100)
+  notes text
+  status varchar(20) [note: 'Active | Inactive | Pending']
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table loan_accounts {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  name varchar(255)
+  lender_name varchar(255)
+  principal decimal(14,2)
+  interest_rate decimal(5,2)
+  emi decimal(12,2)
+  start_date date
+  duration_months integer
+  payment_mode varchar(50)
+  notes text
+  created_at timestamptz
+}
+
+Table loan_transactions {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  loan_id bigint [not null, ref: > loan_accounts.id]
+  type varchar(50) [note: 'EMI | Prepayment | Charge']
+  principal decimal(12,2)
+  interest decimal(12,2)
+  other_charges decimal(12,2)
+  total_amount decimal(12,2)
+  payment_mode varchar(50)
+  reference_no varchar(100)
+  charge_type varchar(100)
+  transaction_date date
+  notes text
+  created_at timestamptz
+}
+
+// Optional double-entry backbone for Trial Balance / P&L / Balance Sheet reports
+Table chart_of_accounts {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  code varchar(20)
+  name varchar(150)
+  type varchar(20) [note: 'asset | liability | equity | income | expense']
+  parent_id bigint [ref: > chart_of_accounts.id]
+
+  indexes {
+    (tenant_id, code) [unique]
+  }
+}
+
+Table journal_entries {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  date date
+  ref_table varchar(40)
+  ref_id bigint
+  narration text
+  created_at timestamptz
+}
+
+Table journal_lines {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  journal_entry_id bigint [not null, ref: > journal_entries.id]
+  account_id bigint [not null, ref: > chart_of_accounts.id]
+  debit decimal(14,2)
+  credit decimal(14,2)
+
+  indexes {
+    (tenant_id, journal_entry_id)
+  }
+}
+
+
+// ─────────────────────────────────────────────
+// Expenses & Other Income
+// ─────────────────────────────────────────────
+
+Table expense_categories {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  name varchar(100)
+  type varchar(20) [note: 'Direct | Indirect']
+  color varchar(80)
+  created_at timestamptz
+
+  indexes {
+    (tenant_id, name) [unique]
+  }
+}
+
+Table expenses {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  date date
+  expense_category_id bigint [ref: > expense_categories.id]
+  description text
+  amount decimal(12,2)
+  paid_amount decimal(12,2)
+  payment_mode varchar(50)
+  reference varchar(100)
+  notes text
+  party_id bigint [ref: > parties.id]
+  created_at timestamptz
+
+  indexes {
+    (tenant_id, date)
+  }
+}
+
+Table other_income_categories {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  name varchar(100)
+
+  indexes {
+    (tenant_id, name) [unique]
+  }
+}
+
+Table other_incomes {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  date date
+  category_id bigint [ref: > other_income_categories.id]
+  amount decimal(12,2)
+  received_amount decimal(12,2)
+  payment_mode varchar(50)
+  reference varchar(100)
+  party_id bigint [ref: > parties.id]
+  notes text
+  created_at timestamptz
+}
+
+
+// ─────────────────────────────────────────────
+// Loyalty & Tax filing
+// ─────────────────────────────────────────────
+
+Table loyalty_transactions {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  party_id bigint [not null, ref: > parties.id]
+  sale_id bigint [ref: > sales.id]
+  type varchar(10) [note: 'earn | redeem | expire | adjust']
+  points decimal(12,2)
+  value decimal(12,2)
+  expires_at date
+  created_at timestamptz
+}
+
+Table gst_return_filings {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  return_type varchar(20) [note: 'GSTR-1 | GSTR-2 | GSTR-3B | GSTR-9']
+  period varchar(10) [note: 'MM-YYYY']
+  status varchar(20) [note: 'draft | filed']
+  filed_at timestamptz
+  json_payload jsonb
+}
+
+
+// ─────────────────────────────────────────────
+// System: Audit, Recycle, Import/Backup, Notifications
+// ─────────────────────────────────────────────
+
+Table audit_log {
+  id bigint [primary key]
+  tenant_id bigint [ref: > tenants.id]
+  log_time timestamptz
+  user_id bigint [ref: > app_users.id]
+  user_name varchar(100) [note: 'snapshot']
+  action varchar(100) [note: 'CREATE_SALE, DELETE_PRODUCT, …']
+  entity_type varchar(50)
+  entity_id bigint
+  ip_address varchar(45)
+  details jsonb
+}
+
+Table recycle_bin {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  type varchar(50) [note: 'Sale | Purchase | PaymentIn | PaymentOut | Party | Item']
+  entity_id bigint
+  name varchar(255)
+  amount decimal(12,2)
+  deleted_by_user_id bigint [ref: > app_users.id]
+  deleted_at timestamptz
+  restored_at timestamptz
+  snapshot text [note: 'full JSON of deleted record']
+}
+
+Table import_jobs {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  type varchar(20) [note: 'items | parties']
+  filename varchar(255)
+  rows_total integer
+  rows_ok integer
+  rows_failed integer
+  error_report text
+  created_by_user_id bigint [ref: > app_users.id]
+  created_at timestamptz
+}
+
+Table backup_jobs {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  mode varchar(20) [note: 'manual | scheduled']
+  storage_url text
+  status varchar(20) [note: 'running | success | failed']
+  created_at timestamptz
+}
+
+Table notifications {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  user_id bigint [ref: > app_users.id]
+  type varchar(40) [note: 'low_stock | cheque_due | payment_due | leave_approval']
+  title varchar(255)
+  body text
+  link varchar(255)
+  is_read boolean
+  created_at timestamptz
+}
+
+Table notification_preferences {
+  id bigint [primary key]
+  tenant_id bigint [not null, ref: > tenants.id]
+  user_id bigint [not null, ref: > app_users.id]
+  type varchar(40)
+  channel varchar(20) [note: 'in_app | email | sms']
+  is_enabled boolean
+}
+
+
+// ─────────────────────────────────────────────
+// Table groups (for the dbdiagram canvas)
+// ─────────────────────────────────────────────
+
+TableGroup "Platform / Control Plane" {
+  platform_users
+  plans
+  plan_features
+  subscriptions
+  platform_invoices
+  platform_payments
+  tenant_activity
+  support_tickets
+}
+
+TableGroup "Tenancy" {
+  tenants
+  tenant_locations
+  tenant_settings
+  number_sequences
+}
+
+TableGroup "Identity & RBAC" {
+  app_users
+  app_roles
+  app_permissions
+  app_role_permissions
+  user_sessions
+}
+
+TableGroup "HR / Payroll" {
+  departments
+  designations
+  employees
+  salary_components
+  employee_salary_structure
+  shifts
+  attendance_records
+  salary_records
+  payroll_runs
+  payslips
+  payslip_lines
+  leave_types
+  leave_requests
+  leave_balances
+  holiday_calendar
+}
+
+TableGroup "Reference / Config" {
+  uom_list
+  uom_conversions
+  categories
+  payment_modes
+  payment_type_settings
+  tax_slabs
+}
+
+TableGroup "Catalog & Inventory" {
+  products
+  product_prices
+  product_batches
+  stock_ledger
+  stock_adjustments
+  stock_adjustment_items
+  stock_transfers
+  stock_transfer_items
+  bill_of_materials
+  bom_components
+  manufacturing_orders
+}
+
+TableGroup "Parties" {
+  party_groups
+  parties
+  party_ledger
+}
+
+TableGroup "Sales & POS" {
+  pos_sessions
+  sales
+  sale_items
+  estimates
+  estimate_items
+}
+
+TableGroup "Purchases" {
+  purchase_orders
+  purchase_order_items
+  purchases
+  purchase_items
+}
+
+TableGroup "Returns" {
+  sale_returns
+  sale_return_items
+  purchase_returns
+  purchase_return_items
+}
+
+TableGroup "Payments / Cash / Bank" {
+  bank_accounts
+  bank_transactions
+  payment_in_history
+  payment_out_history
+  payment_in_allocations
+  payment_out_allocations
+  cash_transactions
+  cheques
+}
+
+TableGroup "Accounting & Assets" {
+  fixed_assets
+  asset_depreciation_schedule
+  capital_investments
+  loan_accounts
+  loan_transactions
+  chart_of_accounts
+  journal_entries
+  journal_lines
+}
+
+TableGroup "Expenses & Income" {
+  expense_categories
+  expenses
+  other_income_categories
+  other_incomes
+}
+
+TableGroup "Loyalty & Tax" {
+  loyalty_transactions
+  gst_return_filings
+}
+
+TableGroup "System" {
+  audit_log
+  recycle_bin
+  import_jobs
+  backup_jobs
+  notifications
+  notification_preferences
+}
+</content>

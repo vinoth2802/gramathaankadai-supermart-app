@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "concurrently -n server,client -c cyan,magenta \"pnpm --filter server dev\" \"pnpm --filter client dev\"",
     "build": "pnpm --filter client build",
-    "db:up": "podman compose up -d postgres",
-    "db:migrate": "podman compose --profile migrate run --rm flyway",
-    "db:down": "podman compose down"
+    "db:up": "docker compose up -d mysql",
+    "db:migrate": "docker compose --profile migrate run --rm flyway",
+    "db:seed": "docker compose exec -T mysql mysql -uroot -proot gramathaankadai_db < db/seed/seed_gramathaankadai.sql",
+    "db:reset": "docker compose down -v && docker compose up -d mysql && docker compose --profile migrate run --rm flyway && pnpm db:seed",
+    "db:down": "docker compose down"
   },
   "devDependencies": {
     "concurrently": "^9.0.1" 

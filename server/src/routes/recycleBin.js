@@ -4,9 +4,9 @@ import prisma from '../db.js';
 const router = Router();
 
 /* GET all recycle-bin entries, newest first */
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const items = await prisma.recycleBin.findMany({ orderBy: { deletedAt: 'desc' } });
+    const items = await prisma.recycleBin.findMany({ where: { tenantId: req.tenantId }, orderBy: { deletedAt: 'desc' } });
     res.json(items);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -16,7 +16,7 @@ router.get('/', async (_req, res) => {
 /* DELETE permanently (single) */
 router.delete('/:id', async (req, res) => {
   try {
-    await prisma.recycleBin.delete({ where: { id: Number(req.params.id) } });
+    await prisma.recycleBin.deleteMany({ where: { id: Number(req.params.id), tenantId: req.tenantId } });
     res.status(204).end();
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -24,9 +24,9 @@ router.delete('/:id', async (req, res) => {
 });
 
 /* DELETE permanently (all) */
-router.delete('/', async (_req, res) => {
+router.delete('/', async (req, res) => {
   try {
-    await prisma.recycleBin.deleteMany();
+    await prisma.recycleBin.deleteMany({ where: { tenantId: req.tenantId } });
     res.status(204).end();
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -36,7 +36,8 @@ router.delete('/', async (_req, res) => {
 /* POST restore — recreates the original record */
 router.post('/:id/restore', async (req, res) => {
   try {
-    const entry = await prisma.recycleBin.findUnique({ where: { id: Number(req.params.id) } });
+    const tenantId = req.tenantId;
+    const entry = await prisma.recycleBin.findFirst({ where: { id: Number(req.params.id), tenantId } });
     if (!entry) return res.status(404).json({ error: 'Not found' });
 
     const data = JSON.parse(entry.snapshot);
@@ -49,6 +50,7 @@ router.post('/:id/restore', async (req, res) => {
           await tx.sale.create({
             data: {
               ...sale,
+              tenantId,
               id:        sale.id,
               date:      new Date(sale.date),
               createdAt: new Date(sale.createdAt),
@@ -62,12 +64,14 @@ router.post('/:id/restore', async (req, res) => {
               partyId:       sale.partyId || null,
               items: {
                 create: (items || []).map(i => ({
+                  tenantId,
                   name: i.name, qty: Number(i.qty), rate: Number(i.rate),
                   amount: Number(i.amount), gstRate: Number(i.gstRate || 0),
                   gstAmount: Number(i.gstAmount || 0), mrp: Number(i.mrp || 0),
                   freeQty: Number(i.freeQty || 0), unit: i.unit || null,
                   batchNo: i.batchNo || null, description: i.description || null,
-                  expiryDate: i.expiryDate || null, mfgDate: i.mfgDate || null,
+                  expDate: i.expDate ? new Date(i.expDate) : null,
+                  mfgDate: i.mfgDate ? new Date(i.mfgDate) : null,
                   size: i.size || null, itemCount: Number(i.itemCount || 0),
                   productId: i.productId || null,
                 })),
@@ -82,6 +86,7 @@ router.post('/:id/restore', async (req, res) => {
           await tx.purchase.create({
             data: {
               ...purchase,
+              tenantId,
               id:        purchase.id,
               date:      new Date(purchase.date),
               createdAt: new Date(purchase.createdAt),
@@ -91,6 +96,7 @@ router.post('/:id/restore', async (req, res) => {
               partyId:      purchase.partyId || null,
               items: {
                 create: (items || []).map(i => ({
+                  tenantId,
                   name: i.name, qty: Number(i.qty), price: Number(i.price),
                   total: Number(i.total), gstRate: Number(i.gstRate || 0),
                   gstAmount: Number(i.gstAmount || 0), mrp: Number(i.mrp || 0),
@@ -108,6 +114,7 @@ router.post('/:id/restore', async (req, res) => {
           await tx.paymentInHistory.create({
             data: {
               ...data,
+              tenantId,
               id:        data.id,
               date:      new Date(data.date),
               createdAt: new Date(data.createdAt),
@@ -123,6 +130,7 @@ router.post('/:id/restore', async (req, res) => {
           await tx.paymentOutHistory.create({
             data: {
               ...data,
+              tenantId,
               id:        data.id,
               date:      new Date(data.date),
               createdAt: new Date(data.createdAt),
@@ -139,6 +147,7 @@ router.post('/:id/restore', async (req, res) => {
           await tx.party.create({
             data: {
               ...party,
+              tenantId,
               id:        party.id,
               createdAt: new Date(party.createdAt),
               balance:   Number(party.balance || 0),
@@ -149,13 +158,13 @@ router.post('/:id/restore', async (req, res) => {
         }
 
         case 'Item': {
-          const { saleItems, ...item } = data;
+          const { saleItems, category, ...item } = data;
           await tx.product.create({
             data: {
               ...item,
+              tenantId,
               id:           item.id,
               createdAt:    new Date(item.createdAt),
-              expiryDate:   item.expiryDate ? new Date(item.expiryDate) : null,
               purchasePrice: Number(item.purchasePrice || 0),
               salesPrice:    Number(item.salesPrice    || 0),
               mrp:           Number(item.mrp           || 0),

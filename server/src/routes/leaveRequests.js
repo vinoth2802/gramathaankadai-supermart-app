@@ -4,15 +4,18 @@ import prisma from '../db.js';
 const router = Router();
 
 const INCLUDE = {
-  employee:  { select: { id: true, name: true, designation: true, employeeCode: true } },
+  employee:  { select: { id: true, name: true, designation: { select: { name: true } }, employeeCode: true } },
   leaveType: { select: { id: true, name: true, code: true, color: true, isPaid: true } },
 };
+
+// Flatten employee.designation relation to a plain name string.
+const flat = r => (r?.employee ? { ...r, employee: { ...r.employee, designation: r.employee.designation?.name ?? null } } : r);
 
 /* GET /api/leave-requests — filtered list */
 router.get('/', async (req, res) => {
   try {
     const { employeeId, leaveTypeId, status, year, month } = req.query;
-    const where = {};
+    const where = { tenantId: req.tenantId };
     if (employeeId)  where.employeeId  = Number(employeeId);
     if (leaveTypeId) where.leaveTypeId = Number(leaveTypeId);
     if (status && status !== 'all') where.status = status;
@@ -26,7 +29,7 @@ router.get('/', async (req, res) => {
     const requests = await prisma.leaveRequest.findMany({
       where, include: INCLUDE, orderBy: { createdAt: 'desc' },
     });
-    res.json(requests);
+    res.json(requests.map(flat));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -37,9 +40,9 @@ router.get('/balance', async (req, res) => {
     if (!employeeId || !year) return res.status(400).json({ error: 'employeeId and year required' });
     const y = Number(year);
     const [types, approved] = await Promise.all([
-      prisma.leaveType.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } }),
+      prisma.leaveType.findMany({ where: { tenantId: req.tenantId, isActive: true }, orderBy: { name: 'asc' } }),
       prisma.leaveRequest.findMany({
-        where: { employeeId: Number(employeeId), status: 'approved',
+        where: { tenantId: req.tenantId, employeeId: Number(employeeId), status: 'approved',
           fromDate: { gte: new Date(y, 0, 1), lt: new Date(y + 1, 0, 1) } },
       }),
     ]);
@@ -59,6 +62,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'employeeId, leaveTypeId, fromDate, toDate and days are required' });
     const request = await prisma.leaveRequest.create({
       data: {
+        tenantId:    req.tenantId,
         employeeId:  Number(employeeId),
         leaveTypeId: Number(leaveTypeId),
         fromDate:    new Date(fromDate),
@@ -68,29 +72,32 @@ router.post('/', async (req, res) => {
       },
       include: INCLUDE,
     });
-    res.status(201).json(request);
+    res.status(201).json(flat(request));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 /* PATCH /api/leave-requests/:id/status */
 router.patch('/:id/status', async (req, res) => {
   try {
+    const id = Number(req.params.id);
     const { status, approvedBy, remarks } = req.body;
     if (!['approved', 'rejected', 'pending'].includes(status))
       return res.status(400).json({ error: 'Invalid status' });
+    const existing = await prisma.leaveRequest.findFirst({ where: { id, tenantId: req.tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Not found' });
     const request = await prisma.leaveRequest.update({
-      where: { id: Number(req.params.id) },
-      data:  { status, approvedBy: approvedBy || null, remarks: remarks || null },
+      where: { id },
+      data:  { status, approvedByUserId: approvedBy ? Number(approvedBy) : null, remarks: remarks || null },
       include: INCLUDE,
     });
-    res.json(request);
+    res.json(flat(request));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 /* DELETE /api/leave-requests/:id */
 router.delete('/:id', async (req, res) => {
   try {
-    await prisma.leaveRequest.delete({ where: { id: Number(req.params.id) } });
+    await prisma.leaveRequest.deleteMany({ where: { id: Number(req.params.id), tenantId: req.tenantId } });
     res.status(204).end();
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

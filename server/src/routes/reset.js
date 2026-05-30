@@ -4,15 +4,16 @@ import prisma from '../db.js';
 const router = Router();
 
 /* GET /api/reset/counts */
-router.get('/counts', async (_req, res) => {
+router.get('/counts', async (req, res) => {
   try {
+    const where = { tenantId: req.tenantId };
     const [items, parties, purchases, sales, paymentsIn, paymentsOut] = await Promise.all([
-      prisma.product.count(),
-      prisma.party.count(),
-      prisma.purchase.count(),
-      prisma.sale.count(),
-      prisma.paymentInHistory.count(),
-      prisma.paymentOutHistory.count(),
+      prisma.product.count({ where }),
+      prisma.party.count({ where }),
+      prisma.purchase.count({ where }),
+      prisma.sale.count({ where }),
+      prisma.paymentInHistory.count({ where }),
+      prisma.paymentOutHistory.count({ where }),
     ]);
     res.json({ items, parties, purchases, sales, paymentsIn, paymentsOut });
   } catch (err) {
@@ -23,42 +24,43 @@ router.get('/counts', async (_req, res) => {
 /* DELETE /api/reset/:type */
 router.delete('/:type', async (req, res) => {
   const { type } = req.params;
+  const tenantId = req.tenantId;
   try {
     let count = 0;
 
     if (type === 'items') {
       await prisma.$transaction(async (tx) => {
-        await tx.saleItem.updateMany({ data: { productId: null } });
-        const r = await tx.product.deleteMany();
+        await tx.saleItem.updateMany({ where: { tenantId }, data: { productId: null } });
+        const r = await tx.product.deleteMany({ where: { tenantId } });
         count = r.count;
       });
 
     } else if (type === 'parties') {
       await prisma.$transaction(async (tx) => {
-        await tx.sale.updateMany({ data: { partyId: null } });
-        await tx.purchase.updateMany({ data: { partyId: null } });
-        await tx.paymentInHistory.updateMany({ data: { partyId: null } });
-        await tx.paymentOutHistory.updateMany({ data: { partyId: null } });
-        await tx.cheque.updateMany({ data: { partyId: null } });
-        await tx.estimate.updateMany({ data: { partyId: null } });
-        const r = await tx.party.deleteMany();
+        await tx.sale.updateMany({ where: { tenantId }, data: { partyId: null } });
+        await tx.purchase.updateMany({ where: { tenantId }, data: { partyId: null } });
+        await tx.paymentInHistory.updateMany({ where: { tenantId }, data: { partyId: null } });
+        await tx.paymentOutHistory.updateMany({ where: { tenantId }, data: { partyId: null } });
+        await tx.cheque.updateMany({ where: { tenantId }, data: { partyId: null } });
+        await tx.estimate.updateMany({ where: { tenantId }, data: { partyId: null } });
+        const r = await tx.party.deleteMany({ where: { tenantId } });
         count = r.count;
       });
 
     } else if (type === 'purchases') {
-      const r = await prisma.purchase.deleteMany();
+      const r = await prisma.purchase.deleteMany({ where: { tenantId } });
       count = r.count;
 
     } else if (type === 'sales') {
-      const r = await prisma.sale.deleteMany();
+      const r = await prisma.sale.deleteMany({ where: { tenantId } });
       count = r.count;
 
     } else if (type === 'payments-in') {
-      const r = await prisma.paymentInHistory.deleteMany();
+      const r = await prisma.paymentInHistory.deleteMany({ where: { tenantId } });
       count = r.count;
 
     } else if (type === 'payments-out') {
-      const r = await prisma.paymentOutHistory.deleteMany();
+      const r = await prisma.paymentOutHistory.deleteMany({ where: { tenantId } });
       count = r.count;
 
     } else {

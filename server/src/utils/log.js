@@ -1,10 +1,15 @@
 import prisma from '../db.js';
 
-export function logActivity({ action, type, refNo, partyName, amount, userName, changes }) {
+// Tenant-aware activity logger. Writes to the v2 `audit_log` table.
+// `tenantId` (BigInt) is optional but should be passed from req.tenantId.
+export function logActivity({ action, type, refNo, partyName, amount, userName, changes, tenantId, userId }) {
   prisma.auditLog.create({
     data: {
+      tenantId:   tenantId ?? null,
+      userId:     userId ?? null,
+      userName:   userName || null,
       action,
-      userName: userName || null,
+      entityType: type || null,
       details: {
         type:      type       || null,
         refNo:     refNo      || null,

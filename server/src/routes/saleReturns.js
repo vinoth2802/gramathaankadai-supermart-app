@@ -9,9 +9,9 @@ const include = {
 };
 
 /* GET /api/sale-returns/next-number */
-router.get('/next-number', async (_req, res) => {
+router.get('/next-number', async (req, res) => {
   try {
-    const all = await prisma.saleReturn.findMany({ select: { creditNoteNo: true } });
+    const all = await prisma.saleReturn.findMany({ where: { tenantId: req.tenantId }, select: { creditNoteNo: true } });
     let max = 0;
     for (const r of all) {
       const m = String(r.creditNoteNo || '').match(/(\d+)$/);
@@ -27,7 +27,7 @@ router.get('/next-number', async (_req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { type, from, to, payment } = req.query;
-    const where = {};
+    const where = { tenantId: req.tenantId };
     if (type)    where.type        = type;
     if (payment) where.paymentMode = payment;
     if (from && to) {
@@ -47,8 +47,8 @@ router.get('/', async (req, res) => {
 /* GET /api/sale-returns/:id */
 router.get('/:id', async (req, res) => {
   try {
-    const r = await prisma.saleReturn.findUnique({
-      where: { id: Number(req.params.id) },
+    const r = await prisma.saleReturn.findFirst({
+      where: { id: Number(req.params.id), tenantId: req.tenantId },
       include,
     });
     if (!r) return res.status(404).json({ error: 'Not found' });
@@ -61,6 +61,7 @@ router.get('/:id', async (req, res) => {
 /* POST /api/sale-returns */
 router.post('/', async (req, res) => {
   try {
+    const tenantId = req.tenantId;
     const {
       creditNoteNo, date, partyId, partyName, referenceInvoice,
       type, subtotal, gst, grandTotal,
@@ -75,36 +76,50 @@ router.post('/', async (req, res) => {
     const derivedStatus = paymentStatus
       || (tr <= 0 ? 'Unpaid' : tr >= gt ? 'Paid' : 'Partial');
 
-    const record = await prisma.saleReturn.create({
-      data: {
-        creditNoteNo,
-        date:             date ? new Date(date) : new Date(),
-        partyId:          partyId ? Number(partyId) : null,
-        partyName:        partyName        || 'Walk-in Customer',
-        referenceInvoice: referenceInvoice || null,
-        type:             type             || 'Credit Note',
-        subtotal:         subtotal         ?? 0,
-        gst:              gst              ?? 0,
-        grandTotal:       gt,
-        paymentMode:      paymentMode      || 'Cash',
-        totalReceived:    tr,
-        dueDate:          dueDate ? new Date(dueDate) : null,
-        paymentStatus:    derivedStatus,
-        notes:            notes || null,
-        items: {
-          create: items.map(i => ({
-            productId: i.productId ? Number(i.productId) : null,
-            name:      i.name      || '',
-            qty:       Number(i.qty      ?? 0),
-            rate:      Number(i.rate     ?? 0),
-            unit:      i.unit      || null,
-            gstRate:   Number(i.gstRate  ?? 0),
-            gstAmount: Number(i.gstAmount ?? 0),
-            amount:    Number(i.amount   ?? 0),
-          })),
+    const record = await prisma.$transaction(async (tx) => {
+      const created = await tx.saleReturn.create({
+        data: {
+          tenantId,
+          creditNoteNo,
+          date:             date ? new Date(date) : new Date(),
+          partyId:          partyId ? Number(partyId) : null,
+          partyName:        partyName        || 'Walk-in Customer',
+          referenceInvoice: referenceInvoice || null,
+          type:             type             || 'Credit Note',
+          subtotal:         subtotal         ?? 0,
+          gst:              gst              ?? 0,
+          grandTotal:       gt,
+          paymentMode:      paymentMode      || 'Cash',
+          totalReceived:    tr,
+          dueDate:          dueDate ? new Date(dueDate) : null,
+          paymentStatus:    derivedStatus,
+          notes:            notes || null,
+          items: {
+            create: items.map(i => ({
+              tenantId,
+              productId: i.productId ? Number(i.productId) : null,
+              name:      i.name      || '',
+              qty:       Number(i.qty      ?? 0),
+              rate:      Number(i.rate     ?? 0),
+              unit:      i.unit      || null,
+              gstRate:   Number(i.gstRate  ?? 0),
+              gstAmount: Number(i.gstAmount ?? 0),
+              amount:    Number(i.amount   ?? 0),
+            })),
+          },
         },
-      },
-      include,
+        include,
+      });
+      // Restore stock: customer returning goods means inventory increases.
+      for (const item of created.items) {
+        if (item.productId && Number(item.qty) > 0) {
+          await tx.product.updateMany({
+            where: { id: item.productId, tenantId },
+            data:  { stock: { increment: Number(item.qty) } },
+          });
+        }
+      }
+      return created;
     });
     res.status(201).json(record);
   } catch (err) {

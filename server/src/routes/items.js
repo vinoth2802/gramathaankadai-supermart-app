@@ -7,23 +7,41 @@ const fmtMoney = v => `₹${parseFloat(String(v || 0)).toFixed(2)}`;
 
 const router = Router();
 
+// Flatten the Category relation back to a plain `category` name for the client.
+const out = p => (p ? { ...p, category: p.category?.name ?? null } : p);
+
+// Resolve a category name to its id within the tenant, creating it on demand.
+async function resolveCategoryId(tenantId, name) {
+  const trimmed = String(name ?? '').trim();
+  if (!trimmed) return null;
+  const cat = await prisma.category.upsert({
+    where:  { tenantId_name: { tenantId, name: trimmed } },
+    create: { tenantId, name: trimmed },
+    update: {},
+  });
+  return cat.id;
+}
+
 router.get('/', async (req, res) => {
   try {
+    const tenantId = req.tenantId;
     const { q } = req.query;
     const where = q?.trim()
       ? {
+          tenantId,
           OR: [
-            { shortName: { contains: q.trim(), mode: 'insensitive' } },
-            { itemCode:  { contains: q.trim(), mode: 'insensitive' } },
+            { shortName: { contains: q.trim() } },
+            { itemCode:  { contains: q.trim() } },
           ],
         }
-      : undefined;
+      : { tenantId };
     const items = await prisma.product.findMany({
       where,
+      include: { category: true },
       orderBy: { shortName: 'asc' },
       take: q?.trim() ? 25 : undefined,
     });
-    res.json(items);
+    res.json(items.map(out));
   } catch (err) {
     console.error('Get items error:', err);
     res.status(500).json({ error: err.message || 'Failed to fetch items' });
@@ -32,9 +50,12 @@ router.get('/', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
-    const item = await prisma.product.findUnique({ where: { id: Number(req.params.id) } });
+    const item = await prisma.product.findFirst({
+      where: { id: Number(req.params.id), tenantId: req.tenantId },
+      include: { category: true },
+    });
     if (!item) return res.status(404).json({ error: 'Not found' });
-    res.json(item);
+    res.json(out(item));
   } catch (err) {
     console.error('Get item error:', err);
     res.status(500).json({ error: err.message || 'Failed to fetch item' });
@@ -43,22 +64,24 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
+    const tenantId = req.tenantId;
     const {
-      shortName, itemCode, type, category, hsnCode, description, batch, uom, pcsPerUnit,
-      purchasePrice, mrp, salesPrice, gstRate, stock, reorderLevel, minStock, expiryDate,
+      shortName, itemCode, type, category, hsnCode, description, uom, pcsPerUnit,
+      purchasePrice, mrp, salesPrice, gstRate, stock, reorderLevel, minStock,
       isBulk, secondaryUnit, salesPriceTax, wholesalePrice, wholesaleQty,
-      purchasePriceTax, atPrice, asOfDate, location,
+      purchasePriceTax, atPrice, asOfDate,
     } = req.body;
     if (!shortName) return res.status(400).json({ error: 'Short Name is required' });
+    const categoryId = await resolveCategoryId(tenantId, category);
     const item = await prisma.product.create({
       data: {
+        tenantId,
         shortName,
         itemCode:         itemCode        || null,
         type:             type            || 'Product',
-        category:         category        || 'General',
+        categoryId,
         hsnCode:          hsnCode         || null,
         description:      description     || null,
-        batch:            batch           || null,
         uom:              uom             || 'PCS',
         pcsPerUnit:       pcsPerUnit != null ? Number(pcsPerUnit) : null,
         purchasePrice:    Number(purchasePrice)    || 0,
@@ -68,7 +91,6 @@ router.post('/', async (req, res) => {
         stock:            Number(stock)            || 0,
         reorderLevel:     Number(reorderLevel)     || 10,
         minStock:         Number(minStock)         || 0,
-        expiryDate:       expiryDate  ? new Date(expiryDate)  : null,
         isBulk:           Boolean(isBulk),
         secondaryUnit:    isBulk ? (secondaryUnit || null) : null,
         salesPriceTax:    salesPriceTax    || 'with',
@@ -77,11 +99,11 @@ router.post('/', async (req, res) => {
         purchasePriceTax: purchasePriceTax || 'with',
         atPrice:          Number(atPrice)          || 0,
         asOfDate:         asOfDate   ? new Date(asOfDate)   : null,
-        location:         location        || null,
       },
+      include: { category: true },
     });
     logActivity({ action: 'CREATE', type: 'Item', refNo: item.itemCode || '—', partyName: item.shortName, amount: Number(item.mrp || 0), userName: req.headers['x-user'] });
-    res.status(201).json(item);
+    res.status(201).json(out(item));
   } catch (err) {
     console.error('Create item error:', err);
     res.status(500).json({ error: err.message || 'Failed to create item' });
@@ -90,27 +112,30 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const prevItem = await prisma.product.findUnique({
-      where: { id: Number(req.params.id) },
-      select: { shortName: true, salesPrice: true, purchasePrice: true, mrp: true, stock: true, gstRate: true, category: true },
+    const tenantId = req.tenantId;
+    const id = Number(req.params.id);
+    const prevItem = await prisma.product.findFirst({
+      where: { id, tenantId },
+      select: { shortName: true, salesPrice: true, purchasePrice: true, mrp: true, stock: true, gstRate: true, category: { select: { name: true } } },
     });
+    if (!prevItem) return res.status(404).json({ error: 'Not found' });
 
     const {
-      shortName, itemCode, type, category, hsnCode, description, batch, uom, pcsPerUnit,
-      purchasePrice, mrp, salesPrice, gstRate, stock, reorderLevel, minStock, expiryDate,
+      shortName, itemCode, type, category, hsnCode, description, uom, pcsPerUnit,
+      purchasePrice, mrp, salesPrice, gstRate, stock, reorderLevel, minStock,
       isBulk, secondaryUnit, salesPriceTax, wholesalePrice, wholesaleQty,
-      purchasePriceTax, atPrice, asOfDate, location,
+      purchasePriceTax, atPrice, asOfDate,
     } = req.body;
+    const categoryId = await resolveCategoryId(tenantId, category);
     const item = await prisma.product.update({
-      where: { id: Number(req.params.id) },
+      where: { id },
       data: {
         shortName,
         itemCode:         itemCode        || null,
         type:             type            || 'Product',
-        category:         category        || 'General',
+        categoryId,
         hsnCode:          hsnCode         || null,
         description:      description     || null,
-        batch:            batch           || null,
         uom:              uom             || 'PCS',
         pcsPerUnit:       pcsPerUnit != null ? Number(pcsPerUnit) : null,
         purchasePrice:    Number(purchasePrice)    || 0,
@@ -120,7 +145,6 @@ router.put('/:id', async (req, res) => {
         stock:            Number(stock)            || 0,
         reorderLevel:     Number(reorderLevel)     || 10,
         minStock:         Number(minStock)         || 0,
-        expiryDate:       expiryDate  ? new Date(expiryDate)  : null,
         isBulk:           Boolean(isBulk),
         secondaryUnit:    isBulk ? (secondaryUnit || null) : null,
         salesPriceTax:    salesPriceTax    || 'with',
@@ -129,10 +153,11 @@ router.put('/:id', async (req, res) => {
         purchasePriceTax: purchasePriceTax || 'with',
         atPrice:          Number(atPrice)          || 0,
         asOfDate:         asOfDate   ? new Date(asOfDate)   : null,
-        location:         location        || null,
       },
+      include: { category: true },
     });
-    const changes = computeDiff(prevItem, item, [
+    const flatPrev = { ...prevItem, category: prevItem.category?.name ?? null };
+    const changes = computeDiff(flatPrev, out(item), [
       { key: 'shortName',     label: 'Name' },
       { key: 'salesPrice',    label: 'Sales Price',    format: fmtMoney },
       { key: 'purchasePrice', label: 'Purchase Price', format: fmtMoney },
@@ -142,7 +167,7 @@ router.put('/:id', async (req, res) => {
       { key: 'category',      label: 'Category' },
     ]);
     logActivity({ action: 'EDIT', type: 'Item', refNo: item.itemCode || '—', partyName: item.shortName, amount: Number(item.mrp || 0), userName: req.headers['x-user'], changes });
-    res.json(item);
+    res.json(out(item));
   } catch (err) {
     console.error('Update item error:', err);
     res.status(500).json({ error: err.message || 'Failed to update item' });
@@ -152,13 +177,14 @@ router.put('/:id', async (req, res) => {
 /* ── PATCH /bulk ── apply field updates to multiple items at once */
 router.patch('/bulk', async (req, res) => {
   try {
+    const tenantId = req.tenantId;
     const { ids, data } = req.body;
     if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'No ids provided' });
 
     const update = {};
     if (data.isActive        !== undefined) update.isActive        = Boolean(data.isActive);
     if (data.uom             !== undefined) update.uom             = data.uom;
-    if (data.category        !== undefined) update.category        = data.category;
+    if (data.category        !== undefined) update.categoryId      = await resolveCategoryId(tenantId, data.category);
     if (data.gstRate         !== undefined) update.gstRate         = Number(data.gstRate);
     if (data.purchasePrice   !== undefined) update.purchasePrice   = Number(data.purchasePrice);
     if (data.salesPrice      !== undefined) update.salesPrice      = Number(data.salesPrice);
@@ -169,7 +195,7 @@ router.patch('/bulk', async (req, res) => {
     if (Array.isArray(data.codes)) {
       await Promise.all(
         data.codes.map(({ id, itemCode }) =>
-          prisma.product.update({ where: { id: Number(id) }, data: { itemCode } })
+          prisma.product.updateMany({ where: { id: Number(id), tenantId }, data: { itemCode } })
         )
       );
       return res.json({ updated: data.codes.length });
@@ -178,7 +204,7 @@ router.patch('/bulk', async (req, res) => {
     if (!Object.keys(update).length) return res.status(400).json({ error: 'No fields to update' });
 
     const result = await prisma.product.updateMany({
-      where: { id: { in: ids.map(Number) } },
+      where: { id: { in: ids.map(Number) }, tenantId },
       data:  update,
     });
     res.json({ updated: result.count });
@@ -190,30 +216,32 @@ router.patch('/bulk', async (req, res) => {
 
 router.patch('/:id', async (req, res) => {
   try {
+    const tenantId = req.tenantId;
     const id = Number(req.params.id);
 
     if (req.body.stockDelta !== undefined) {
-      const item = await prisma.product.update({
-        where: { id },
+      const result = await prisma.product.updateMany({
+        where: { id, tenantId },
         data: { stock: { increment: req.body.stockDelta } },
       });
-      return res.json(item);
+      if (!result.count) return res.status(404).json({ error: 'Not found' });
+      const item = await prisma.product.findFirst({ where: { id, tenantId }, include: { category: true } });
+      return res.json(out(item));
     }
 
     const {
-      shortName, itemCode, type, category, hsnCode, description, batch, uom, pcsPerUnit,
-      purchasePrice, mrp, salesPrice, gstRate, stock, reorderLevel, minStock, expiryDate,
+      shortName, itemCode, type, category, hsnCode, description, uom, pcsPerUnit,
+      purchasePrice, mrp, salesPrice, gstRate, stock, reorderLevel, minStock,
       isBulk, secondaryUnit, salesPriceTax, wholesalePrice, wholesaleQty,
-      purchasePriceTax, atPrice, asOfDate, location,
+      purchasePriceTax, atPrice, asOfDate,
     } = req.body;
     const data = {};
     if (shortName         !== undefined) data.shortName         = shortName;
     if (itemCode          !== undefined) data.itemCode          = itemCode || null;
     if (type              !== undefined) data.type              = type;
-    if (category          !== undefined) data.category          = category;
+    if (category          !== undefined) data.categoryId        = await resolveCategoryId(tenantId, category);
     if (hsnCode           !== undefined) data.hsnCode           = hsnCode || null;
     if (description       !== undefined) data.description       = description || null;
-    if (batch             !== undefined) data.batch             = batch || null;
     if (uom               !== undefined) data.uom               = uom;
     if (pcsPerUnit        !== undefined) data.pcsPerUnit        = pcsPerUnit != null ? Number(pcsPerUnit) : null;
     if (purchasePrice     !== undefined) data.purchasePrice     = Number(purchasePrice);
@@ -223,7 +251,6 @@ router.patch('/:id', async (req, res) => {
     if (stock             !== undefined) data.stock             = Number(stock);
     if (reorderLevel      !== undefined) data.reorderLevel      = Number(reorderLevel);
     if (minStock          !== undefined) data.minStock          = Number(minStock);
-    if (expiryDate        !== undefined) data.expiryDate        = expiryDate ? new Date(expiryDate) : null;
     if (isBulk            !== undefined) data.isBulk            = Boolean(isBulk);
     if (secondaryUnit     !== undefined) data.secondaryUnit     = secondaryUnit || null;
     if (salesPriceTax     !== undefined) data.salesPriceTax     = salesPriceTax;
@@ -232,10 +259,11 @@ router.patch('/:id', async (req, res) => {
     if (purchasePriceTax  !== undefined) data.purchasePriceTax  = purchasePriceTax;
     if (atPrice           !== undefined) data.atPrice           = Number(atPrice);
     if (asOfDate          !== undefined) data.asOfDate          = asOfDate ? new Date(asOfDate) : null;
-    if (location          !== undefined) data.location          = location || null;
 
-    const item = await prisma.product.update({ where: { id }, data });
-    res.json(item);
+    const result = await prisma.product.updateMany({ where: { id, tenantId }, data });
+    if (!result.count) return res.status(404).json({ error: 'Not found' });
+    const item = await prisma.product.findFirst({ where: { id, tenantId }, include: { category: true } });
+    res.json(out(item));
   } catch (err) {
     console.error('Patch item error:', err);
     res.status(500).json({ error: err.message || 'Failed to update item' });
@@ -252,7 +280,7 @@ router.post('/check-codes', async (req, res) => {
     if (!codes.length) return res.json({ existing: [] });
 
     const found = await prisma.product.findMany({
-      where:  { itemCode: { in: codes } },
+      where:  { tenantId: req.tenantId, itemCode: { in: codes } },
       select: { itemCode: true, shortName: true },
     });
     res.json({ existing: found.map(p => ({ code: p.itemCode, name: p.shortName })) });
@@ -265,6 +293,7 @@ router.post('/check-codes', async (req, res) => {
 /* ── POST /bulk-import ── */
 router.post('/bulk-import', async (req, res) => {
   try {
+    const tenantId = req.tenantId;
     const { items } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'items array is required and must not be empty' });
@@ -282,6 +311,7 @@ router.post('/bulk-import', async (req, res) => {
     const data = items
       .filter(it => s(it.itemName))          // skip rows with no name
       .map(it => ({
+        tenantId,
         shortName:       s(it.itemName),
         itemCode:        s(it.itemCode)       || null,
         hsnCode:         s(it.hsn)            || null,
@@ -291,7 +321,6 @@ router.post('/bulk-import', async (req, res) => {
         stock:           Number(it.openingStock)  || 0,
         minStock:        Number(it.minStock)  || 0,
         reorderLevel:    Number(it.reorderLevel)  || 0,
-        location:        s(it.location)       || null,
         gstRate:         parseTaxRate(it.taxRate),
         salesPriceTax:   s(it.taxInclusive).toUpperCase() === 'Y' ? 'with' : 'without',
       }));
@@ -306,12 +335,13 @@ router.post('/bulk-import', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
+    const tenantId = req.tenantId;
     const id = Number(req.params.id);
-    const item = await prisma.product.findUnique({ where: { id } });
+    const item = await prisma.product.findFirst({ where: { id, tenantId } });
     if (!item) return res.status(404).json({ error: 'Not found' });
     await prisma.$transaction([
       prisma.recycleBin.create({
-        data: { type: 'Item', entityId: id, name: item.shortName, amount: Number(item.mrp || 0), snapshot: JSON.stringify(item) },
+        data: { tenantId, type: 'Item', entityId: id, name: item.shortName, amount: Number(item.mrp || 0), snapshot: JSON.stringify(item) },
       }),
       prisma.product.delete({ where: { id } }),
     ]);

@@ -1,0 +1,15 @@
+[build]
+  base    = "client"
+  command = "npm install && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  # Set VITE_API_URL in Netlify UI → Site configuration → Environment variables
+  # Example: https://your-app.railway.app/api
+
+# SPA fallback — all routes serve index.html so React Router handles them
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200

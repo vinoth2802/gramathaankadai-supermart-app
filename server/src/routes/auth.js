@@ -12,10 +12,23 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const user = await prisma.appUser.findUnique({
-      where: { email },
-      include: { role: true },
-    });
+    let user = null;
+    if (req.tenantId != null) {
+      user = await prisma.appUser.findFirst({
+        where: { email, tenantId: req.tenantId },
+        include: { role: true },
+      });
+    } else {
+      const matches = await prisma.appUser.findMany({
+        where: { email },
+        include: { role: true },
+        take: 2,
+      });
+      if (matches.length > 1) {
+        return res.status(409).json({ error: 'Multiple tenants found for this email' });
+      }
+      user = matches[0] ?? null;
+    }
 
     if (!user || !user.isActive) {
       return res.status(401).json({ error: 'Invalid email or password' });
@@ -31,12 +44,20 @@ router.post('/login', async (req, res) => {
       data:  { lastLogin: new Date() },
     });
 
+    res.cookie('tenant_id', user.tenantId.toString(), {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+    });
+
     res.json({
       id:       user.id,
       name:     user.name,
       email:    user.email,
-      role:     user.role.name,
+      role:     user.role?.name ?? null,
       roleId:   user.roleId,
+      tenantId: user.tenantId,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

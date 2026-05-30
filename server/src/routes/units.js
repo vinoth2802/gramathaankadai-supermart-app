@@ -4,9 +4,9 @@ import prisma from '../db.js';
 const router = Router();
 
 // ── Units (UOM) ───────────────────────────────────────────────
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const units = await prisma.uom.findMany({ orderBy: { descr: 'asc' } });
+    const units = await prisma.uom.findMany({ where: { tenantId: req.tenantId }, orderBy: { descr: 'asc' } });
     res.json(units);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -19,7 +19,7 @@ router.post('/', async (req, res) => {
     if (!fullName?.trim() || !shortName?.trim())
       return res.status(400).json({ error: 'Full name and short name are required' });
     const unit = await prisma.uom.create({
-      data: { descr: fullName.trim().toUpperCase(), code: shortName.trim().toUpperCase() },
+      data: { tenantId: req.tenantId, descr: fullName.trim().toUpperCase(), code: shortName.trim().toUpperCase() },
     });
     res.status(201).json(unit);
   } catch (err) {
@@ -33,8 +33,11 @@ router.put('/:id', async (req, res) => {
     const { fullName, shortName } = req.body;
     if (!fullName?.trim() || !shortName?.trim())
       return res.status(400).json({ error: 'Full name and short name are required' });
+    const id = Number(req.params.id);
+    const existing = await prisma.uom.findFirst({ where: { id, tenantId: req.tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Not found' });
     const unit = await prisma.uom.update({
-      where: { id: Number(req.params.id) },
+      where: { id },
       data: { descr: fullName.trim().toUpperCase(), code: shortName.trim().toUpperCase() },
     });
     res.json(unit);
@@ -46,7 +49,8 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    await prisma.uom.delete({ where: { id: Number(req.params.id) } });
+    const result = await prisma.uom.deleteMany({ where: { id: Number(req.params.id), tenantId: req.tenantId } });
+    if (!result.count) return res.status(404).json({ error: 'Not found' });
     res.status(204).end();
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -57,7 +61,7 @@ router.delete('/:id', async (req, res) => {
 router.get('/:id/conversions', async (req, res) => {
   try {
     const conversions = await prisma.uomConversion.findMany({
-      where: { baseUomId: Number(req.params.id) },
+      where: { tenantId: req.tenantId, baseUomId: Number(req.params.id) },
       include: { baseUom: true, secondaryUom: true },
       orderBy: { createdAt: 'asc' },
     });
@@ -76,6 +80,7 @@ router.post('/conversions', async (req, res) => {
       return res.status(400).json({ error: 'Base and secondary units must be different' });
     const conv = await prisma.uomConversion.create({
       data: {
+        tenantId:       req.tenantId,
         baseUomId:      Number(baseUomId),
         factor:         Number(factor) || 1,
         secondaryUomId: Number(secondaryUomId),
@@ -90,7 +95,8 @@ router.post('/conversions', async (req, res) => {
 
 router.delete('/conversions/:id', async (req, res) => {
   try {
-    await prisma.uomConversion.delete({ where: { id: Number(req.params.id) } });
+    const result = await prisma.uomConversion.deleteMany({ where: { id: Number(req.params.id), tenantId: req.tenantId } });
+    if (!result.count) return res.status(404).json({ error: 'Not found' });
     res.status(204).end();
   } catch (err) {
     res.status(500).json({ error: err.message });

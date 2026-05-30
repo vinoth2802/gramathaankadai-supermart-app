@@ -6,7 +6,7 @@ const router = Router();
 router.get('/', async (req, res) => {
   try {
     const { action, type, from, to, page = 1, limit = 200 } = req.query;
-    const where = {};
+    const where = { tenantId: req.tenantId };
 
     if (action) where.action = action;
     if (from || to) {
@@ -36,7 +36,7 @@ router.get('/', async (req, res) => {
 
 router.delete('/', async (req, res) => {
   try {
-    await prisma.auditLog.deleteMany();
+    await prisma.auditLog.deleteMany({ where: { tenantId: req.tenantId } });
     res.status(204).end();
   } catch (err) {
     res.status(500).json({ error: err.message });

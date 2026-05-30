@@ -1,223 +1,227 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
-import { Toaster as HotToaster } from 'react-hot-toast';
 import Layout from './components/Layout.jsx';
+import Login  from '@features/auth/components/Login.jsx';
 
-import Login        from './pages/auth/Login.jsx';
-import Dashboard    from './pages/dashboard/index.jsx';
-import POS          from './pages/pos/index.jsx';
-import Items        from './pages/items/index.jsx';
-import Parties        from './pages/parties/index.jsx';
-import LoyaltyPoints  from './pages/parties/Loyaltypoints.jsx';
+/* ── Lazy page imports ── */
+const Dashboard    = lazy(() => import('@features/dashboard/components/Dashboard.jsx'));
+const POS          = lazy(() => import('@features/pos/components/POS.jsx'));
+const Items        = lazy(() => import('@features/inventory/components/Index.jsx'));
+const Parties      = lazy(() => import('@features/parties/components/index.jsx'));
+const LoyaltyPoints = lazy(() => import('@features/parties/components/LoyaltyPoints.jsx'));
 
-import SalesIndex   from './pages/sales/index.jsx';
-import SalesHistory from './pages/sales/History.jsx';
-import Quotation    from './pages/sales/Estimate.jsx';
-import PaymentIn    from './pages/sales/PaymentIn.jsx';
-import SaleReturn   from './pages/sales/Return.jsx';
+const SalesIndex   = lazy(() => import('@features/sales/components/Sales.jsx'));
+const SalesHistory = lazy(() => import('@features/sales/components/History.jsx'));
+const Quotation    = lazy(() => import('@features/sales/components/Estimate.jsx'));
+const PaymentIn    = lazy(() => import('@features/sales/components/PaymentIn.jsx'));
+const SaleReturn   = lazy(() => import('@features/sales/components/Return.jsx'));
 
-import Purchases    from './pages/purchases/index.jsx';
-import PurchaseHistory from './pages/purchases/History.jsx';
-import PaymentOut   from './pages/purchases/PaymentOut.jsx';
-import PurchaseReturn from './pages/purchases/Return.jsx';
+const Purchases       = lazy(() => import('@features/purchases/components/Purchases.jsx'));
+const PurchaseHistory = lazy(() => import('@features/purchases/components/History.jsx'));
+const PaymentOut      = lazy(() => import('@features/purchases/components/PaymentOut.jsx'));
+const PurchaseReturn  = lazy(() => import('@features/purchases/components/Return.jsx'));
 
-import BankAccounts       from './pages/accounts/BankAccounts.jsx';
-import CashInHand         from './pages/accounts/CashInHand.jsx';
-import ChequesPage        from './pages/accounts/Cheques.jsx';
-import LoanAccounts       from './pages/accounts/LoanAccounts.jsx';
-import FixedAssets        from './pages/accounts/FixedAssets.jsx';
-import CapitalInvestment  from './pages/accounts/CapitalInvestment.jsx';
+const BankAccounts      = lazy(() => import('@features/accounts/components/BankAccounts.jsx'));
+const CashInHand        = lazy(() => import('@features/accounts/components/CashInHand.jsx'));
+const ChequesPage       = lazy(() => import('@features/accounts/components/Cheques.jsx'));
+const LoanAccounts      = lazy(() => import('@features/accounts/components/LoanAccounts.jsx'));
+const FixedAssets       = lazy(() => import('@features/accounts/components/FixedAssets.jsx'));
+const CapitalInvestment = lazy(() => import('@features/accounts/components/CapitalInvestment.jsx'));
 
-import ReportsLayout    from './pages/reports/Layout.jsx';
-import ReportStub      from './pages/reports/Stub.jsx';
-import SaleReport      from './pages/reports/SaleReport.jsx';
-import PurchaseReport  from './pages/reports/PurchaseReport.jsx';
-import DayBook         from './pages/reports/DayBook.jsx';
-import AllTransactions from './pages/reports/AllTransactions.jsx';
-import BillWiseProfit  from './pages/reports/BillWiseProfit.jsx';
+const ReportsLayout    = lazy(() => import('@features/reports/components/Layout.jsx'));
+const ReportStub       = lazy(() => import('@features/reports/components/Stub.jsx'));
+const SaleReport       = lazy(() => import('@features/reports/components/SaleReport.jsx'));
+const PurchaseReport   = lazy(() => import('@features/reports/components/PurchaseReport.jsx'));
+const DayBook          = lazy(() => import('@features/reports/components/DayBook.jsx'));
+const AllTransactions  = lazy(() => import('@features/reports/components/AllTransactions.jsx'));
+const BillWiseProfit   = lazy(() => import('@features/reports/components/BillWiseProfit.jsx'));
 
-import ImportItems        from './pages/items/ImportItems.jsx';
-import ExportItems    from './pages/utilities/ExportItems.jsx';
-import ImportParties  from './pages/utilities/ImportParties.jsx';
-import ExportParties  from './pages/utilities/ExportParties.jsx';
-import Barcode        from './pages/utilities/Barcode.jsx';
-import Recyclebin     from './pages/utilities/Recyclebin.jsx';
-import LogRegister    from './pages/utilities/LogRegister.jsx';
-import CashBook          from './pages/Cashbook/daybook.jsx';
-import CashBookHistory   from './pages/Cashbook/history.jsx';
+const ImportItems   = lazy(() => import('@features/inventory/components/ImportItems.jsx'));
+const ExportItems   = lazy(() => import('@features/utilities/components/ExportItems.jsx'));
+const ImportParties = lazy(() => import('@features/utilities/components/ImportParties.jsx'));
+const ExportParties = lazy(() => import('@features/utilities/components/ExportParties.jsx'));
+const Barcode       = lazy(() => import('@features/utilities/components/Barcode.jsx'));
+const Recyclebin    = lazy(() => import('@features/utilities/components/RecycleBin.jsx'));
+const LogRegister   = lazy(() => import('@features/utilities/components/LogRegister.jsx'));
+const CashBook        = lazy(() => import('@features/cashbook/components/daybook.jsx'));
+const CashBookHistory = lazy(() => import('@features/cashbook/components/history.jsx'));
 
-import ExpensesPage    from './pages/Expenses/expenses.jsx';
-import EmployeePage      from './pages/EmployeeManagement/index.jsx';
-import AttendancePage    from './pages/EmployeeManagement/Attendance.jsx';
-import SalaryLedger      from './pages/EmployeeManagement/SalaryLedger.jsx';
-import SalaryManagement  from './pages/EmployeeManagement/SalaryManagement.jsx';
-import LeaveManagement   from './pages/EmployeeManagement/LeaveManagement.jsx';
+const ExpensesPage     = lazy(() => import('@features/expenses/components/expenses.jsx'));
+const EmployeePage     = lazy(() => import('@features/employees/components/index.jsx'));
+const AttendancePage   = lazy(() => import('@features/employees/components/Attendance.jsx'));
+const SalaryLedger     = lazy(() => import('@features/employees/components/SalaryLedger.jsx'));
+const SalaryManagement = lazy(() => import('@features/employees/components/SalaryManagement.jsx'));
+const LeaveManagement  = lazy(() => import('@features/employees/components/LeaveManagement.jsx'));
 
-import Backup         from './pages/Backup/backup.jsx';
-import UserManagement from './pages/usermanagement/index.jsx';
-import ResetPage      from './pages/settings/Reset.jsx';
+const Backup         = lazy(() => import('@features/backup/components/backup.jsx'));
+const UserManagement = lazy(() => import('@features/user-management/components/index.jsx'));
+const ResetPage      = lazy(() => import('@features/settings/components/Reset.jsx'));
 
-import SettingsGeneral      from './pages/settings/General.jsx';
-import SettingsTransactions from './pages/settings/Transactions.jsx';
-import SettingsPrint        from './pages/settings/Print.jsx';
-import SettingsTaxes        from './pages/settings/Taxes.jsx';
-import SettingsParty        from './pages/settings/Party.jsx';
-import SettingsItem         from './pages/settings/Item.jsx';
-import SettingsUnit         from './pages/settings/Unit.jsx';
-import SettingsLoyalty      from './pages/settings/Loyalty.jsx';
-import PaymentTypes         from './pages/settings/PaymentTypes.jsx';
+const SettingsGeneral      = lazy(() => import('@features/settings/components/General.jsx'));
+const SettingsTransactions = lazy(() => import('@features/settings/components/Transactions.jsx'));
+const SettingsPrint        = lazy(() => import('@features/settings/components/Print.jsx'));
+const SettingsTaxes        = lazy(() => import('@features/settings/components/Taxes.jsx'));
+const SettingsParty        = lazy(() => import('@features/settings/components/Party.jsx'));
+const SettingsItem         = lazy(() => import('@features/settings/components/Item.jsx'));
+const SettingsUnit         = lazy(() => import('@features/settings/components/Unit.jsx'));
+const SettingsLoyalty      = lazy(() => import('@features/settings/components/Loyalty.jsx'));
+const PaymentTypes         = lazy(() => import('@features/settings/components/PaymentTypes.jsx'));
+
+/* ── Auth ── */
+function isAuthenticated() {
+  try {
+    return !!localStorage.getItem('user');
+  } catch {
+    return false;
+  }
+}
 
 function RequireAuth({ children }) {
-  return localStorage.getItem('user') ? children : <Navigate to="/login" replace />;
+  return isAuthenticated() ? children : <Navigate to="/login" replace />;
+}
+
+/* ── Loading fallback ── */
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center h-screen w-full">
+      <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
 }
 
 export default function App() {
   return (
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <BrowserRouter future={{ v7_relativeSplatPath: true }}>
       <Toaster position="top-right" richColors closeButton expand />
-          <HotToaster position="top-right" />
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        {/* Full-screen pages — no sidebar */}
-        <Route path="/pos"      element={<RequireAuth><POS /></RequireAuth>} />
-        <Route path="/sales"    element={<RequireAuth><SalesIndex /></RequireAuth>} />
-        <Route path="/purchase" element={<RequireAuth><Purchases /></RequireAuth>} />
-        <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="items"     element={<Items />} />
-          <Route path="employee">
-            <Route index element={<EmployeePage />} />
-            <Route path="attendance"         element={<AttendancePage />} />
-            <Route path="salary-management"  element={<SalaryManagement />} />
-            <Route path="leave-management"   element={<LeaveManagement />} />
-            <Route path="salary-ledger"      element={<SalaryLedger />} />
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/pos"      element={<RequireAuth><POS /></RequireAuth>} />
+          <Route path="/sales"    element={<RequireAuth><SalesIndex /></RequireAuth>} />
+          <Route path="/purchase" element={<RequireAuth><Purchases /></RequireAuth>} />
+          <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="items"     element={<Items />} />
+            <Route path="employee">
+              <Route index element={<EmployeePage />} />
+              <Route path="attendance"         element={<AttendancePage />} />
+              <Route path="salary-management"  element={<SalaryManagement />} />
+              <Route path="leave-management"   element={<LeaveManagement />} />
+              <Route path="salary-ledger"      element={<SalaryLedger />} />
+            </Route>
+            <Route path="expenses">
+              <Route index element={<ExpensesPage />} />
+            </Route>
+            <Route path="parties">
+              <Route index element={<Parties />} />
+              <Route path="loyalty" element={<LoyaltyPoints />} />
+            </Route>
+            <Route path="sales">
+              <Route path="history"         element={<SalesHistory />} />
+              <Route path="quotation"       element={<Quotation />} />
+              <Route path="payment-in"      element={<PaymentIn />} />
+              <Route path="paymentinmodal"  element={<PaymentIn openModal />} />
+              <Route path="return"          element={<SaleReturn />} />
+            </Route>
+            <Route path="purchases">
+              <Route index element={<Navigate to="/purchase" replace />} />
+              <Route path="history"          element={<PurchaseHistory />} />
+              <Route path="payment-out"      element={<PaymentOut />} />
+              <Route path="paymentoutmodal"  element={<PaymentOut openModal />} />
+              <Route path="return"           element={<PurchaseReturn />} />
+            </Route>
+            <Route path="accounts">
+              <Route index element={<Navigate to="/accounts/bank" replace />} />
+              <Route path="bank"               element={<BankAccounts />} />
+              <Route path="cash"               element={<CashInHand />} />
+              <Route path="cheques"            element={<ChequesPage />} />
+              <Route path="loans"              element={<LoanAccounts />} />
+              <Route path="fixed-assets"       element={<FixedAssets />} />
+              <Route path="capital-investment" element={<CapitalInvestment />} />
+              <Route path="payment-types"      element={<PaymentTypes />} />
+            </Route>
+            <Route path="reports" element={<ReportsLayout />}>
+              <Route index element={<Navigate to="/reports/sale" replace />} />
+              <Route path="sale"                      element={<SaleReport />} />
+              <Route path="purchase"                  element={<PurchaseReport />} />
+              <Route path="day-book"                  element={<DayBook />} />
+              <Route path="all-transactions"          element={<AllTransactions />} />
+              <Route path="profit-loss"               element={<ReportStub title="Profit & Loss" />} />
+              <Route path="bill-wise-profit"          element={<BillWiseProfit />} />
+              <Route path="cash-flow"                 element={<ReportStub title="Cash Flow" />} />
+              <Route path="trial-balance"             element={<ReportStub title="Trial Balance" />} />
+              <Route path="balance-sheet"             element={<ReportStub title="Balance Sheet" />} />
+              <Route path="party-statement"              element={<ReportStub title="Party Statement" />} />
+              <Route path="party-wise-pl"                element={<ReportStub title="Party Wise Profit & Loss" />} />
+              <Route path="all-parties"                  element={<ReportStub title="All Parties" />} />
+              <Route path="party-by-item"                element={<ReportStub title="Party Report by Item" />} />
+              <Route path="sale-purchase-by-party"       element={<ReportStub title="Sale Purchase by Party" />} />
+              <Route path="sale-purchase-by-party-group" element={<ReportStub title="Sale Purchase by Party Group" />} />
+              <Route path="gstr-1"       element={<ReportStub title="GSTR 1" />} />
+              <Route path="gstr-2"       element={<ReportStub title="GSTR 2" />} />
+              <Route path="gstr-3b"      element={<ReportStub title="GSTR 3B" />} />
+              <Route path="gstr-9"       element={<ReportStub title="GSTR 9" />} />
+              <Route path="sale-by-hsn"  element={<ReportStub title="Sale by HSN" />} />
+              <Route path="stock-summary"              element={<ReportStub title="Stock Summary" />} />
+              <Route path="item-batch"                 element={<ReportStub title="Item Batch Report" />} />
+              <Route path="item-by-party"              element={<ReportStub title="Item Report by Party" />} />
+              <Route path="item-wise-pl"               element={<ReportStub title="Item Wise Profit & Loss" />} />
+              <Route path="item-category-pl"           element={<ReportStub title="Item Category Wise Profit & Loss" />} />
+              <Route path="low-stock"                  element={<ReportStub title="Low Stock Summary" />} />
+              <Route path="stock-detail"               element={<ReportStub title="Stock Detail" />} />
+              <Route path="item-detail"                element={<ReportStub title="Item Detail" />} />
+              <Route path="sale-purchase-by-category"  element={<ReportStub title="Sale / Purchase by Item Category" />} />
+              <Route path="stock-by-category"          element={<ReportStub title="Stock Summary by Item Category" />} />
+              <Route path="item-wise-discount"         element={<ReportStub title="Item Wise Discount" />} />
+              <Route path="manufacturing"              element={<ReportStub title="Manufacturing Report" />} />
+              <Route path="consumption"                element={<ReportStub title="Consumption Report" />} />
+              <Route path="stock-transfer"             element={<ReportStub title="Stock Transfer Report" />} />
+              <Route path="bank-statement"   element={<ReportStub title="Bank Statement" />} />
+              <Route path="loan-statement"   element={<ReportStub title="Loan Statement" />} />
+              <Route path="discount-report"  element={<ReportStub title="Discount Report" />} />
+              <Route path="gst-report"       element={<ReportStub title="GST Report" />} />
+              <Route path="gst-rate-report"  element={<ReportStub title="GST Rate Report" />} />
+              <Route path="tds-receivable"   element={<ReportStub title="TDS Receivable" />} />
+              <Route path="tds-payable"      element={<ReportStub title="TDS Payable" />} />
+              <Route path="tcs-receivable"   element={<ReportStub title="TCS Receivable" />} />
+              <Route path="expense"           element={<ReportStub title="Expense" />} />
+              <Route path="expense-category"  element={<ReportStub title="Expense Category Report" />} />
+              <Route path="expense-item"      element={<ReportStub title="Expense Item Report" />} />
+              <Route path="other-income"           element={<ReportStub title="Other Income" />} />
+              <Route path="other-income-category"  element={<ReportStub title="Other Income Category Report" />} />
+              <Route path="other-income-item"      element={<ReportStub title="Other Income Item Report" />} />
+            </Route>
+            <Route path="utilities">
+              <Route index element={<Navigate to="/utilities/import-items" replace />} />
+              <Route path="import-items"     element={<ImportItems />} />
+              <Route path="export-items"     element={<ExportItems />} />
+              <Route path="import-parties"   element={<ImportParties />} />
+              <Route path="export-parties"   element={<ExportParties />} />
+              <Route path="barcode"          element={<Barcode />} />
+              <Route path="recycle-bin"      element={<Recyclebin />} />
+              <Route path="log-register"     element={<LogRegister />} />
+              <Route path="cashbook"         element={<CashBook />} />
+              <Route path="cashbook-history" element={<CashBookHistory />} />
+            </Route>
+            <Route path="backup" element={<Backup />} />
+            <Route path="settings">
+              <Route index element={<Navigate to="/settings/general" replace />} />
+              <Route path="general"          element={<SettingsGeneral />} />
+              <Route path="transactions"     element={<SettingsTransactions />} />
+              <Route path="print"            element={<SettingsPrint />} />
+              <Route path="taxes"            element={<SettingsTaxes />} />
+              <Route path="party"            element={<SettingsParty />} />
+              <Route path="item"             element={<SettingsItem />} />
+              <Route path="unit"             element={<SettingsUnit />} />
+              <Route path="loyalty"          element={<SettingsLoyalty />} />
+              <Route path="user-management"  element={<UserManagement />} />
+              <Route path="reset"            element={<ResetPage />} />
+            </Route>
           </Route>
-          <Route path="expenses">
-            <Route index element={<ExpensesPage />} />
-          </Route>
-          <Route path="parties">
-            <Route index element={<Parties />} />
-            <Route path="loyalty" element={<LoyaltyPoints />} />
-          </Route>
-
-          <Route path="sales">
-            <Route path="history"    element={<SalesHistory />} />
-            <Route path="quotation"  element={<Quotation />} />
-            <Route path="payment-in"      element={<PaymentIn />} />
-            <Route path="paymentinmodal"  element={<PaymentIn openModal />} />
-            <Route path="return"     element={<SaleReturn />} />
-          </Route>
-
-          <Route path="purchases">
-            <Route index element={<Navigate to="/purchase" replace />} />
-            <Route path="history"     element={<PurchaseHistory />} />
-            <Route path="payment-out"     element={<PaymentOut />} />
-            <Route path="paymentoutmodal" element={<PaymentOut openModal />} />
-            <Route path="return"      element={<PurchaseReturn />} />
-          </Route>
-
-          <Route path="accounts">
-            <Route index element={<Navigate to="/accounts/bank" replace />} />
-            <Route path="bank"               element={<BankAccounts />} />
-            <Route path="cash"               element={<CashInHand />} />
-            <Route path="cheques"            element={<ChequesPage />} />
-            <Route path="loans"              element={<LoanAccounts />} />
-            <Route path="fixed-assets"       element={<FixedAssets />} />
-            <Route path="capital-investment" element={<CapitalInvestment />} />
-            <Route path="payment-types"      element={<PaymentTypes />} />
-          </Route>
-
-          <Route path="reports" element={<ReportsLayout />}>
-            <Route index element={<Navigate to="/reports/sale" replace />} />
-            {/* Transaction Report */}
-            <Route path="sale"                      element={<SaleReport />} />
-            <Route path="purchase"                  element={<PurchaseReport />} />
-            <Route path="day-book"                  element={<DayBook />} />
-            <Route path="all-transactions"          element={<AllTransactions />} />
-            <Route path="profit-loss"               element={<ReportStub title="Profit & Loss" />} />
-            <Route path="bill-wise-profit"          element={<BillWiseProfit />} />
-            <Route path="cash-flow"                 element={<ReportStub title="Cash Flow" />} />
-            <Route path="trial-balance"             element={<ReportStub title="Trial Balance" />} />
-            <Route path="balance-sheet"             element={<ReportStub title="Balance Sheet" />} />
-            {/* Party Report */}
-            <Route path="party-statement"              element={<ReportStub title="Party Statement" />} />
-            <Route path="party-wise-pl"                element={<ReportStub title="Party Wise Profit & Loss" />} />
-            <Route path="all-parties"                  element={<ReportStub title="All Parties" />} />
-            <Route path="party-by-item"                element={<ReportStub title="Party Report by Item" />} />
-            <Route path="sale-purchase-by-party"       element={<ReportStub title="Sale Purchase by Party" />} />
-            <Route path="sale-purchase-by-party-group" element={<ReportStub title="Sale Purchase by Party Group" />} />
-            {/* GST Report */}
-            <Route path="gstr-1"       element={<ReportStub title="GSTR 1" />} />
-            <Route path="gstr-2"       element={<ReportStub title="GSTR 2" />} />
-            <Route path="gstr-3b"      element={<ReportStub title="GSTR 3B" />} />
-            <Route path="gstr-9"       element={<ReportStub title="GSTR 9" />} />
-            <Route path="sale-by-hsn"  element={<ReportStub title="Sale by HSN" />} />
-            {/* Item / Stock Report */}
-            <Route path="stock-summary"              element={<ReportStub title="Stock Summary" />} />
-            <Route path="item-batch"                 element={<ReportStub title="Item Batch Report" />} />
-            <Route path="item-by-party"              element={<ReportStub title="Item Report by Party" />} />
-            <Route path="item-wise-pl"               element={<ReportStub title="Item Wise Profit & Loss" />} />
-            <Route path="item-category-pl"           element={<ReportStub title="Item Category Wise Profit & Loss" />} />
-            <Route path="low-stock"                  element={<ReportStub title="Low Stock Summary" />} />
-            <Route path="stock-detail"               element={<ReportStub title="Stock Detail" />} />
-            <Route path="item-detail"                element={<ReportStub title="Item Detail" />} />
-            <Route path="sale-purchase-by-category"  element={<ReportStub title="Sale / Purchase by Item Category" />} />
-            <Route path="stock-by-category"          element={<ReportStub title="Stock Summary by Item Category" />} />
-            <Route path="item-wise-discount"         element={<ReportStub title="Item Wise Discount" />} />
-            <Route path="manufacturing"              element={<ReportStub title="Manufacturing Report" />} />
-            <Route path="consumption"                element={<ReportStub title="Consumption Report" />} />
-            <Route path="stock-transfer"             element={<ReportStub title="Stock Transfer Report" />} />
-            {/* Business Status */}
-            <Route path="bank-statement"   element={<ReportStub title="Bank Statement" />} />
-            <Route path="loan-statement"   element={<ReportStub title="Loan Statement" />} />
-            <Route path="discount-report"  element={<ReportStub title="Discount Report" />} />
-            {/* Taxes */}
-            <Route path="gst-report"       element={<ReportStub title="GST Report" />} />
-            <Route path="gst-rate-report"  element={<ReportStub title="GST Rate Report" />} />
-            <Route path="tds-receivable"   element={<ReportStub title="TDS Receivable" />} />
-            <Route path="tds-payable"      element={<ReportStub title="TDS Payable" />} />
-            <Route path="tcs-receivable"   element={<ReportStub title="TCS Receivable" />} />
-            {/* Expense Report */}
-            <Route path="expense"           element={<ReportStub title="Expense" />} />
-            <Route path="expense-category"  element={<ReportStub title="Expense Category Report" />} />
-            <Route path="expense-item"      element={<ReportStub title="Expense Item Report" />} />
-            {/* Other Income Report */}
-            <Route path="other-income"           element={<ReportStub title="Other Income" />} />
-            <Route path="other-income-category"  element={<ReportStub title="Other Income Category Report" />} />
-            <Route path="other-income-item"      element={<ReportStub title="Other Income Item Report" />} />
-          </Route>
-
-          <Route path="utilities">
-            <Route index element={<Navigate to="/utilities/import-items" replace />} />
-            <Route path="import-items" element={<ImportItems />} />
-            <Route path="export-items"         element={<ExportItems />} />
-            <Route path="import-parties" element={<ImportParties />} />
-            <Route path="export-parties" element={<ExportParties />} />
-            <Route path="barcode"        element={<Barcode />} />
-            <Route path="recycle-bin"    element={<Recyclebin />} />
-            <Route path="log-register"   element={<LogRegister />} />
-            <Route path="cashbook"         element={<CashBook />} />
-            <Route path="cashbook-history" element={<CashBookHistory />} />
-          </Route>
-
-          <Route path="backup" element={<Backup />} />
-
-          <Route path="settings">
-            <Route index element={<Navigate to="/settings/general" replace />} />
-            <Route path="general"      element={<SettingsGeneral />} />
-            <Route path="transactions" element={<SettingsTransactions />} />
-            <Route path="print"        element={<SettingsPrint />} />
-            <Route path="taxes"        element={<SettingsTaxes />} />
-            <Route path="party"        element={<SettingsParty />} />
-            <Route path="item"         element={<SettingsItem />} />
-            <Route path="unit"         element={<SettingsUnit />} />
-            <Route path="loyalty"          element={<SettingsLoyalty />} />
-            <Route path="user-management" element={<UserManagement />} />
-            <Route path="reset"           element={<ResetPage />} />
-          </Route>
-        </Route>
-      </Routes>
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

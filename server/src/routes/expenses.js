@@ -3,12 +3,31 @@ import prisma from '../db.js';
 
 const router = Router();
 
-const includeParty = { party: { select: { id: true, name: true } } };
+const includeCat = { party: { select: { id: true, name: true } }, expenseCategory: { select: { name: true } } };
+
+// Flatten the ExpenseCategory relation back to a plain `category` name for the client.
+const out = e => (e ? { ...e, category: e.expenseCategory?.name ?? null } : e);
+
+// Resolve a category name to its id within the tenant, creating it on demand.
+async function resolveCategoryId(tenantId, name) {
+  const trimmed = String(name ?? '').trim();
+  if (!trimmed) return null;
+  const cat = await prisma.expenseCategory.upsert({
+    where:  { tenantId_name: { tenantId, name: trimmed } },
+    create: { tenantId, name: trimmed },
+    update: {},
+  });
+  return cat.id;
+}
 
 router.get('/', async (req, res) => {
+  const tenantId = req.tenantId;
   const { from, to, category, month } = req.query;
-  const where = {};
-  if (category) where.category = category;
+  const where = { tenantId };
+  if (category) {
+    const cat = await prisma.expenseCategory.findFirst({ where: { tenantId, name: category }, select: { id: true } });
+    where.expenseCategoryId = cat?.id ?? -1;
+  }
   if (month) {
     const [y, m] = month.split('-').map(Number);
     where.date = { gte: new Date(y, m - 1, 1), lte: new Date(y, m, 0) };
@@ -19,20 +38,22 @@ router.get('/', async (req, res) => {
   }
   const expenses = await prisma.expense.findMany({
     where,
-    include: includeParty,
+    include: includeCat,
     orderBy: { date: 'desc' },
   });
-  res.json(expenses);
+  res.json(expenses.map(out));
 });
 
 router.post('/', async (req, res) => {
+  const tenantId = req.tenantId;
   const { date, category, description, amount, paidAmount, paymentMode, reference, notes, partyId } = req.body;
   if (!category || !amount)
     return res.status(400).json({ error: 'category and amount are required' });
   const expense = await prisma.expense.create({
     data: {
-      date:        date ? new Date(date) : new Date(),
-      category,
+      tenantId,
+      date:              date ? new Date(date) : new Date(),
+      expenseCategoryId: await resolveCategoryId(tenantId, category),
       description: description || null,
       amount:      Number(amount),
       paidAmount:  paidAmount !== undefined && paidAmount !== '' ? Number(paidAmount) : null,
@@ -41,18 +62,22 @@ router.post('/', async (req, res) => {
       notes:       notes || null,
       partyId:     partyId ? Number(partyId) : null,
     },
-    include: includeParty,
+    include: includeCat,
   });
-  res.status(201).json(expense);
+  res.status(201).json(out(expense));
 });
 
 router.patch('/:id', async (req, res) => {
+  const tenantId = req.tenantId;
+  const id = Number(req.params.id);
+  const existing = await prisma.expense.findFirst({ where: { id, tenantId } });
+  if (!existing) return res.status(404).json({ error: 'Not found' });
   const { date, category, description, amount, paidAmount, paymentMode, reference, notes, partyId } = req.body;
   const expense = await prisma.expense.update({
-    where: { id: Number(req.params.id) },
+    where: { id },
     data: {
       ...(date        !== undefined ? { date: new Date(date) }       : {}),
-      ...(category    !== undefined ? { category }                   : {}),
+      ...(category    !== undefined ? { expenseCategoryId: await resolveCategoryId(tenantId, category) } : {}),
       ...(description !== undefined ? { description }                : {}),
       ...(amount      !== undefined ? { amount: Number(amount) }     : {}),
       ...(paidAmount  !== undefined ? { paidAmount: paidAmount !== '' ? Number(paidAmount) : null } : {}),
@@ -61,13 +86,14 @@ router.patch('/:id', async (req, res) => {
       ...(notes       !== undefined ? { notes }                      : {}),
       ...(partyId     !== undefined ? { partyId: partyId ? Number(partyId) : null } : {}),
     },
-    include: includeParty,
+    include: includeCat,
   });
-  res.json(expense);
+  res.json(out(expense));
 });
 
 router.delete('/:id', async (req, res) => {
-  await prisma.expense.delete({ where: { id: Number(req.params.id) } });
+  const result = await prisma.expense.deleteMany({ where: { id: Number(req.params.id), tenantId: req.tenantId } });
+  if (!result.count) return res.status(404).json({ error: 'Not found' });
   res.json({ success: true });
 });
 

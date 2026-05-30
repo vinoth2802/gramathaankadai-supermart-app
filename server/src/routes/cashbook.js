@@ -10,6 +10,7 @@ const purchCash = p => Math.max(0, Number(p.totalPaid));
 
 router.get('/summary', async (req, res) => {
   try {
+    const tid = req.tenantId;
     const dateStr = req.query.date || new Date().toISOString().slice(0, 10);
     const [yr, mo, dy] = dateStr.split('-').map(Number);
 
@@ -22,43 +23,43 @@ router.get('/summary', async (req, res) => {
       daySales, dayPurchases, dayCashTxns, dayPayIn, dayPayOut,
     ] = await Promise.all([
       prisma.sale.findMany({
-        where: { date: { lt: beforeDay }, paymentMode: 'Cash' },
+        where: { tenantId: tid, date: { lt: beforeDay }, paymentMode: 'Cash' },
         select: { totalReceived: true, changeGiven: true },
       }),
       prisma.purchase.findMany({
-        where: { date: { lt: beforeDay }, paymentMode: 'Cash' },
+        where: { tenantId: tid, date: { lt: beforeDay }, paymentMode: 'Cash' },
         select: { totalPaid: true },
       }),
       prisma.cashTransaction.findMany({
-        where: { date: { lt: beforeDay } },
+        where: { tenantId: tid, date: { lt: beforeDay } },
         select: { amount: true, type: true },
       }),
       prisma.paymentInHistory.findMany({
-        where: { date: { lt: beforeDay }, paymentMode: 'Cash' },
+        where: { tenantId: tid, date: { lt: beforeDay }, paymentMode: 'Cash' },
         select: { amount: true },
       }),
       prisma.paymentOutHistory.findMany({
-        where: { date: { lt: beforeDay }, paymentMode: 'Cash' },
+        where: { tenantId: tid, date: { lt: beforeDay }, paymentMode: 'Cash' },
         select: { amount: true },
       }),
       prisma.sale.findMany({
-        where: { date: { gte: dayStart, lte: dayEnd } },
+        where: { tenantId: tid, date: { gte: dayStart, lte: dayEnd } },
         select: { grandTotal: true, totalReceived: true, changeGiven: true, paymentMode: true, customerName: true, invoice: true },
       }),
       prisma.purchase.findMany({
-        where: { date: { gte: dayStart, lte: dayEnd } },
+        where: { tenantId: tid, date: { gte: dayStart, lte: dayEnd } },
         select: { grandTotal: true, totalPaid: true, paymentMode: true, partyName: true, invoice: true },
       }),
       prisma.cashTransaction.findMany({
-        where: { date: { gte: dayStart, lte: dayEnd } },
+        where: { tenantId: tid, date: { gte: dayStart, lte: dayEnd } },
         select: { amount: true, type: true, description: true },
       }),
       prisma.paymentInHistory.findMany({
-        where: { date: { gte: dayStart, lte: dayEnd } },
+        where: { tenantId: tid, date: { gte: dayStart, lte: dayEnd } },
         select: { amount: true, paymentMode: true, partyName: true },
       }),
       prisma.paymentOutHistory.findMany({
-        where: { date: { gte: dayStart, lte: dayEnd } },
+        where: { tenantId: tid, date: { gte: dayStart, lte: dayEnd } },
         select: { amount: true, paymentMode: true, partyName: true },
       }),
     ]);
@@ -142,6 +143,7 @@ router.get('/summary', async (req, res) => {
 /* ── history: one row per active day in [from, to] ── */
 router.get('/history', async (req, res) => {
   try {
+    const tid = req.tenantId;
     const today = new Date().toISOString().slice(0, 10);
     const fromStr = req.query.from || today;
     const toStr   = req.query.to   || today;
@@ -156,16 +158,16 @@ router.get('/history', async (req, res) => {
       prevSales, prevPurch, prevTxns, prevPayIn, prevPayOut,
       ranSales, ranPurch, ranTxns, ranPayIn, ranPayOut,
     ] = await Promise.all([
-      prisma.sale.findMany({ where: { date: { lt: rangeStart }, paymentMode: 'Cash' }, select: { totalReceived: true, changeGiven: true } }),
-      prisma.purchase.findMany({ where: { date: { lt: rangeStart }, paymentMode: 'Cash' }, select: { totalPaid: true } }),
-      prisma.cashTransaction.findMany({ where: { date: { lt: rangeStart } }, select: { amount: true, type: true } }),
-      prisma.paymentInHistory.findMany({ where: { date: { lt: rangeStart }, paymentMode: 'Cash' }, select: { amount: true } }),
-      prisma.paymentOutHistory.findMany({ where: { date: { lt: rangeStart }, paymentMode: 'Cash' }, select: { amount: true } }),
-      prisma.sale.findMany({ where: { date: { gte: rangeStart, lte: rangeEnd } }, select: { grandTotal: true, totalReceived: true, changeGiven: true, paymentMode: true, date: true } }),
-      prisma.purchase.findMany({ where: { date: { gte: rangeStart, lte: rangeEnd } }, select: { grandTotal: true, totalPaid: true, paymentMode: true, date: true } }),
-      prisma.cashTransaction.findMany({ where: { date: { gte: rangeStart, lte: rangeEnd } }, select: { amount: true, type: true, date: true } }),
-      prisma.paymentInHistory.findMany({ where: { date: { gte: rangeStart, lte: rangeEnd }, paymentMode: 'Cash' }, select: { amount: true, date: true } }),
-      prisma.paymentOutHistory.findMany({ where: { date: { gte: rangeStart, lte: rangeEnd }, paymentMode: 'Cash' }, select: { amount: true, date: true } }),
+      prisma.sale.findMany({ where: { tenantId: tid, date: { lt: rangeStart }, paymentMode: 'Cash' }, select: { totalReceived: true, changeGiven: true } }),
+      prisma.purchase.findMany({ where: { tenantId: tid, date: { lt: rangeStart }, paymentMode: 'Cash' }, select: { totalPaid: true } }),
+      prisma.cashTransaction.findMany({ where: { tenantId: tid, date: { lt: rangeStart } }, select: { amount: true, type: true } }),
+      prisma.paymentInHistory.findMany({ where: { tenantId: tid, date: { lt: rangeStart }, paymentMode: 'Cash' }, select: { amount: true } }),
+      prisma.paymentOutHistory.findMany({ where: { tenantId: tid, date: { lt: rangeStart }, paymentMode: 'Cash' }, select: { amount: true } }),
+      prisma.sale.findMany({ where: { tenantId: tid, date: { gte: rangeStart, lte: rangeEnd } }, select: { grandTotal: true, totalReceived: true, changeGiven: true, paymentMode: true, date: true } }),
+      prisma.purchase.findMany({ where: { tenantId: tid, date: { gte: rangeStart, lte: rangeEnd } }, select: { grandTotal: true, totalPaid: true, paymentMode: true, date: true } }),
+      prisma.cashTransaction.findMany({ where: { tenantId: tid, date: { gte: rangeStart, lte: rangeEnd } }, select: { amount: true, type: true, date: true } }),
+      prisma.paymentInHistory.findMany({ where: { tenantId: tid, date: { gte: rangeStart, lte: rangeEnd }, paymentMode: 'Cash' }, select: { amount: true, date: true } }),
+      prisma.paymentOutHistory.findMany({ where: { tenantId: tid, date: { gte: rangeStart, lte: rangeEnd }, paymentMode: 'Cash' }, select: { amount: true, date: true } }),
     ]);
 
     // Opening balance before rangeStart (actual cash exchanged)
