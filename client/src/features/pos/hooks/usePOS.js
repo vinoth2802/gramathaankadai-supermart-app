@@ -103,9 +103,14 @@ export function usePOS() {
     },
   });
 
-  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const gst = cart.reduce((s, i) => s + (i.price * i.qty * (i.gstRate || 0) / 100), 0);
-  const grandTotal = Math.round(subtotal + gst);
+  // salesPrice is tax-inclusive, so price * qty is already the grand total.
+  // Back-calculate GST from the inclusive amount: gst = total × rate / (100 + rate)
+  const grandTotal = Math.round(cart.reduce((s, i) => s + i.price * i.qty, 0));
+  const gst        = cart.reduce((s, i) => {
+    const rate = i.gstRate || 0;
+    return s + (i.price * i.qty) * rate / (100 + rate);
+  }, 0);
+  const subtotal = grandTotal - gst;
   const received = Number(receivedAmount) || 0;
   const change = Math.max(received - grandTotal, 0);
   const prevPoints = Number(selectedParty?.loyaltyPoints ?? 0);

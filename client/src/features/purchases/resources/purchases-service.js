@@ -6,6 +6,7 @@ export const PurchasesAPI = {
   getByDateRange:  (from, to)             => api.get('/purchases', { params: { from, to } }),
   searchByInvoice: (q)                    => api.get('/purchases', { params: { invoiceSearch: q } }),
   getByParty:      (partyId, partyName)   => api.get('/purchases', { params: { partyId, partyName } }),
+  getNextNumber:   ()                     => api.get('/purchases/next-number'),
   create:          (data)                 => api.post('/purchases', data),
   update:          (id, data)             => api.patch(`/purchases/${id}`, data),
   delete:          (id)                   => api.delete(`/purchases/${id}`),

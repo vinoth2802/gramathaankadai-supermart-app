@@ -43,18 +43,20 @@ function deriveStatus(grandTotal, totalReceived, explicit) {
 /* ── Next invoice number ── */
 router.get('/next-number', async (req, res) => {
   try {
-    const allSales = await prisma.sale.findMany({ where: { tenantId: req.tenantId }, select: { invoice: true } });
-
-    let maxNum = 0;
-    for (const s of allSales) {
-      const m = String(s.invoice || '').trim().match(/(\d+)$/);
-      if (m) maxNum = Math.max(maxNum, Number(m[1]));
-    }
-
-    const nextNum = maxNum + 1;
-    res.json({ invoice: String(nextNum), number: nextNum });
+    const tenantId = req.tenantId;
+    // Atomically reserve the next number — concurrent sessions get different values
+    await prisma.$executeRaw`
+      INSERT INTO number_sequences (tenant_id, doc_type, prefix, next_value, padding)
+      VALUES (${tenantId}, 'sale', 'INV', 1, 4)
+      ON DUPLICATE KEY UPDATE next_value = next_value + 1
+    `;
+    const [seq] = await prisma.$queryRaw`
+      SELECT next_value FROM number_sequences
+      WHERE tenant_id = ${tenantId} AND doc_type = 'sale'
+    `;
+    const num = Number(seq.next_value);
+    res.json({ invoice: String(num), number: num });
   } catch (err) {
-    console.error('next-number error:', err);
     res.status(500).json({ error: err.message });
   }
 });

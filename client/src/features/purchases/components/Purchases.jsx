@@ -173,11 +173,12 @@ export default function Purchases() {
   const modes = payOptions.length ? payOptions : [{ name: 'Cash' }];
   const { data: products = [] } = useQuery({ queryKey: ['items'], queryFn: ItemsAPI.getAll });
   const { data: settings }       = useQuery({ queryKey: ['settings'], queryFn: SettingsAPI.get, staleTime: 60_000 });
+  const { data: nextInvData }    = useQuery({ queryKey: ['next-purchase-invoice'], queryFn: PurchasesAPI.getNextNumber, staleTime: 0 });
   const [showScanner, setShowScanner] = useState(false);
 
   const [purchaseTabs, setPurchaseTabs] = useState(() => {
     const ep = location.state?.editPurchase;
-    return ep ? [makeEditTab(ep)] : [makePurchaseTab(genPurchaseBill())];
+    return ep ? [makeEditTab(ep)] : [makePurchaseTab('…')];
   });
   const [activeTabId, setActiveTabId] = useState(() => purchaseTabs[0].id);
   const [saveConfirm, setSaveConfirm] = useState(false);
@@ -215,27 +216,29 @@ export default function Purchases() {
   const setPurchaseType = (type) => updateActiveTab({ purchaseType: type });
   const setInvoice = (nextInvoice) => updateActiveTab({ invoice: nextInvoice });
 
+  // Stamp server-reserved invoice number onto tab when it arrives
   useEffect(() => {
-    const otherTabs = purchaseTabs.filter(t => t.id !== activeTabId);
-    const nextInvoice = genPurchaseBill([...purchases, ...otherTabs]);
-    const invoiceInPurchases = purchases.some(p => String(p.invoice) === String(invoice));
-    const invoiceInOtherTab = otherTabs.some(t => String(t.invoice) === String(invoice));
-    const hasLines = items.some(i => i.name || Number(i.qty) !== 1 || Number(i.price) > 0);
-
-    if (!hasLines && (!invoice || invoiceInPurchases || invoiceInOtherTab)) {
-      setInvoice(nextInvoice);
-    }
-  }, [activeTabId, invoice, items, purchaseTabs, purchases]);
+    if (!nextInvData?.invoice) return;
+    setPurchaseTabs(prev => prev.map((t, i) =>
+      t.invoice === '…' && i === prev.findIndex(x => x.invoice === '…')
+        ? { ...t, invoice: nextInvData.invoice }
+        : t
+    ));
+  }, [nextInvData]);
 
   const grandTotal    = items.reduce((s, i) => s + Number(i.total    || 0), 0);
   const totalQty      = items.reduce((s, i) => s + Number(i.qty      || 0), 0);
   const totalGstAmt   = items.reduce((s, i) => s + Number(i.gstAmount|| 0), 0);
   const suppliers = parties.filter(p => p.type === 'supplier' || p.type === 'both');
 
-  const addPurchaseTab = () => {
-    const tab = makePurchaseTab(genPurchaseBill([...purchases, ...purchaseTabs]));
+  const addPurchaseTab = async () => {
+    const tab = makePurchaseTab('…');
     setPurchaseTabs(prev => [...prev, tab]);
     setActiveTabId(tab.id);
+    try {
+      const data = await PurchasesAPI.getNextNumber();
+      setPurchaseTabs(prev => prev.map(t => t.id === tab.id ? { ...t, invoice: data.invoice } : t));
+    } catch { /* keep '…' if fetch fails */ }
   };
 
   const closePurchaseTab = (tabId, e) => {

@@ -8,6 +8,25 @@ const router = Router();
 
 const include = { items: true };
 
+router.get('/next-number', async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    await prisma.$executeRaw`
+      INSERT INTO number_sequences (tenant_id, doc_type, prefix, next_value, padding)
+      VALUES (${tenantId}, 'purchase', 'PUR', 1, 4)
+      ON DUPLICATE KEY UPDATE next_value = next_value + 1
+    `;
+    const [seq] = await prisma.$queryRaw`
+      SELECT next_value FROM number_sequences
+      WHERE tenant_id = ${tenantId} AND doc_type = 'purchase'
+    `;
+    const num = Number(seq.next_value);
+    res.json({ invoice: String(num), number: num });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const mapItem = (tenantId) => ({ name, batchNo, expiryDate, mfgDate, mrp, qty, unit, price, gstRate, gstAmount, total }) => ({
   tenantId,
   name,
