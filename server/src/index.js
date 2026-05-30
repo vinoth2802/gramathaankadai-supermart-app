@@ -55,6 +55,28 @@ app.set('json replacer', (_key, value) => {
   return value;
 });
 
+app.post('/api/run-seed', async (_req, res) => {
+  try {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const sqlFile = path.join(__dirname, '../../db/seed/seed_gramathaankadai.sql');
+    if (!fs.existsSync(sqlFile)) return res.status(404).json({ error: 'Seed file not found' });
+    const sql = fs.readFileSync(sqlFile, 'utf8');
+    const statements = sql
+      .split(';')
+      .map(s => s.replace(/--.*$/gm, '').trim())
+      .filter(s => s.length > 0);
+    for (const stmt of statements) {
+      await prisma.$executeRawUnsafe(stmt);
+    }
+    res.json({ status: 'Seed complete' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Resolve the active tenant for every API request (sets req.tenantId).
 app.use('/api', tenantContext);
 
@@ -92,27 +114,5 @@ app.use('/api/leave-types',         leaveTypesRouter);
 app.use('/api/leave-requests',      leaveRequestsRouter);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
-
-app.post('/api/run-seed', async (_req, res) => {
-  try {
-    const fs = await import('fs');
-    const path = await import('path');
-    const { fileURLToPath } = await import('url');
-    const __dirname = path.dirname(fileURLToPath(import.meta.url));
-    const sqlFile = path.join(__dirname, '../../db/seed/seed_gramathaankadai.sql');
-    if (!fs.existsSync(sqlFile)) return res.status(404).json({ error: 'Seed file not found' });
-    const sql = fs.readFileSync(sqlFile, 'utf8');
-    const statements = sql
-      .split(';')
-      .map(s => s.replace(/--.*$/gm, '').trim())
-      .filter(s => s.length > 0);
-    for (const stmt of statements) {
-      await prisma.$executeRawUnsafe(stmt);
-    }
-    res.json({ status: 'Seed complete' });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
 
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
