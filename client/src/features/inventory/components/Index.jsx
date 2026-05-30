@@ -13,9 +13,9 @@ import { PurchasesAPI } from '@features/purchases/resources/purchases-service';
 import { CategoriesAPI } from '@features/inventory/resources/inventory-service';
 import AddItemModal from './AddItemModal.jsx';
 import ItemTransactions from './ItemTransactions.jsx';
-import ServicesTab from './services.jsx';
-import CategoryTab from './category.jsx';
-import UnitTab from './unit.jsx';
+import ServicesTab from './Services.jsx';
+import CategoryTab from './Category.jsx';
+import UnitTab from './Unit.jsx';
 
 export default function Items() {
   const location = useLocation();
