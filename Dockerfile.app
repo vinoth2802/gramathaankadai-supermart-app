@@ -17,6 +17,7 @@ COPY server/prisma ./server/prisma
 RUN pnpm install --filter server --frozen-lockfile
 
 COPY server/src ./server/src
+COPY db/seed ./db/seed
 
 # Generate Prisma client
 RUN pnpm --filter server exec prisma generate
