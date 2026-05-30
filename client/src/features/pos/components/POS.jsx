@@ -5,6 +5,7 @@ import { CartPanel } from './CartPanel';
 import { CheckoutBar } from './CheckoutBar';
 import { InvoicePreviewModal } from './InvoicePreviewModal';
 import { PartySelectorModal } from './PartySelectorModal';
+import { PaymentDialog } from './PaymentDialog';
 import { SaleInfoBar } from './SaleInfoBar';
 import { SaleTabs } from './SaleTabs';
 
@@ -47,20 +48,30 @@ export default function POS() {
         subtotal={pos.subtotal}
         gst={pos.gst}
         grandTotal={pos.grandTotal}
-        receivedAmount={pos.receivedAmount}
-        updateReceivedAmount={pos.updateReceivedAmount}
-        change={pos.change}
-        paymentLines={pos.paymentLines}
-        modes={pos.modes}
-        updatePayLine={pos.updatePayLine}
         selectedParty={pos.selectedParty}
         prevPoints={pos.prevPoints}
         eligiblePoints={pos.eligiblePoints}
         totalPoints={pos.totalPoints}
         createSale={pos.createSale}
         cart={pos.cart}
-        completeSale={pos.completeSale}
+        openPayDialog={pos.openPayDialog}
         openClearConfirm={() => pos.setClearConfirm(true)}
+      />
+
+      <PaymentDialog
+        open={pos.payDialog}
+        onClose={() => pos.setPayDialog(false)}
+        grandTotal={pos.grandTotal}
+        subtotal={pos.subtotal}
+        gst={pos.gst}
+        modes={pos.modes}
+        paymentLines={pos.paymentLines}
+        updatePayLine={pos.updatePayLine}
+        receivedAmount={pos.receivedAmount}
+        updateReceivedAmount={pos.updateReceivedAmount}
+        change={pos.change}
+        onComplete={pos.completeSale}
+        isPending={pos.createSale.isPending}
       />
 
       <PartySelectorModal

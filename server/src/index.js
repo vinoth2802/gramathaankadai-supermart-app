@@ -1,8 +1,8 @@
-BigInt.prototype.toJSON = function () { return this.toString() }
-
 import 'dotenv/config';
 import express from 'express';
+import { Prisma } from '@prisma/client';
 import cors from 'cors';
+
 import tenantContext     from './middleware/tenant-context.js';
 import itemsRouter      from './routes/items.js';
 import partiesRouter    from './routes/parties.js';
@@ -37,6 +37,9 @@ import backupRouter             from './routes/backup.js';
 import leaveTypesRouter         from './routes/leaveTypes.js';
 import leaveRequestsRouter      from './routes/leaveRequests.js';
 
+BigInt.prototype.toJSON         = function () { return this.toString() }
+Prisma.Decimal.prototype.toJSON = function () { return parseFloat(this.toString()) }
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -45,14 +48,6 @@ app.use(express.json());
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
-// Prisma returns Decimal as an object and BigInt natively — serialize both to JS primitives
-app.set('json replacer', (_key, value) => {
-  if (value !== null && typeof value === 'object' && value.constructor?.name === 'Decimal') {
-    return parseFloat(value.toString());
-  }
-  if (typeof value === 'bigint') return value.toString();
-  return value;
-});
 
 
 

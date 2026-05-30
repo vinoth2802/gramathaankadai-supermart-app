@@ -33,6 +33,7 @@ export function usePOS() {
   const [clearConfirm, setClearConfirm] = useState(false);
   const [printSale, setPrintSale] = useState(null);
   const [receivedAmount, setReceivedAmount] = useState('');
+  const [payDialog, setPayDialog] = useState(false);
   const [redirectTo, setRedirectTo] = useState(null);
 
   const activeTab = saleTabs.find(t => t.id === activeTabId) || saleTabs[0];
@@ -193,13 +194,18 @@ export function usePOS() {
     setReceivedAmount(value === '' ? '' : Math.max(Number(value) || 0, 0));
   };
 
-  const completeSale = async (shouldPrint = false) => {
+  const openPayDialog = () => {
     if (!cart.length) { toast.warning('Cart is empty'); return; }
     if (saleType === 'credit' && !selectedParty) {
       toast.warning('Select a party for credit sale');
       setPartyModal(true);
       return;
     }
+    setPayDialog(true);
+  };
+
+  const completeSale = async (shouldPrint = false) => {
+    if (!cart.length) { toast.warning('Cart is empty'); return; }
 
     const record = {
       invoice,
@@ -219,6 +225,7 @@ export function usePOS() {
       await PartiesAPI.updateBalance(selectedParty.id, grandTotal - received).catch(() => {});
     }
     toast.success(`Sale completed — Invoice: ${invoice} | Total: ${RS}${grandTotal.toFixed(0)}`);
+    setPayDialog(false);
 
     if (shouldPrint) setPrintSale({ ...record, party: selectedParty });
 
@@ -242,6 +249,7 @@ export function usePOS() {
     partyModal, setPartyModal, addPartyModal, setAddPartyModal, partySearch, setPartySearch,
     saleTabs, activeTabId, setActiveTabId, stockMap,
     clearConfirm, setClearConfirm, printSale, setPrintSale,
+    payDialog, setPayDialog, openPayDialog,
     receivedAmount, updateReceivedAmount,
     cart, paymentLines, selectedParty, saleType, setSaleType, setSelectedParty,
     invoice, subtotal, gst, grandTotal, change, prevPoints, eligiblePoints, totalPoints,
