@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Store, Eye, EyeOff } from 'lucide-react';
 
-const API = '';
+const API = import.meta.env.VITE_API_URL?.replace(/\/api$/, '') ?? '';
 
 export default function Login() {
   const navigate = useNavigate();
