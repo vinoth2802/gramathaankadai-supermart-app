@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Store, Eye, EyeOff } from 'lucide-react';
-
-const API = import.meta.env.VITE_API_URL?.replace(/\/api$/, '') ?? '';
+import api from '@lib/api';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -16,24 +15,15 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const res  = await fetch(`${API}/api/auth/login`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email: form.email, password: form.password }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'Invalid email or password');
-        return;
-      }
+      const data = await api.post('/auth/login', { email: form.email, password: form.password });
       if (data.tenantId == null) {
         setError('Tenant not resolved for this user');
         return;
       }
       localStorage.setItem('user', JSON.stringify({ ...data, loginAt: Date.now() }));
       navigate('/dashboard');
-    } catch {
-      setError('Cannot connect to server. Make sure the server is running.');
+    } catch (err) {
+      setError(err?.error || err?.message || 'Invalid email or password');
     } finally {
       setLoading(false);
     }
