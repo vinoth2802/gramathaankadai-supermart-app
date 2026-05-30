@@ -1,64 +1,66 @@
 # Deployment Guide
 
 > **Stack:** Node/Express API → Railway | React/Vite client → Netlify | MySQL → Railway
-
----
-
-## Prerequisites
-
-- GitHub repo pushed and up to date
-- [Railway](https://railway.app) account
-- [Netlify](https://netlify.com) account
+>
+> **Migration strategy:** `prisma migrate deploy` runs automatically as a Railway
+> pre-deploy command before every release — no separate migration service needed.
 
 ---
 
 ## Part 1 — Railway (API + Database)
 
-### Step 1 — Create a new Railway project
+### Step 1 — Create project
 
-1. Go to [railway.app](https://railway.app) → **New Project**
-2. Choose **Empty Project**
-
----
-
-### Step 2 — Add MySQL database
-
-1. Inside the project click **+ New** → **Database** → **MySQL**
-2. Railway provisions MySQL and sets these variables automatically:
-   - `MYSQLHOST`, `MYSQLPORT`, `MYSQLUSER`, `MYSQLPASSWORD`, `MYSQLDATABASE`, `MYSQL_URL`
-3. Click the MySQL service → **Variables** tab → copy the values, you'll need them shortly
+1. [railway.app](https://railway.app) → **New Project** → **Empty Project**
 
 ---
 
-### Step 3 — Run Migrations (Flyway)
+### Step 2 — Add MySQL
 
-1. Click **+ New** → **GitHub Repo** → select your repo
-2. In the service settings → **Settings** → **Builder** → set **Dockerfile Path** to:
-   ```
-   Dockerfile.migrations
-   ```
+1. **+ New** → **Database** → **Add MySQL**
+2. Railway provisions the DB and exposes these variables automatically:
+   `MYSQLHOST`, `MYSQLPORT`, `MYSQLUSER`, `MYSQLPASSWORD`, `MYSQLDATABASE`, `MYSQL_URL`
+3. Click the MySQL service → **Variables** tab — keep this open, you'll copy values from here.
+
+---
+
+### Step 3 — Deploy the API
+
+1. **+ New** → **GitHub Repo** → select your repo
+2. Railway detects `railway.json` and uses `Dockerfile.app` automatically
 3. Go to **Variables** tab → add:
 
    | Variable | Value |
    |----------|-------|
-   | `FLYWAY_URL` | `jdbc:mysql://<MYSQLHOST>:<MYSQLPORT>/<MYSQLDATABASE>?allowPublicKeyRetrieval=true&useSSL=false` |
-   | `FLYWAY_USER` | *(copy from MySQL service → MYSQLUSER)* |
-   | `FLYWAY_PASSWORD` | *(copy from MySQL service → MYSQLPASSWORD)* |
+   | `DATABASE_URL` | *(paste the `MYSQL_URL` value from the MySQL service)* |
+   | `NODE_ENV` | `production` |
 
-   > Replace `<MYSQLHOST>`, `<MYSQLPORT>`, `<MYSQLDATABASE>` with the actual values from Step 2.
+   > Do **not** set `PORT` — Railway injects it automatically.
 
-4. Click **Deploy** — wait for it to finish (green ✓). This creates all tables.
+4. Click **Deploy**
+
+   On every deploy Railway automatically runs **before** starting the server:
+   ```
+   prisma migrate deploy
+   ```
+   This applies any pending migrations. It is safe to run repeatedly — already-applied migrations are skipped.
+
+5. **Settings** → **Networking** → **Generate Domain**
+6. Copy the public URL → `https://your-app.railway.app`
+   **You need this for Netlify.**
 
 ---
 
-### Step 4 — Seed the Database
+### Step 4 — Seed the database (one-time only)
 
-1. Click **+ New** → **GitHub Repo** → select your repo again
-2. Set **Dockerfile Path** to:
+Run this **once** after the first successful deploy to insert the default tenant and admin user.
+
+1. **+ New** → **GitHub Repo** → same repo
+2. **Settings** → **Builder** → set Dockerfile path to:
    ```
    Dockerfile.seed
    ```
-3. Go to **Variables** tab → add:
+3. **Variables** tab → add:
 
    | Variable | Value |
    |----------|-------|
@@ -68,31 +70,8 @@
    | `MYSQLPASSWORD` | *(from MySQL service)* |
    | `MYSQLDATABASE` | *(from MySQL service)* |
 
-4. Click **Deploy** — wait for green ✓. This inserts default tenant, admin user, etc.
-5. Once done you can **remove** this service (it's a one-time job).
-
----
-
-### Step 5 — Deploy the API
-
-1. Click **+ New** → **GitHub Repo** → select your repo again
-2. Set **Dockerfile Path** to:
-   ```
-   Dockerfile.app
-   ```
-3. Go to **Variables** tab → add:
-
-   | Variable | Value |
-   |----------|-------|
-   | `DATABASE_URL` | *(copy `MYSQL_URL` from MySQL service — it's already in the right format)* |
-   | `NODE_ENV` | `production` |
-
-   > Do **not** set `PORT` — Railway injects it automatically.
-
-4. Click **Deploy** → wait for green ✓
-5. Go to **Settings** → **Networking** → **Generate Domain**
-6. Copy the domain — it looks like `https://your-app.railway.app`
-   **Save this URL, you need it for Netlify.**
+4. **Deploy** → wait for green ✓
+5. **Delete this service** — it is a one-time job, not needed again.
 
 ---
 
@@ -100,51 +79,55 @@
 
 ### Step 1 — Connect repo
 
-1. Go to [netlify.com](https://netlify.com) → **Add new site** → **Import an existing project**
-2. Choose **GitHub** → select your repo
+1. [netlify.com](https://netlify.com) → **Add new site** → **Import an existing project** → **GitHub**
+2. Select your repo — Netlify reads `netlify.toml` automatically
 
-### Step 2 — Build settings
+   | Setting | Value (auto-detected) |
+   |---------|-----------------------|
+   | Base directory | `client` |
+   | Build command | `npm install && npm run build` |
+   | Publish directory | `dist` |
 
-Netlify will auto-detect from `netlify.toml`. Confirm these are set:
+### Step 2 — Set environment variable
 
-| Setting | Value |
-|---------|-------|
-| Base directory | `client` |
-| Build command | `npm install && npm run build` |
-| Publish directory | `dist` |
+**Site configuration** → **Environment variables** → **Add variable**
 
-### Step 3 — Set environment variable
+| Key | Value |
+|-----|-------|
+| `VITE_API_URL` | `https://your-app.railway.app/api` |
 
-1. Go to **Site configuration** → **Environment variables** → **Add variable**
-2. Add:
+> Use the Railway domain from Part 1 Step 5. The `/api` suffix is required.
 
-   | Key | Value |
-   |-----|-------|
-   | `VITE_API_URL` | `https://your-app.railway.app/api` |
+### Step 3 — Deploy
 
-   > Use the Railway domain from Part 1, Step 5.
-
-### Step 4 — Deploy
-
-1. Click **Deploy site**
-2. Wait for build to finish
-3. Your app is live at `https://your-site.netlify.app`
+Click **Deploy site** — done.
 
 ---
 
-## Part 3 — After Deployment
+## Summary of what runs when
 
-### Test the API is healthy
-Open in browser:
+| When | What runs | Where |
+|------|-----------|-------|
+| Every deploy | `prisma migrate deploy` | Railway pre-deploy command |
+| First setup only | `Dockerfile.seed` | Railway one-time job |
+| Every deploy | `node src/index.js` | Railway API service |
+| Every push to main | `npm run build` | Netlify |
+
+---
+
+## Test after deployment
+
 ```
+# API health check
 https://your-app.railway.app/api/health
+→ {"status":"ok"}
+
+# Client
+https://your-site.netlify.app
+→ Login page appears
 ```
-Should return: `{"status":"ok"}`
 
-### Test the client
-Open your Netlify URL → login page should appear.
-
-Default admin credentials (from seed):
+Default login (from seed):
 - **Email:** `admin@gramathaankadai.com`
 - **Password:** `1234`
 
@@ -152,20 +135,12 @@ Default admin credentials (from seed):
 
 ---
 
-## Redeployment (future updates)
-
-- **API** — push to GitHub → Railway auto-redeploys
-- **Client** — push to GitHub → Netlify auto-redeploys
-- **Migrations** — only needed when you add new SQL migration files; redeploy the migrations service manually
-
----
-
 ## Troubleshooting
 
 | Problem | Fix |
 |---------|-----|
-| API returns 502/503 | Check Railway logs → likely a `DATABASE_URL` error |
-| Client shows blank page | Check browser console → likely wrong `VITE_API_URL` |
-| Login fails with "Cannot connect to server" | `VITE_API_URL` is missing `/api` at the end |
-| Flyway migration fails | Check `FLYWAY_URL` format — must start with `jdbc:mysql://` |
-| Seed fails | Run migrations first; seed assumes tables already exist |
+| API returns 502/503 | Railway logs → likely `DATABASE_URL` wrong or DB not reachable |
+| `prisma migrate deploy` fails | Check `DATABASE_URL` format: `mysql://user:pass@host:port/db` |
+| Client shows blank page | Browser console → `VITE_API_URL` missing or wrong |
+| Login "Cannot connect to server" | `VITE_API_URL` missing `/api` at the end |
+| Seed fails | Make sure API deployed successfully first (tables must exist) |
