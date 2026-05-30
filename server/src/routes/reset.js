@@ -48,12 +48,18 @@ router.delete('/:type', async (req, res) => {
       });
 
     } else if (type === 'purchases') {
-      const r = await prisma.purchase.deleteMany({ where: { tenantId } });
-      count = r.count;
+      await prisma.$transaction(async (tx) => {
+        await tx.purchaseReturn.deleteMany({ where: { tenantId } });
+        const r = await tx.purchase.deleteMany({ where: { tenantId } });
+        count = r.count;
+      });
 
     } else if (type === 'sales') {
-      const r = await prisma.sale.deleteMany({ where: { tenantId } });
-      count = r.count;
+      await prisma.$transaction(async (tx) => {
+        await tx.saleReturn.deleteMany({ where: { tenantId } });
+        const r = await tx.sale.deleteMany({ where: { tenantId } });
+        count = r.count;
+      });
 
     } else if (type === 'payments-in') {
       const r = await prisma.paymentInHistory.deleteMany({ where: { tenantId } });
