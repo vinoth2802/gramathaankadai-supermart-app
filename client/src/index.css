@@ -7,3 +7,15 @@
 .reports-sidebar::-webkit-scrollbar-track  { background: transparent; }
 .reports-sidebar::-webkit-scrollbar-thumb  { background: #cbd5e1; border-radius: 9999px; }
 .reports-sidebar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+.sidebar-scroll {
+  scrollbar-color: #334155 #0f172a;
+}
+.sidebar-scroll::-webkit-scrollbar { width: 6px; }
+.sidebar-scroll::-webkit-scrollbar-track { background: #0f172a; }
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+  border: 1px solid #0f172a;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover { background: #475569; }

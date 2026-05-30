@@ -3,9 +3,9 @@ import prisma from '../db.js';
 
 const router = Router();
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const types = await prisma.leaveType.findMany({ orderBy: { name: 'asc' } });
+    const types = await prisma.leaveType.findMany({ where: { tenantId: req.tenantId }, orderBy: { name: 'asc' } });
     res.json(types);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -16,6 +16,7 @@ router.post('/', async (req, res) => {
     if (!name?.trim() || !code?.trim()) return res.status(400).json({ error: 'Name and code are required' });
     const type = await prisma.leaveType.create({
       data: {
+        tenantId:        req.tenantId,
         name:            name.trim(),
         code:            code.trim().toUpperCase(),
         annualAllotment: annualAllotment ?? 0,
@@ -32,9 +33,12 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    const existing = await prisma.leaveType.findFirst({ where: { id, tenantId: req.tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Not found' });
     const { name, code, annualAllotment, isPaid, isActive, color } = req.body;
     const type = await prisma.leaveType.update({
-      where: { id: Number(req.params.id) },
+      where: { id },
       data: {
         ...(name            !== undefined ? { name }                          : {}),
         ...(code            !== undefined ? { code: code.toUpperCase() }      : {}),
@@ -50,7 +54,8 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    await prisma.leaveType.delete({ where: { id: Number(req.params.id) } });
+    const result = await prisma.leaveType.deleteMany({ where: { id: Number(req.params.id), tenantId: req.tenantId } });
+    if (!result.count) return res.status(404).json({ error: 'Not found' });
     res.status(204).end();
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

@@ -4,9 +4,9 @@ import prisma from '../db.js';
 const router = Router();
 
 // ── UOM ───────────────────────────────────────────────────────
-router.get('/uom', async (_req, res) => {
+router.get('/uom', async (req, res) => {
   try {
-    const uoms = await prisma.uom.findMany({ orderBy: { id: 'asc' } });
+    const uoms = await prisma.uom.findMany({ where: { tenantId: req.tenantId }, orderBy: { id: 'asc' } });
     res.json(uoms);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -15,7 +15,7 @@ router.post('/uom', async (req, res) => {
   try {
     if (!req.body.code?.trim()) return res.status(400).json({ error: 'Code is required' });
     const uom = await prisma.uom.create({
-      data: { code: req.body.code.trim().toUpperCase(), descr: req.body.descr || '' },
+      data: { tenantId: req.tenantId, code: req.body.code.trim().toUpperCase(), descr: req.body.descr || '' },
     });
     res.status(201).json(uom);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -23,22 +23,23 @@ router.post('/uom', async (req, res) => {
 
 router.delete('/uom/:id', async (req, res) => {
   try {
-    await prisma.uom.delete({ where: { id: Number(req.params.id) } });
+    await prisma.uom.deleteMany({ where: { id: Number(req.params.id), tenantId: req.tenantId } });
     res.status(204).end();
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ── Cash Overview (balance + combined transactions) ───────────
-router.get('/cash/overview', async (_req, res) => {
+router.get('/cash/overview', async (req, res) => {
   try {
+    const tid = req.tenantId;
     const [adjustments, sales, purchases] = await Promise.all([
-      prisma.cashTransaction.findMany({ orderBy: [{ date: 'desc' }, { createdAt: 'desc' }] }),
+      prisma.cashTransaction.findMany({ where: { tenantId: tid }, orderBy: [{ date: 'desc' }, { createdAt: 'desc' }] }),
       prisma.sale.findMany({
-        where: { paymentMode: 'Cash' },
+        where: { tenantId: tid, paymentMode: 'Cash' },
         select: { id: true, customerName: true, date: true, grandTotal: true, invoice: true, createdAt: true },
       }),
       prisma.purchase.findMany({
-        where: { paymentMode: 'Cash' },
+        where: { tenantId: tid, paymentMode: 'Cash' },
         select: { id: true, partyName: true, date: true, grandTotal: true, invoice: true, createdAt: true },
       }),
     ]);
@@ -87,8 +88,9 @@ router.get('/cash/overview', async (_req, res) => {
 });
 
 // ── Cash Transactions ─────────────────────────────────────────
-router.get('/cash', async (_req, res) => {
+router.get('/cash', async (req, res) => {
   const records = await prisma.cashTransaction.findMany({
+    where: { tenantId: req.tenantId },
     orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
   });
   res.json(records);
@@ -98,6 +100,7 @@ router.post('/cash', async (req, res) => {
   const { date, type, amount, description } = req.body;
   const record = await prisma.cashTransaction.create({
     data: {
+      tenantId:    req.tenantId,
       date:        date ? new Date(date) : undefined,
       type,
       amount,
@@ -109,9 +112,12 @@ router.post('/cash', async (req, res) => {
 
 router.patch('/cash/:id', async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    const existing = await prisma.cashTransaction.findFirst({ where: { id, tenantId: req.tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Not found' });
     const { date, type, amount, description } = req.body;
     const record = await prisma.cashTransaction.update({
-      where: { id: Number(req.params.id) },
+      where: { id },
       data: {
         date:        date ? new Date(date) : undefined,
         type,
@@ -127,7 +133,7 @@ router.patch('/cash/:id', async (req, res) => {
 
 router.delete('/cash/:id', async (req, res) => {
   try {
-    await prisma.cashTransaction.delete({ where: { id: Number(req.params.id) } });
+    await prisma.cashTransaction.deleteMany({ where: { id: Number(req.params.id), tenantId: req.tenantId } });
     res.status(204).end();
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -135,17 +141,19 @@ router.delete('/cash/:id', async (req, res) => {
 });
 
 // ── Bank Accounts ─────────────────────────────────────────────
-router.get('/bank', async (_req, res) => {
-  const accounts = await prisma.bankAccount.findMany({ orderBy: { id: 'asc' } });
+router.get('/bank', async (req, res) => {
+  const accounts = await prisma.bankAccount.findMany({ where: { tenantId: req.tenantId }, orderBy: { id: 'asc' } });
   res.json(accounts);
 });
 
 router.post('/bank', async (req, res) => {
   try {
+    const tenantId = req.tenantId;
     const { bankName, accountNo, ifsc, balance, type } = req.body;
     if (!bankName?.trim()) return res.status(400).json({ error: 'Bank name is required' });
     const account = await prisma.bankAccount.create({
       data: {
+        tenantId,
         bankName:  bankName.trim(),
         accountNo: accountNo || null,
         ifsc:      ifsc      || null,
@@ -155,9 +163,9 @@ router.post('/bank', async (req, res) => {
     });
     // Auto-register as a payment mode so POS / Sales / Purchases dropdowns pick it up
     await prisma.paymentMode.upsert({
-      where:  { name: bankName.trim() },
+      where:  { tenantId_name: { tenantId, name: bankName.trim() } },
       update: { isActive: true },
-      create: { name: bankName.trim(), descr: 'Bank Account' },
+      create: { tenantId, name: bankName.trim(), descr: 'Bank Account' },
     });
     res.status(201).json(account);
   } catch (err) {
@@ -168,10 +176,13 @@ router.post('/bank', async (req, res) => {
 
 router.put('/bank/:id', async (req, res) => {
   try {
+    const id = Number(req.params.id);
     const { bankName, accountNo, ifsc, type } = req.body;
     if (!bankName?.trim()) return res.status(400).json({ error: 'Bank name is required' });
+    const existing = await prisma.bankAccount.findFirst({ where: { id, tenantId: req.tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Not found' });
     const account = await prisma.bankAccount.update({
-      where: { id: Number(req.params.id) },
+      where: { id },
       data:  { bankName: bankName.trim(), accountNo: accountNo || null, ifsc: ifsc || null, type: type || 'Current' },
     });
     res.json(account);
@@ -182,7 +193,7 @@ router.put('/bank/:id', async (req, res) => {
 
 router.delete('/bank/:id', async (req, res) => {
   try {
-    await prisma.bankAccount.delete({ where: { id: Number(req.params.id) } });
+    await prisma.bankAccount.deleteMany({ where: { id: Number(req.params.id), tenantId: req.tenantId } });
     res.status(204).end();
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -191,18 +202,19 @@ router.delete('/bank/:id', async (req, res) => {
 
 router.post('/bank/transfer', async (req, res) => {
   try {
+    const tenantId = req.tenantId;
     const { type, fromBankId, toBankId, amount } = req.body;
     const amt = Number(amount) || 0;
     if (type === 'adjust') {
-      await prisma.bankAccount.update({ where: { id: Number(fromBankId) }, data: { balance: amt } });
+      await prisma.bankAccount.updateMany({ where: { id: Number(fromBankId), tenantId }, data: { balance: amt } });
     } else if (type === 'bankToCash') {
-      await prisma.bankAccount.update({ where: { id: Number(fromBankId) }, data: { balance: { decrement: amt } } });
+      await prisma.bankAccount.updateMany({ where: { id: Number(fromBankId), tenantId }, data: { balance: { decrement: amt } } });
     } else if (type === 'cashToBank') {
-      await prisma.bankAccount.update({ where: { id: Number(fromBankId) }, data: { balance: { increment: amt } } });
+      await prisma.bankAccount.updateMany({ where: { id: Number(fromBankId), tenantId }, data: { balance: { increment: amt } } });
     } else if (type === 'bankToBank') {
       await prisma.$transaction([
-        prisma.bankAccount.update({ where: { id: Number(fromBankId) }, data: { balance: { decrement: amt } } }),
-        prisma.bankAccount.update({ where: { id: Number(toBankId)   }, data: { balance: { increment: amt } } }),
+        prisma.bankAccount.updateMany({ where: { id: Number(fromBankId), tenantId }, data: { balance: { decrement: amt } } }),
+        prisma.bankAccount.updateMany({ where: { id: Number(toBankId),   tenantId }, data: { balance: { increment: amt } } }),
       ]);
     }
     res.json({ success: true });
@@ -213,17 +225,18 @@ router.post('/bank/transfer', async (req, res) => {
 
 router.get('/bank/:id/transactions', async (req, res) => {
   try {
-    const bank = await prisma.bankAccount.findUnique({ where: { id: Number(req.params.id) }, select: { bankName: true } });
+    const tid = req.tenantId;
+    const bank = await prisma.bankAccount.findFirst({ where: { id: Number(req.params.id), tenantId: tid }, select: { bankName: true } });
     if (!bank) return res.status(404).json({ error: 'Bank not found' });
 
     const [sales, purchases] = await Promise.all([
       prisma.sale.findMany({
-        where: { paymentMode: bank.bankName },
+        where: { tenantId: tid, paymentMode: bank.bankName },
         select: { id: true, customerName: true, date: true, grandTotal: true, invoice: true },
         orderBy: { date: 'desc' },
       }),
       prisma.purchase.findMany({
-        where: { paymentMode: bank.bankName },
+        where: { tenantId: tid, paymentMode: bank.bankName },
         select: { id: true, partyName: true, date: true, grandTotal: true, invoice: true },
         orderBy: { date: 'desc' },
       }),
@@ -241,8 +254,8 @@ router.get('/bank/:id/transactions', async (req, res) => {
 });
 
 // ── Cheques ───────────────────────────────────────────────────
-router.get('/cheques', async (_req, res) => {
-  const cheques = await prisma.cheque.findMany({ orderBy: { createdAt: 'desc' } });
+router.get('/cheques', async (req, res) => {
+  const cheques = await prisma.cheque.findMany({ where: { tenantId: req.tenantId }, orderBy: { createdAt: 'desc' } });
   res.json(cheques);
 });
 
@@ -250,6 +263,7 @@ router.post('/cheques', async (req, res) => {
   const { partyId, partyName, amount, chequeNo, bank, issueDate, dueDate, type } = req.body;
   const cheque = await prisma.cheque.create({
     data: {
+      tenantId:  req.tenantId,
       partyId:   partyId   || null,
       partyName: partyName || null,
       amount,
@@ -264,16 +278,20 @@ router.post('/cheques', async (req, res) => {
 });
 
 router.patch('/cheques/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  const existing = await prisma.cheque.findFirst({ where: { id, tenantId: req.tenantId } });
+  if (!existing) return res.status(404).json({ error: 'Not found' });
   const cheque = await prisma.cheque.update({
-    where: { id: Number(req.params.id) },
+    where: { id },
     data: { status: req.body.status },
   });
   res.json(cheque);
 });
 
 // ── Audit Log ─────────────────────────────────────────────────
-router.get('/audit', async (_req, res) => {
+router.get('/audit', async (req, res) => {
   const logs = await prisma.auditLog.findMany({
+    where: { tenantId: req.tenantId },
     orderBy: { logTime: 'desc' },
     take: 500,
   });
@@ -283,6 +301,7 @@ router.get('/audit', async (_req, res) => {
 router.post('/audit', async (req, res) => {
   const log = await prisma.auditLog.create({
     data: {
+      tenantId: req.tenantId,
       userName: req.body.userName || 'admin',
       action:   req.body.action,
       details:  req.body.details ?? undefined,

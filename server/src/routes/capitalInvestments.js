@@ -45,7 +45,8 @@ function toClient(rec) {
 // GET /api/capital-investments?type=Director
 router.get('/', async (req, res) => {
   try {
-    const where = req.query.type ? { type: req.query.type } : {};
+    const where = { tenantId: req.tenantId };
+    if (req.query.type) where.type = req.query.type;
     const records = await prisma.capitalInvestment.findMany({
       where,
       orderBy: { investmentDate: 'desc' },
@@ -60,8 +61,8 @@ router.get('/', async (req, res) => {
 // GET /api/capital-investments/:id
 router.get('/:id', async (req, res) => {
   try {
-    const record = await prisma.capitalInvestment.findUnique({
-      where: { id: Number(req.params.id) },
+    const record = await prisma.capitalInvestment.findFirst({
+      where: { id: Number(req.params.id), tenantId: req.tenantId },
     });
     if (!record) return res.status(404).json({ error: 'Not found' });
     res.json(toClient(record));
@@ -76,7 +77,7 @@ router.post('/', async (req, res) => {
     const data = toDb(req.body);
     if (!data.investorName) return res.status(400).json({ error: 'Investor name required' });
     if (!data.investmentDate || isNaN(data.investmentDate)) return res.status(400).json({ error: 'Valid investment date required' });
-    const record = await prisma.capitalInvestment.create({ data });
+    const record = await prisma.capitalInvestment.create({ data: { ...data, tenantId: req.tenantId } });
     res.status(201).json(toClient(record));
   } catch (err) {
     console.error(err);
@@ -88,6 +89,8 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
+    const existing = await prisma.capitalInvestment.findFirst({ where: { id, tenantId: req.tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Not found' });
     const data = toDb(req.body);
     data.updatedAt = new Date();
     const record = await prisma.capitalInvestment.update({ where: { id }, data });
@@ -102,11 +105,11 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/capital-investments/:id
 router.delete('/:id', async (req, res) => {
   try {
-    await prisma.capitalInvestment.delete({ where: { id: Number(req.params.id) } });
+    const result = await prisma.capitalInvestment.deleteMany({ where: { id: Number(req.params.id), tenantId: req.tenantId } });
+    if (!result.count) return res.status(404).json({ error: 'Not found' });
     res.json({ success: true });
   } catch (err) {
     console.error(err);
-    if (err.code === 'P2025') return res.status(404).json({ error: 'Not found' });
     res.status(500).json({ error: err.message });
   }
 });

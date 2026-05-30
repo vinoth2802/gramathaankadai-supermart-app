@@ -7,7 +7,7 @@ const router = Router();
 router.get('/bill-wise-profit', async (req, res) => {
   try {
     const { from, to } = req.query;
-    const where = {};
+    const where = { tenantId: req.tenantId };
     if (from || to) {
       where.date = {};
       if (from) where.date.gte = new Date(from);
@@ -53,22 +53,23 @@ router.get('/bill-wise-profit', async (req, res) => {
 router.get('/day-book', async (req, res) => {
   try {
     const { date } = req.query;
+    const tid = req.tenantId;
     const day = date ? new Date(date) : new Date();
     const from = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0, 0);
     const to   = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 23, 59, 59, 999);
 
     const [sales, purchases, cashTxns] = await Promise.all([
       prisma.sale.findMany({
-        where: { date: { gte: from, lte: to } },
+        where: { tenantId: tid, date: { gte: from, lte: to } },
         include: { party: { select: { name: true } } },
         orderBy: { date: 'desc' },
       }),
       prisma.purchase.findMany({
-        where: { date: { gte: from, lte: to } },
+        where: { tenantId: tid, date: { gte: from, lte: to } },
         orderBy: { date: 'desc' },
       }),
       prisma.cashTransaction.findMany({
-        where: { date: { gte: from, lte: to } },
+        where: { tenantId: tid, date: { gte: from, lte: to } },
         orderBy: { date: 'desc' },
       }),
     ]);
@@ -112,22 +113,21 @@ router.get('/day-book', async (req, res) => {
 router.get('/all-transactions', async (req, res) => {
   try {
     const { from, to } = req.query;
-    const dateWhere = {};
+    const where = { tenantId: req.tenantId };
     if (from || to) {
-      dateWhere.date = {};
-      if (from) dateWhere.date.gte = new Date(from);
-      if (to)   dateWhere.date.lte = new Date(to);
+      where.date = {};
+      if (from) where.date.gte = new Date(from);
+      if (to)   where.date.lte = new Date(to);
     }
-    const hasFilter = Object.keys(dateWhere).length > 0;
 
     const [sales, purchases] = await Promise.all([
       prisma.sale.findMany({
-        where: hasFilter ? dateWhere : undefined,
+        where,
         include: { party: { select: { name: true } } },
         orderBy: { date: 'desc' },
       }),
       prisma.purchase.findMany({
-        where: hasFilter ? dateWhere : undefined,
+        where,
         orderBy: { date: 'desc' },
       }),
     ]);

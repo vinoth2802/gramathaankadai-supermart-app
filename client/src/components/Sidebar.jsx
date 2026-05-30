@@ -10,7 +10,7 @@ import {
   Wrench, Upload, Download, QrCode,
   SlidersHorizontal, ArrowLeftRight, Printer, Percent, UserCog, Box, Ruler, Star, Gift, Trash2,
   Database, CreditCard, ClipboardList, BookOpen, History,
-  UsersRound, UserCheck, Banknote, CalendarCheck, CalendarOff,
+  UsersRound, UserCheck, Banknote, CalendarCheck, CalendarOff, MoreVertical,
 } from 'lucide-react';
 
 const nav = [
@@ -201,11 +201,13 @@ export default function Sidebar() {
 
   const [openGroup, setOpenGroup] = useState(activeGroup);
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const handleToggle = (label) =>
     setOpenGroup(prev => (prev === label ? null : label));
 
   const doLogout = () => {
+    setUserMenuOpen(false);
     localStorage.removeItem('user');
     navigate('/login');
   };
@@ -226,7 +228,7 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+      <nav className="sidebar-scroll flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {nav.map((item, i) => (
           <NavItem
             key={item.to ?? item.label ?? i}
@@ -242,22 +244,38 @@ export default function Sidebar() {
       </nav>
 
       {/* User footer */}
-      <div className="px-4 py-4 border-t border-slate-700/60">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+      <div className="relative px-4 py-4 border-t border-slate-700/60">
+        <div className="flex items-center gap-3 rounded-xl border border-slate-700/70 bg-slate-800/70 px-3 py-2.5">
+          <div className="w-9 h-9 bg-amber-500 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0">
             {(user.name || 'A')[0].toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-white text-sm font-medium truncate">{user.name || 'Admin'}</div>
-            <div className="text-slate-500 text-xs">Owner</div>
+            <div className="text-amber-400/90 text-xs font-medium">Owner</div>
           </div>
+          <button
+            type="button"
+            onClick={() => setUserMenuOpen(open => !open)}
+            className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-700 hover:text-white transition"
+            title="Account menu"
+          >
+            <MoreVertical size={16} />
+          </button>
         </div>
-        <button
-          onClick={() => setLogoutOpen(true)}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 text-sm transition"
-        >
-          <LogOut size={15} /> Log out
-        </button>
+
+        {userMenuOpen && (
+          <>
+            <button className="fixed inset-0 z-40 cursor-default" onClick={() => setUserMenuOpen(false)} aria-label="Close account menu" />
+            <div className="absolute bottom-16 right-4 z-50 w-44 overflow-hidden rounded-xl border border-slate-700 bg-slate-800 shadow-2xl">
+              <button
+                onClick={() => { setUserMenuOpen(false); setLogoutOpen(true); }}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm text-slate-300 hover:bg-slate-700 hover:text-rose-300 transition"
+              >
+                <LogOut size={15} /> Log out
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       <ConfirmDialog

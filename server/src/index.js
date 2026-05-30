@@ -1,6 +1,10 @@
+BigInt.prototype.toJSON = function () { return this.toString() }
+
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import prisma from './db.js';
+import tenantContext     from './middleware/tenant-context.js';
 import itemsRouter      from './routes/items.js';
 import partiesRouter    from './routes/parties.js';
 import salesRouter      from './routes/sales.js';
@@ -37,8 +41,10 @@ import leaveRequestsRouter      from './routes/leaveRequests.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+app.use(cors({ origin: '*', methods: '*', allowedHeaders: '*' }));
 app.use(express.json());
+
+app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
 // Prisma returns Decimal as an object and BigInt natively — serialize both to JS primitives
 app.set('json replacer', (_key, value) => {
@@ -48,6 +54,31 @@ app.set('json replacer', (_key, value) => {
   if (typeof value === 'bigint') return value.toString();
   return value;
 });
+
+app.post('/api/run-seed', async (_req, res) => {
+  try {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const sqlFile = path.join(__dirname, '../../db/seed/seed_gramathaankadai.sql');
+    if (!fs.existsSync(sqlFile)) return res.status(404).json({ error: 'Seed file not found' });
+    const sql = fs.readFileSync(sqlFile, 'utf8');
+    const statements = sql
+      .split(';')
+      .map(s => s.replace(/--.*$/gm, '').trim())
+      .filter(s => s.length > 0);
+    for (const stmt of statements) {
+      await prisma.$executeRawUnsafe(stmt);
+    }
+    res.json({ status: 'Seed complete' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Resolve the active tenant for every API request (sets req.tenantId).
+app.use('/api', tenantContext);
 
 app.use('/api/items',     itemsRouter);
 app.use('/api/parties',   partiesRouter);

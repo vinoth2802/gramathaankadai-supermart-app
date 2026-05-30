@@ -20,10 +20,11 @@ const DEFAULTS = [
 ];
 
 router.get('/', async (req, res) => {
-  let cats = await prisma.expenseCategory.findMany({ orderBy: [{ type: 'asc' }, { name: 'asc' }] });
+  const tenantId = req.tenantId;
+  let cats = await prisma.expenseCategory.findMany({ where: { tenantId }, orderBy: [{ type: 'asc' }, { name: 'asc' }] });
   if (cats.length === 0) {
-    await prisma.expenseCategory.createMany({ data: DEFAULTS, skipDuplicates: true });
-    cats = await prisma.expenseCategory.findMany({ orderBy: [{ type: 'asc' }, { name: 'asc' }] });
+    await prisma.expenseCategory.createMany({ data: DEFAULTS.map(d => ({ ...d, tenantId })), skipDuplicates: true });
+    cats = await prisma.expenseCategory.findMany({ where: { tenantId }, orderBy: [{ type: 'asc' }, { name: 'asc' }] });
   }
   res.json(cats);
 });
@@ -33,7 +34,7 @@ router.post('/', async (req, res) => {
   if (!name || !type) return res.status(400).json({ error: 'name and type are required' });
   try {
     const cat = await prisma.expenseCategory.create({
-      data: { name: name.trim(), type, color: color || 'bg-slate-100 text-slate-600' },
+      data: { tenantId: req.tenantId, name: name.trim(), type, color: color || 'bg-slate-100 text-slate-600' },
     });
     res.status(201).json(cat);
   } catch (e) {
@@ -43,10 +44,11 @@ router.post('/', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
+  const tenantId = req.tenantId;
   const id  = Number(req.params.id);
-  const cat = await prisma.expenseCategory.findUnique({ where: { id } });
+  const cat = await prisma.expenseCategory.findFirst({ where: { id, tenantId } });
   if (!cat) return res.status(404).json({ error: 'Not found' });
-  const inUse = await prisma.expense.count({ where: { category: cat.name } });
+  const inUse = await prisma.expense.count({ where: { tenantId, expenseCategoryId: id } });
   if (inUse > 0) return res.status(400).json({ error: `Cannot delete — used by ${inUse} expense(s)` });
   await prisma.expenseCategory.delete({ where: { id } });
   res.json({ success: true });

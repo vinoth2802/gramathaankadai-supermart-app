@@ -1,87 +1,65 @@
-version: '3.9'
-
 services:
-  postgres:
-    image: postgres:16
-    container_name: postgres-db
+  mysql:
+    image: mysql:8.4            # 8.4 LTS (caching_sha2_password is the default)
+    container_name: mysql-db
 
-    # PostgreSQL environment variables
+    # MySQL environment variables
     environment:
-      POSTGRES_DB: gramathaankadai_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      MYSQL_DATABASE: gramathaankadai_db
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: app
+      MYSQL_PASSWORD: app
 
-    # Expose PostgreSQL port
+    # Host 3307 → container 3306 (avoids clashing with a local MySQL on 3306)
     ports:
-      - "5433:5432"
+      - "3307:3306"
 
-    # Persist PostgreSQL data
+    # Persist MySQL data
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
 
-    # Restart policy
     restart: unless-stopped
 
-    # PostgreSQL health check
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d gramathaankadai_db"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: pgadmin
-
-    # pgAdmin login credentials
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-
-    # Expose pgAdmin UI
+  # Lightweight DB UI (replaces pgAdmin) — http://localhost:8978
+  cloudbeaver:
+    image: dbeaver/cloudbeaver:latest
+    container_name: cloudbeaver
     ports:
-      - "5050:80"
-
-    # Persist pgAdmin data
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-
-    # Wait for postgres
+      - "8978:8978"
     depends_on:
-      postgres:
+      mysql:
         condition: service_healthy
-
-    # Restart policy
     restart: unless-stopped
 
   flyway:
-    image: docker.io/flyway/flyway:10
+    image: flyway/flyway:10
 
-    # Run Flyway migrations
     command: migrate
 
-    # Flyway DB configuration
+    # Flyway DB configuration (MySQL)
     environment:
-      FLYWAY_URL: jdbc:postgresql://postgres:5432/gramathaankadai_db
-      FLYWAY_USER: postgres
-      FLYWAY_PASSWORD: postgres
+      FLYWAY_URL: jdbc:mysql://mysql:3306/gramathaankadai_db?allowPublicKeyRetrieval=true&useSSL=false
+      FLYWAY_USER: root
+      FLYWAY_PASSWORD: root
       FLYWAY_LOCATIONS: filesystem:/flyway/sql
-      FLYWAY_BASELINE_ON_MIGRATE: "true"
-      FLYWAY_BASELINE_VERSION: "5"
+      # Greenfield v2: migrate from V1 on an empty database (no baseline skip).
+      FLYWAY_BASELINE_ON_MIGRATE: "false"
 
-    # Mount migration scripts
     volumes:
       - ./db/migrations:/flyway/sql
 
-    # Wait for postgres health check
     depends_on:
-      postgres:
+      mysql:
         condition: service_healthy
 
-    # Run only with migrate profile
     profiles:
       - migrate
 
 volumes:
-  postgres_data:
-  pgadmin_data:
+  mysql_data:

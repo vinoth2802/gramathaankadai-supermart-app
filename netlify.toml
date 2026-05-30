@@ -1,0 +1,15 @@
+[build]
+  # Netlify auto-runs `pnpm install` for the whole workspace before this command.
+  # We only need to trigger the client build — no extra install step needed.
+  command = "pnpm --filter client build"
+  publish = "client/dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  VITE_API_URL = "https://gramathaankadai-supermart-app-production.up.railway.app/api"
+
+# SPA fallback — all routes serve index.html so React Router handles them
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200

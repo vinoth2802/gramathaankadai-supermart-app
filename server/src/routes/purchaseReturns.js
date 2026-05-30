@@ -9,9 +9,9 @@ const include = {
 };
 
 /* GET /api/purchase-returns/next-number */
-router.get('/next-number', async (_req, res) => {
+router.get('/next-number', async (req, res) => {
   try {
-    const all = await prisma.purchaseReturn.findMany({ select: { debitNoteNo: true } });
+    const all = await prisma.purchaseReturn.findMany({ where: { tenantId: req.tenantId }, select: { debitNoteNo: true } });
     let max = 0;
     for (const r of all) {
       const m = String(r.debitNoteNo || '').match(/(\d+)$/);
@@ -27,7 +27,7 @@ router.get('/next-number', async (_req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { type, from, to, payment } = req.query;
-    const where = {};
+    const where = { tenantId: req.tenantId };
     if (type)    where.type        = type;
     if (payment) where.paymentMode = payment;
     if (from && to) {
@@ -47,8 +47,8 @@ router.get('/', async (req, res) => {
 /* GET /api/purchase-returns/:id */
 router.get('/:id', async (req, res) => {
   try {
-    const r = await prisma.purchaseReturn.findUnique({
-      where: { id: Number(req.params.id) },
+    const r = await prisma.purchaseReturn.findFirst({
+      where: { id: Number(req.params.id), tenantId: req.tenantId },
       include,
     });
     if (!r) return res.status(404).json({ error: 'Not found' });
@@ -61,6 +61,7 @@ router.get('/:id', async (req, res) => {
 /* POST /api/purchase-returns */
 router.post('/', async (req, res) => {
   try {
+    const tenantId = req.tenantId;
     const {
       debitNoteNo, date, partyId, partyName, referenceInvoice,
       type, subtotal, gst, grandTotal,
@@ -75,36 +76,50 @@ router.post('/', async (req, res) => {
     const derivedStatus = paymentStatus
       || (tp <= 0 ? 'Unpaid' : tp >= gt ? 'Paid' : 'Partial');
 
-    const record = await prisma.purchaseReturn.create({
-      data: {
-        debitNoteNo,
-        date:             date ? new Date(date) : new Date(),
-        partyId:          partyId ? Number(partyId) : null,
-        partyName:        partyName        || 'Walk-in Supplier',
-        referenceInvoice: referenceInvoice || null,
-        type:             type             || 'Debit Note',
-        subtotal:         subtotal         ?? 0,
-        gst:              gst              ?? 0,
-        grandTotal:       gt,
-        paymentMode:      paymentMode      || 'Cash',
-        totalPaid:        tp,
-        dueDate:          dueDate ? new Date(dueDate) : null,
-        paymentStatus:    derivedStatus,
-        notes:            notes || null,
-        items: {
-          create: items.map(i => ({
-            productId: i.productId ? Number(i.productId) : null,
-            name:      i.name      || '',
-            qty:       Number(i.qty      ?? 0),
-            rate:      Number(i.rate     ?? 0),
-            unit:      i.unit      || null,
-            gstRate:   Number(i.gstRate  ?? 0),
-            gstAmount: Number(i.gstAmount ?? 0),
-            amount:    Number(i.amount   ?? 0),
-          })),
+    const record = await prisma.$transaction(async (tx) => {
+      const created = await tx.purchaseReturn.create({
+        data: {
+          tenantId,
+          debitNoteNo,
+          date:             date ? new Date(date) : new Date(),
+          partyId:          partyId ? Number(partyId) : null,
+          partyName:        partyName        || 'Walk-in Supplier',
+          referenceInvoice: referenceInvoice || null,
+          type:             type             || 'Debit Note',
+          subtotal:         subtotal         ?? 0,
+          gst:              gst              ?? 0,
+          grandTotal:       gt,
+          paymentMode:      paymentMode      || 'Cash',
+          totalPaid:        tp,
+          dueDate:          dueDate ? new Date(dueDate) : null,
+          paymentStatus:    derivedStatus,
+          notes:            notes || null,
+          items: {
+            create: items.map(i => ({
+              tenantId,
+              productId: i.productId ? Number(i.productId) : null,
+              name:      i.name      || '',
+              qty:       Number(i.qty      ?? 0),
+              rate:      Number(i.rate     ?? 0),
+              unit:      i.unit      || null,
+              gstRate:   Number(i.gstRate  ?? 0),
+              gstAmount: Number(i.gstAmount ?? 0),
+              amount:    Number(i.amount   ?? 0),
+            })),
+          },
         },
-      },
-      include,
+        include,
+      });
+      // Reduce stock: goods returned to supplier leave inventory.
+      for (const item of created.items) {
+        if (item.productId && Number(item.qty) > 0) {
+          await tx.product.updateMany({
+            where: { id: item.productId, tenantId },
+            data:  { stock: { decrement: Number(item.qty) } },
+          });
+        }
+      }
+      return created;
     });
     res.status(201).json(record);
   } catch (err) {
