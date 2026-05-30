@@ -1,7 +1,7 @@
 # Railway service: Node/Express API
 # ─────────────────────────────────
 # Stage 1: install ALL deps (devDeps too) so prisma CLI is present for generate
-FROM node:20-bookworm-slim AS builder
+FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
 
@@ -24,7 +24,7 @@ RUN pnpm --filter server exec prisma generate
 
 # ─────────────────────────────────
 # Stage 2: lean production image
-FROM node:20-bookworm-slim AS app
+FROM node:22-bookworm-slim AS app
 
 WORKDIR /app
 
