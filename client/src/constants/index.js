@@ -1,19 +1,14 @@
 /* ─── Geography ─── */
 export const INDIAN_STATES = [
-  'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar',
-  'Chandigarh','Chhattisgarh','Delhi','Goa','Gujarat','Haryana','Himachal Pradesh',
-  'Jammu and Kashmir','Jharkhand','Karnataka','Kerala','Ladakh','Lakshadweep',
-  'Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland',
-  'Odisha','Puducherry','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana',
-  'Tripura','Uttar Pradesh','Uttarakhand','West Bengal',
+  'Andhra Pradesh','Karnataka','Kerala','Maharashtra','Odisha','Puducherry','Tamil Nadu','Telangana','Uttar Pradesh','West Bengal'
 ];
 
 /* ─── Items / Inventory ─── */
-export const UNITS     = ['NO.','PCS','KG','G','LTR','ML','BOX','PKT','BAG','DOZ','MTR','SET'];
-export const TAX_RATES = ['','0','5','12','18','28'];
+export const UNITS     = ['Nos','PCS','Kgs','Gms','LTR','ML','BOX','PKT','BAG','DOZ','MTR','SET'];
+export const TAX_RATES = ['','0','5','12','18','28','40'];
 
 /* ─── Payments ─── */
-export const PAYMENT_MODES = ['Cash','UPI','Card','Bank Transfer','Cheque','Credit'];
+export const PAYMENT_MODES = ['Cash','Credit','UPI','Card','Bank Transfer','Cheque'];
 export const RS             = '₹';
 
 /* ─── Sales / Invoicing ─── */

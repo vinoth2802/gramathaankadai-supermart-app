@@ -12,7 +12,7 @@ import { PartiesAPI } from '@features/parties/resources/parties-service';
 import { PaymentsAPI } from '@features/payments/resources/payments-service';
 import { SettingsAPI } from '@features/settings/resources/settings-service';
 import { toast } from 'sonner';
-import { INDIAN_STATES, UNITS, TAX_RATES, PAYMENT_MODES, TERMS_TEMPLATES, DEFAULT_STATE } from '@constants';
+import { INDIAN_STATES, UNITS, TAX_RATES, PAYMENT_MODES as PAYMENT_MODES_FALLBACK, TERMS_TEMPLATES, DEFAULT_STATE } from '@constants';
 import { pad, fmt2, todayYMD, nowTime, formatExpDate } from '@utils/formatters';
 import { calcRow, backCalcRate } from '@utils/calc';
 import { printSaleInvoice } from '../resources/printSaleInvoice';

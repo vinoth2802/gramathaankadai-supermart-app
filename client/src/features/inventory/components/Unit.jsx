@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MoreVertical, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { UnitsAPI } from '@features/inventory/resources/inventory-service';
+import { UNITS } from '@constants';
 
 export default function UnitTab() {
   const qc = useQueryClient();
@@ -83,6 +84,16 @@ export default function UnitTab() {
       toast.success('Conversion deleted');
     },
     onError: () => toast.error('Failed to delete conversion'),
+  });
+
+  const seedDefaultsMut = useMutation({
+    mutationFn: () => Promise.allSettled(
+      UNITS.map(u => UnitsAPI.create({ fullName: u, shortName: u }))
+    ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['units'] });
+      toast.success('Default units loaded');
+    },
   });
 
   const resetUnitForm = () => {
@@ -188,6 +199,18 @@ export default function UnitTab() {
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr><td colSpan={3} className="text-center py-6 text-slate-400 text-xs">Loading…</td></tr>
+              ) : units.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="text-center py-8">
+                    <p className="text-slate-400 text-xs mb-3">No units yet</p>
+                    <button
+                      onClick={() => seedDefaultsMut.mutate()}
+                      disabled={seedDefaultsMut.isPending}
+                      className="text-xs font-semibold px-3 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-lg transition">
+                      {seedDefaultsMut.isPending ? 'Loading…' : 'Load Default Units'}
+                    </button>
+                  </td>
+                </tr>
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={3} className="text-center py-8 text-slate-400 text-xs">No units found</td></tr>
               ) : filtered.map(u => {
