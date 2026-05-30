@@ -7,8 +7,7 @@ import {
 import { toast } from 'sonner';
 import { PartiesAPI } from '@features/parties/resources/parties-service';
 import AddPartyModal from './AddPartyModal.jsx';
-
-const API = 'http://localhost:3001';
+import api from '@lib/api';
 
 /* ── Toggle Switch ── */
 function Toggle({ value, onChange }) {
@@ -41,8 +40,7 @@ function EditSetupModal({ onClose }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch(`${API}/api/settings/loyalty`)
-      .then(r => r.json())
+    api.get('/settings/loyalty')
       .then(d => setForm(prev => ({ ...prev, ...d })))
       .catch(() => {});
   }, []);
@@ -53,12 +51,7 @@ function EditSetupModal({ onClose }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`${API}/api/settings/loyalty`, {
-        method:  'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(form),
-      });
-      if (!res.ok) throw new Error();
+      await api.put('/settings/loyalty', form);
       toast.success('Loyalty settings saved');
       onClose();
     } catch {
@@ -250,8 +243,7 @@ export default function LoyaltyPoints() {
 
   // Load current loyalty enabled state
   useEffect(() => {
-    fetch(`${API}/api/settings/loyalty`)
-      .then(r => r.json())
+    api.get('/settings/loyalty')
       .then(d => { if (typeof d.loyaltyEnabled === 'boolean') setLoyaltyEnabled(d.loyaltyEnabled); })
       .catch(() => {});
   }, []);
@@ -259,11 +251,7 @@ export default function LoyaltyPoints() {
   const handleToggleLoyalty = async (val) => {
     setLoyaltyEnabled(val);
     try {
-      await fetch(`${API}/api/settings/loyalty`, {
-        method:  'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ loyaltyEnabled: val }),
-      });
+      await api.put('/settings/loyalty', { loyaltyEnabled: val });
       toast.success(`Loyalty points ${val ? 'enabled' : 'disabled'}`);
     } catch {
       toast.error('Failed to update');

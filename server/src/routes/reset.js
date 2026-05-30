@@ -7,15 +7,24 @@ const router = Router();
 router.get('/counts', async (req, res) => {
   try {
     const where = { tenantId: req.tenantId };
-    const [items, parties, purchases, sales, paymentsIn, paymentsOut] = await Promise.all([
+    const [items, parties, purchases, purchaseReturns, sales, saleReturns, paymentsIn, paymentsOut] = await Promise.all([
       prisma.product.count({ where }),
       prisma.party.count({ where }),
       prisma.purchase.count({ where }),
+      prisma.purchaseReturn.count({ where }),
       prisma.sale.count({ where }),
+      prisma.saleReturn.count({ where }),
       prisma.paymentInHistory.count({ where }),
       prisma.paymentOutHistory.count({ where }),
     ]);
-    res.json({ items, parties, purchases, sales, paymentsIn, paymentsOut });
+    res.json({
+      items,
+      parties,
+      purchases: purchases + purchaseReturns,
+      sales: sales + saleReturns,
+      paymentsIn,
+      paymentsOut,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -48,12 +57,18 @@ router.delete('/:type', async (req, res) => {
       });
 
     } else if (type === 'purchases') {
-      const r = await prisma.purchase.deleteMany({ where: { tenantId } });
-      count = r.count;
+      await prisma.$transaction(async (tx) => {
+        const ret = await tx.purchaseReturn.deleteMany({ where: { tenantId } });
+        const r   = await tx.purchase.deleteMany({ where: { tenantId } });
+        count = r.count + ret.count;
+      });
 
     } else if (type === 'sales') {
-      const r = await prisma.sale.deleteMany({ where: { tenantId } });
-      count = r.count;
+      await prisma.$transaction(async (tx) => {
+        const ret = await tx.saleReturn.deleteMany({ where: { tenantId } });
+        const r   = await tx.sale.deleteMany({ where: { tenantId } });
+        count = r.count + ret.count;
+      });
 
     } else if (type === 'payments-in') {
       const r = await prisma.paymentInHistory.deleteMany({ where: { tenantId } });

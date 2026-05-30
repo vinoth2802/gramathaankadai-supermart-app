@@ -2,10 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import {
   Package, Users, ShoppingBag, Receipt, CreditCard, Banknote,
-  AlertTriangle, Trash2, RefreshCw, ShoppingCart,
+  AlertTriangle, Trash2, RefreshCw,
 } from 'lucide-react';
-
-const API = 'http://localhost:3001';
+import api from '@lib/api';
 
 const RESET_TYPES = [
   {
@@ -146,8 +145,7 @@ export default function ResetPage() {
 
   const fetchCounts = async () => {
     try {
-      const res  = await fetch(`${API}/api/reset/counts`);
-      const data = await res.json();
+      const data = await api.get('/reset/counts');
       setCounts(data);
     } catch {
       toast.error('Failed to load counts');
@@ -162,13 +160,11 @@ export default function ResetPage() {
     setConfirm(null);
     setResetting(type);
     try {
-      const res  = await fetch(`${API}/api/reset/${type}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await api.delete(`/reset/${type}`);
       toast.success(`Deleted ${data.deleted} record${data.deleted !== 1 ? 's' : ''} successfully`);
       fetchCounts();
     } catch (e) {
-      toast.error(e.message || 'Reset failed');
+      toast.error(e?.error || e?.message || 'Reset failed');
     } finally {
       setResetting(null);
     }
