@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import { Prisma } from '@prisma/client';
 import cors from 'cors';
+import path from 'path';
 
 import tenantContext     from './middleware/tenant-context.js';
 import itemsRouter      from './routes/items.js';
@@ -88,5 +89,12 @@ app.use('/api/leave-types',         leaveTypesRouter);
 app.use('/api/leave-requests',      leaveRequestsRouter);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+
+if (process.env.DIST_PATH) {
+  app.use(express.static(process.env.DIST_PATH));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(process.env.DIST_PATH, 'index.html'));
+  });
+}
 
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));

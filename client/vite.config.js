@@ -2,8 +2,16 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
+const removeElectronCrossorigin = {
+  name: 'remove-crossorigin',
+  transformIndexHtml(html) {
+    return html.replace(/ crossorigin/g, '');
+  }
+};
+
 export default defineConfig({
-  plugins: [react()],
+  base: './',
+  plugins: [react(), removeElectronCrossorigin],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
