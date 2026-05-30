@@ -4,7 +4,7 @@
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "22"
   # Set VITE_API_URL in Netlify UI → Site configuration → Environment variables
   # Example: https://your-app.railway.app/api
 
