@@ -217,48 +217,62 @@ npx prisma migrate status
 |---------|----------|--------|
 | MySQL   | Railway (plugin) | Auto-provisioned |
 | API     | Railway | `Dockerfile.app` |
-| Client  | Netlify | `netlify.toml` |
+| Client  | Railway | `Dockerfile.client` |
+
+---
 
 ### Railway — API Service
 
-**Environment variables to set:**
+**Environment variables:**
 
 | Variable | Value |
 |----------|-------|
 | `DATABASE_URL` | `${{MySQL.MYSQL_URL}}` |
 | `NODE_ENV` | `production` |
 
-**Pre-deploy command** (set in Railway UI → Service → Settings → Deploy):
+**Pre-deploy command** (Railway UI → Service → Settings → Deploy):
 ```
 node_modules/.bin/prisma migrate deploy
 ```
 
-This runs automatically before each deploy — applies any pending migrations, skips already-applied ones. Safe to run repeatedly.
+---
 
-### Netlify — Frontend
+### Railway — Client Service
 
-**Environment variables to set in Netlify UI:**
+1. **+ New** → **GitHub Repo** → select repo
+2. **Settings** → **Build** → Dockerfile path:
+   ```
+   Dockerfile.client
+   ```
+3. **Variables** → add build variable:
 
-| Variable | Value |
-|----------|-------|
-| `VITE_API_URL` | `https://your-app.up.railway.app/api` |
+   | Variable | Value |
+   |----------|-------|
+   | `VITE_API_URL` | `https://your-api.up.railway.app/api` |
 
-Build settings are in `netlify.toml` — no manual config needed.
+   > `VITE_API_URL` is a **build argument** — it gets baked into the JS bundle at build time. Set it before deploying.
+
+4. **Settings** → **Networking** → **Generate Domain**
+
+That's your frontend URL.
+
+---
 
 ### Deploy flow
 
 ```
 git push origin main
     │
-    ├── Railway detects push
+    ├── Railway API service
     │     ├── Builds Docker image (Dockerfile.app)
     │     ├── Runs: prisma migrate deploy   ← pre-deploy
     │     └── Starts: node src/index.js
     │
-    └── Netlify detects push
-          ├── pnpm install (workspace)
-          ├── pnpm --filter client build
-          └── Deploys client/dist/
+    └── Railway Client service
+          ├── Builds Docker image (Dockerfile.client)
+          │     ├── pnpm install + vite build
+          │     └── Copies dist/ into nginx image
+          └── Serves on port 80 via nginx
 ```
 
 ### Seed (one-time, first deploy only)
