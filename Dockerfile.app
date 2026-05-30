@@ -40,19 +40,22 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY server/package.json ./server/package.json
 COPY server/prisma ./server/prisma
 
-# Production deps only
-RUN pnpm install --filter server --prod --frozen-lockfile
+# --ignore-scripts skips postinstall (prisma generate & bcrypt node-gyp-build)
+# because we copy both artifacts from the builder stage below
+RUN pnpm install --filter server --prod --frozen-lockfile --ignore-scripts
 
 # Source code + migrations from builder
 COPY --from=builder /app/server/src ./server/src
 COPY --from=builder /app/server/prisma ./server/prisma
 
-# Generated Prisma client from builder (avoids needing prisma CLI in prod)
+# Generated Prisma client + CLI (needed for prisma migrate deploy pre-deploy command)
 COPY --from=builder /app/server/node_modules/.prisma ./server/node_modules/.prisma
 COPY --from=builder /app/server/node_modules/@prisma ./server/node_modules/@prisma
-# Prisma CLI binary needed for migrate deploy at pre-deploy time
 COPY --from=builder /app/server/node_modules/prisma ./server/node_modules/prisma
 COPY --from=builder /app/server/node_modules/.bin/prisma ./server/node_modules/.bin/prisma
+
+# Pre-compiled bcrypt native binding (skipped by --ignore-scripts above)
+COPY --from=builder /app/server/node_modules/bcrypt/build ./server/node_modules/bcrypt/build
 
 WORKDIR /app/server
 
